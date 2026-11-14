@@ -626,7 +626,7 @@ function showStart(paused){
   $("go").textContent = paused ? "Resume" : "Play";
 }
 $("go").addEventListener("click",()=>{
-  audioOn(); $("start").hidden=true; running=true; clock.getDelta(); setTimeout(cupAutoStart,300);
+  audioOn(); $("start").hidden=true; running=true; clock.getDelta(); $("faceBox").hidden=false; faceMood=""; setTimeout(cupAutoStart,300);
   if (isTouch){ $("touch").hidden=false; return; }
   captureMouse();
 });
@@ -674,7 +674,7 @@ function frame(){
     if (g.cd>0){ g.cd-=dt; g.grp.visible=g.beam.visible=g.cd<=0; continue; }
     g.grp.rotation.y+=dt*1.5; g.grp.position.y=g.pos.y+Math.sin(t*2.3+g.pos.z)*.25;
     if (running && g.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<2.2){ g.cd=GLIDER_RESPAWN; g.grp.visible=g.beam.visible=false; gliderTime=GLIDE_TIME;
-      [523,784,1046].forEach((f,i)=>tone(f,.16,"sine",.07,1,i*.06)); announce("glider","Glider online."); toast("Glider!", isTouch?"Hold Jump while falling to glide · 30 s":"Hold Space while falling to glide · 30 s"); }
+      [523,784,1046].forEach((f,i)=>tone(f,.16,"sine",.07,1,i*.06)); faceHappyT=1.6; announce("glider","Glider online."); toast("Glider!", isTouch?"Hold Jump while falling to glide · 30 s":"Hold Space while falling to glide · 30 s"); }
   }
   // baseball bat
   if (running){ if (hitCd>0) hitCd-=dt; if (batTime>0){ batTime=Math.max(0,batTime-dt); if (!batTime) toast("Bat's gone","Find another red pickup."); } }
@@ -682,7 +682,7 @@ function frame(){
     if (g.cd>0){ g.cd-=dt; g.grp.visible=g.beam.visible=g.cd<=0; continue; }
     g.grp.rotation.y+=dt*1.8; g.grp.position.y=g.pos.y+Math.sin(t*2.1+g.pos.x)*.25;
     if (running && g.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<2.2){ g.cd=BAT_RESPAWN; g.grp.visible=g.beam.visible=false; batTime=BAT_TIME;
-      tone(220,.2,"square",.06); tone(330,.25,"square",.05,1,.08); announce("bat","Bat acquired. Go get 'em."); toast("Baseball bat!", isTouch?"Tap Hit to swing · 30 s":"Press F to swing · 30 s"); }
+      faceHappyT=1.6; tone(220,.2,"square",.06); tone(330,.25,"square",.05,1,.08); announce("bat","Bat acquired. Go get 'em."); toast("Baseball bat!", isTouch?"Tap Hit to swing · 30 s":"Press F to swing · 30 s"); }
   }
   // sparks
   for (const s of sparks){ if (s.got) continue; s.mesh.rotation.y+=dt*2; s.mesh.position.y=s.pos.y+Math.sin(t*2+s.pos.x)*.2;
@@ -691,6 +691,7 @@ function frame(){
       if (runState==="ready") runState="running";
       split(); const i=splits.length-1, d = pb && pb[i]!=null ? splits[i]-pb[i] : null;
       const dTxt = d==null ? fmtT(splits[i]) : `${fmtT(splits[i])} · ${fmtD(d)}${splitMeta[i].gold?" · best segment":""}`;
+      faceHappyT=1.6;
       if (got===TOTAL){ const r=finishRun(); toast(r.newPb ? (r.prev==null?"First full run!":"New personal best!") : "Every spark found!", r.prev==null ? fmtT(r.final) : `${fmtT(r.final)} · ${fmtD(r.final-r.prev)} vs PB`); }
       else toast(`Spark ${got} of ${TOTAL}`, got===1 && !pb ? "Follow the light beams to find the rest." : dTxt);
       renderSplits(true); } }
@@ -710,7 +711,7 @@ function frame(){
       h.hidden = elapsed>45 && swings>20;
       if (h.dataset.v!==html){ h.dataset.v=html; h.innerHTML=html; } }
   }
-  renderTimer();
+  renderTimer(); if (running) updateFace(dt);
   renderer.render(scene,camera);
 }
 // ---------------- multiplayer ----------------
@@ -740,7 +741,7 @@ function sendPresence(){
   if (now-presT < (running?50:1000)) return; presT=now;
   const p=pBody.interpolatedPosition, v=pBody.velocity;
   const h = hook ? [hook.phase==="fly"?1:hook.phase==="attached"?2:3, r2(hook.tip.x),r2(hook.tip.y),r2(hook.tip.z), r2(hook.len||0), hook.remote||""] : 0;
-  room.presence({n:myName(), p:[r2(p.x),r2(p.y),r2(p.z)], v:[r2(v.x),r2(v.y),r2(v.z)], yw:r2(hero.rotation.y), g:gliding?1:0, h, s:got, t:Math.round(elapsed*10)/10, rs:runState, ps:running?0:1, mp:MAP.key, sw:swingN, bt:batTime>0?1:0, hit:lastHit, sp:lastSplash, dk:dunks, bots:botsPayload(), bsp:lastBsp, chat:lastChat, bchat:lastBchat}).catch(()=>{});
+  room.presence({n:myName(), p:[r2(p.x),r2(p.y),r2(p.z)], v:[r2(v.x),r2(v.y),r2(v.z)], yw:r2(hero.rotation.y), g:gliding?1:0, h, s:got, t:Math.round(elapsed*10)/10, rs:runState, ps:running?0:1, mp:MAP.key, pc:myCharKey, sw:swingN, bt:batTime>0?1:0, hit:lastHit, sp:lastSplash, dk:dunks, bots:botsPayload(), bsp:lastBsp, chat:lastChat, bchat:lastBchat}).catch(()=>{});
 }
 function nameSprite(text,color){
   const c=document.createElement("canvas"); let x=c.getContext("2d"); const font="700 30px 'Nunito Sans', system-ui, sans-serif";
@@ -787,7 +788,7 @@ function updateRemotes(dt){
           else if (amController && typeof hit.to==="string" && hit.to.startsWith("bot:")) hitBot(hit.to,dir,!!hit.f,a.peer,a.name); } } }
       const sp=ps.sp;
       if (sp && typeof sp.n==="number"){ if (!lastSpSeen.has(pr.peer)) lastSpSeen.set(pr.peer,sp.n); else if (sp.n>lastSpSeen.get(pr.peer)){ lastSpSeen.set(pr.peer,sp.n);
-        if (myPeer && sp.by===myPeer){ dunks++; announce("dunk","Dunked! "+a.name+" is swimming."); toast("Dunked "+a.name+"!","Straight into the sea."); }
+        if (myPeer && sp.by===myPeer){ dunks++; faceHappyT=2; announce("dunk","Dunked! "+a.name+" is swimming."); toast("Dunked "+a.name+"!","Straight into the sea."); }
         else { if (amController && typeof sp.by==="string" && sp.by.startsWith("bot:")) creditBot(sp.by); announce("swim",a.name+" is swimming with the fishes."); } } }
       const ch=ps.chat;
       if (ch && typeof ch.n==="number" && typeof ch.t==="string"){ if (!lastChatSeen.has(pr.peer)) lastChatSeen.set(pr.peer,ch.n); else if (ch.n>lastChatSeen.get(pr.peer)){ lastChatSeen.set(pr.peer,ch.n); addChat(a.name,cleanChat(ch.t),a.color); blip(); } }
@@ -808,6 +809,7 @@ function updateRemotes(dt){
     if (typeof ps.yw==="number" && isFinite(ps.yw)){ let d=ps.yw-a.yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); a.yaw+=d*Math.min(1,10*dt); a.g.rotation.y=a.yaw; }
     a.open += ((ps.g?1:0)-a.open)*Math.min(1,10*dt); a.wing.visible=a.open>.02; a.wing.scale.set(a.open,1,.4+.6*a.open);
     if (a.bat) a.bat.visible=!!ps.bt; if (a.swing>0) a.swing=Math.max(0,a.swing-dt/.28); poseSwing(a.body,a.bat,a.swing,a.swingBat);
+    if (ps.pc!==a.pcSeen){ a.pcSeen=ps.pc; const C=charByKey(typeof ps.pc==="string"?ps.pc:""); if (ps.pc && C!==CLASSIC){ a.torso.material.color.set(C.suit); a.body.children[2].material=new THREE.MeshStandardMaterial({color:C.hat,roughness:.7}); a.g.scale.setScalar(C.scale||1); } }
     a.body.rotation.x = ps.g ? -1.1 : (Array.isArray(ps.h) && ps.h[0]===2 ? -.35 : 0);
     const text = a.name + (ps.ps ? " (paused)" : "");
     if (text!==a.labelText){ if (a.label){ a.g.remove(a.label); a.label.material.map.dispose(); a.label.material.dispose(); } a.label=nameSprite(text,a.color); a.label.position.y=1.55; a.g.add(a.label); a.labelText=text; }
@@ -871,6 +873,7 @@ function attack(){
   }
 }
 function takeHit(dir,bat,from,mul=1){
+  faceHurtT=1.2;
   const v=pBody.velocity, k=(bat?24:10)*mul;
   v.x+=dir[0]*k; v.z+=dir[1]*k; v.y=Math.max(v.y,bat?12:5);
   knockUntil=simTime+(bat?.9:.45); if (hook) hook.phase="retract"; gliding=false;
@@ -879,6 +882,7 @@ function takeHit(dir,bat,from,mul=1){
   else { thud(); toast(from.name+" shoved you"); }
 }
 function fellInWater(){
+  faceDizzyT=2.2;
   splashS();
   const by = lastHitBy && simTime-lastHitBy.t<8 ? lastHitBy : null;
   spN++; lastSplash={n:spN,by:by?by.peer:""}; lastHitBy=null;
@@ -896,29 +900,43 @@ function fellInWater(){
 // aggr = how hard they chase and how often they swing, fear = how readily they run away,
 // grapple = how often they swing on ropes, dodge = chance to slip a hit, power = knockback, grudge = hunts whoever hit them.
 const CHARACTERS=[
-  {key:"matteo",name:"Matteo",full:"Matteo “Il Fulmine” Ricci",from:"Italy",stripes:["#009246","#f4f5f0","#ce2b37"],suit:"#1f8f4e",hat:"#ce2b37",scale:1,
+  {key:"matteo",skin:"#e8b48a",hair:"#2a1a10",feature:"mustache",name:"Matteo",full:"Matteo “Il Fulmine” Ricci",from:"Italy",stripes:["#009246","#f4f5f0","#ce2b37"],suit:"#1f8f4e",hat:"#ce2b37",scale:1,
    trait:"Hyper-aggressive showboat",intro:"Ciao, everybody! Try to keep up.",taunt:"Bellissimo!",hurt:"Mamma mia!",anim:"spin",
    aggr:1,fear:0,speed:1.08,grapple:1,dodge:0,power:1,voice:{tts:"buttery",rate:1.2,pitch:1.1,lang:"it"}},
-  {key:"yuki",name:"Yuki",full:"Yuki Tanabe",from:"Japan",stripes:["#f4f5f0","#bc002d","#f4f5f0"],suit:"#2b2f3a",hat:"#bc002d",scale:.95,
+  {key:"yuki",skin:"#f2d2b0",hair:"#141418",feature:"bangs",name:"Yuki",full:"Yuki Tanabe",from:"Japan",stripes:["#f4f5f0","#bc002d","#f4f5f0"],suit:"#2b2f3a",hat:"#bc002d",scale:.95,
    trait:"Precise sky-runner. Avoids fights",intro:"Let us begin. Precisely.",taunt:"Efficient.",hurt:"Unacceptable.",anim:"bow",
    aggr:.25,fear:.2,speed:1.05,grapple:2.2,dodge:.25,power:.8,voice:{tts:"glassy",rate:1,pitch:1.2,lang:"ja"}},
-  {key:"lars",name:"Lars",full:"“Big” Lars Brekke",from:"Norway",stripes:["#ba0c2f","#f4f5f0","#00205b"],suit:"#00205b",hat:"#ba0c2f",scale:1.3,
+  {key:"lars",skin:"#f4c8a8",hair:"#d8a040",feature:"beard",name:"Lars",full:"“Big” Lars Brekke",from:"Norway",stripes:["#ba0c2f","#f4f5f0","#00205b"],suit:"#00205b",hat:"#ba0c2f",scale:1.3,
    trait:"Slow, huge, hits like a landslide",intro:"Ha! The fjords made me strong!",taunt:"Like chopping wood!",hurt:"Is that all?",anim:"pound",
    aggr:.8,fear:0,speed:.78,grapple:.5,dodge:0,power:1.5,voice:{tts:"rounded",rate:.9,pitch:.5,lang:"nb"}},
-  {key:"pip",name:"Pip",full:"Priya “Pip” Nair",from:"India",stripes:["#ff9933","#f4f5f0","#138808"],suit:"#ff9933",hat:"#138808",scale:.9,
+  {key:"pip",skin:"#b8805a",hair:"#1a1010",feature:"bigeyes",name:"Pip",full:"Priya “Pip” Nair",from:"India",stripes:["#ff9933","#f4f5f0","#138808"],suit:"#ff9933",hat:"#138808",scale:.9,
    trait:"Terrified of everyone. Bites when cornered",intro:"Oh no, oh no, is it starting already?",taunt:"Sorry! So sorry!",hurt:"Aaah! Not the face!",anim:"cower",
    aggr:.15,fear:.95,speed:1.15,grapple:1.2,dodge:.15,power:.9,voice:{tts:"airy",rate:1.3,pitch:1.5,lang:"en-in"}},
-  {key:"kofi",name:"Kofi",full:"Kofi “Smooth” Mensah",from:"Ghana",stripes:["#ce1126","#fcd116","#006b3f"],suit:"#fcd116",hat:"#006b3f",scale:1,
+  {key:"kofi",skin:"#6a4026",hair:"#141010",feature:"shades",name:"Kofi",full:"Kofi “Smooth” Mensah",from:"Ghana",stripes:["#ce1126","#fcd116","#006b3f"],suit:"#fcd116",hat:"#006b3f",scale:1,
    trait:"Trickster. Dodges and taunts",intro:"Relax, my friend. This will be fun.",taunt:"Too slow, my friend!",hurt:"Okay, okay. Nice one.",anim:"dance",
    aggr:.55,fear:.1,speed:1.1,grapple:1,dodge:.45,power:1,voice:{tts:"buttery",rate:1.05,pitch:.85,lang:"en-gh"}},
-  {key:"valentina",name:"Valentina",full:"Valentina “La Furia” Cruz",from:"Argentina",stripes:["#74acdf","#f4f5f0","#74acdf"],suit:"#74acdf",hat:"#f6b40e",scale:1,
+  {key:"valentina",skin:"#e0a882",hair:"#4a1a12",feature:"earrings",name:"Valentina",full:"Valentina “La Furia” Cruz",from:"Argentina",stripes:["#74acdf","#f4f5f0","#74acdf"],suit:"#74acdf",hat:"#f6b40e",scale:1,
    trait:"Holds grudges. Hit her once and she hunts you",intro:"You want trouble? You found it.",taunt:"That's what you get!",hurt:"Oh, now you've done it.",anim:"knuckles",
    aggr:.6,fear:0,speed:1.05,grapple:1.1,dodge:.1,power:1.1,grudge:true,voice:{tts:"glassy",rate:1.1,pitch:1,lang:"es"}},
-  {key:"dylan",name:"Dylan",full:"Dylan “Swell” Hayes",from:"California, USA",stripes:["#b22234","#f4f5f0","#3c3b6e"],suit:"#2ec4b6",hat:"#f6d55c",scale:1,
+  {key:"dylan",skin:"#f0c08e",hair:"#f6d55c",feature:"shaggy",name:"Dylan",full:"Dylan “Swell” Hayes",from:"California, USA",stripes:["#b22234","#f4f5f0","#3c3b6e"],suit:"#2ec4b6",hat:"#f6d55c",scale:1,
    trait:"Chill surfer. Rides ropes, rarely starts a fight",intro:"Duuude. Gnarly island, bro.",taunt:"Wipeout, brah!",hurt:"Whoa. Harsh, man.",anim:"shaka",
    aggr:.35,fear:0,speed:.95,grapple:1.7,dodge:.3,power:1,voice:{tts:"rounded",rate:.9,pitch:.9,lang:"en-us"}},
 ];
 const BOT_NAMES=CHARACTERS.map(c=>c.name);
+// the player's own character: one of the cast, or the original climber
+const CLASSIC={key:"classic",name:"Climber",full:"The Climber",from:"Skyhook",suit:"#f26b3a",hat:"#22314d",scale:1,skin:"#ffd9b8",hair:"#22314d",feature:"goggles",stripes:["#f26b3a","#22314d","#7ce0ff"]};
+const charByKey=k=>CHARACTERS.find(c=>c.key===k)||CLASSIC;
+let myCharKey="classic"; try{ myCharKey=localStorage.getItem("skyhook.char")||"classic"; }catch(e){}
+function applyHeroLook(){
+  const C=charByKey(myCharKey);
+  heroBody.children[0].material=new THREE.MeshStandardMaterial({color:C.suit,roughness:.6});
+  heroBody.children[2].material=new THREE.MeshStandardMaterial({color:C.hat,roughness:.7});
+  hero.scale.setScalar(C.scale||1);
+  $("faceName").textContent=C.name;
+}
+{ const sel=$("optChar"); for (const C of [CLASSIC,...CHARACTERS]){ const o=document.createElement("option"); o.value=C.key; o.textContent=C.key==="classic"?"The Climber (classic)":`${C.name} · ${C.from}`; sel.append(o); }
+  sel.value=myCharKey; sel.addEventListener("change",()=>{ myCharKey=sel.value; try{ localStorage.setItem("skyhook.char",myCharKey); }catch(e){} applyHeroLook(); bots.forEach(removeBot); bots=[]; }); }
+applyHeroLook();
 let bots=[], botSerial=1, amController=false, wantBots=2, bspN=0, lastBsp=0;
 const botAvatars=new Map(), lastBspSeen=new Map();
 try{ const b=localStorage.getItem("skyhook.bots"); if (b!==null) wantBots=Math.max(0,Math.min(7,+b|0)); }catch(e){}
@@ -939,7 +957,8 @@ function spawnBot(i){
   const body=new CANNON.Body({mass:5,shape:new CANNON.Sphere(.5),fixedRotation:true,linearDamping:.01,material:playerMat,collisionFilterGroup:8,collisionFilterMask:1|4});
   body.allowSleep=false;   // a sleeping body ignores the velocity the AI sets, so bots never sleep
   body.position.set(...landNear(pBody.position)); body.interpolatedPosition.copy(body.position); world.addBody(body);
-  const ch=i%CHARACTERS.length, C=CHARACTERS[ch];
+  const taken=new Set([myCharKey,...[...avatars.values()].map(a=>a.pres&&a.pres.pc).filter(Boolean),...bots.map(b=>b.C.key)]);
+  const free=CHARACTERS.filter(c=>!taken.has(c.key)); const C=free.length?free[0]:CHARACTERS[i%CHARACTERS.length], ch=CHARACTERS.indexOf(C);
   bots.push({id:botSerial++,ch,C,name:C.name,grudge:null,introT:0,lastSay:0,body,yaw:0,hook:null,cd:1.5+Math.random(),grappleCd:2+Math.random()*2,wish:new THREE.Vector3(),speed:7.5,
     bat:0,swingN:0,knockUntil:-9,jumpT:-9,lastHitBy:null,stuck:0,standing:false,dunks:0,wander:null,wanderT:0,pickup:null,got:new Set(),sparkCount:0,target:null,reel:16});
 }
@@ -964,7 +983,7 @@ function botSplash(b){
   const by=b.lastHitBy && simTime-b.lastHitBy.t<8 ? b.lastHitBy : null;
   b.body.position.set(...landNear(pBody.position)); b.body.velocity.set(0,0,0); b.body.interpolatedPosition.copy(b.body.position); b.hook=null; b.lastHitBy=null;
   if (!by) return;
-  if (by.peer===(myPeer||"me")){ dunks++; announce("dunk","Dunked! "+b.name+" is swimming."); toast("Dunked "+b.name+"!","Bots can't swim."); }
+  if (by.peer===(myPeer||"me")){ dunks++; faceHappyT=2; announce("dunk","Dunked! "+b.name+" is swimming."); toast("Dunked "+b.name+"!","Bots can't swim."); }
   else { bspN++; lastBsp={n:bspN,by:by.peer,name:b.name}; }
 }
 function botAttack(b,t){
@@ -1168,7 +1187,7 @@ function updateBots(dt){
   const ctrl=isBotController();
   if (ctrl!==amController){ amController=ctrl; if (!ctrl){ bots.forEach(removeBot); bots=[]; } }
   if (amController){
-    while (bots.length<wantBots) spawnBot(bots.length);
+    while (bots.length<Math.min(wantBots,CHARACTERS.length-(myCharKey==="classic"?0:1))) spawnBot(bots.length);
     while (bots.length>wantBots) removeBot(bots.pop());
     if (running) for (const b of bots) botThink(b,dt);
   }
@@ -1443,6 +1462,54 @@ function watchBoard(){
 }
 if (window.claude && typeof window.claude.use==="function") window.claude.use("db").then(x=>{ db=x; watchBoard(); }).catch(()=>{});
 
+// ---------------- reacting face (Doom-style portrait) ----------------
+// A 42x42 pixel portrait of your character, redrawn when the mood changes: idle (blinks), grin, ow, panic, dizzy, thrill.
+let faceHurtT=0, faceHappyT=0, faceDizzyT=0, faceMood="", faceBlink=false, faceDrawT=0;
+const fctx=$("face").getContext("2d");
+function drawFace(C,mood,blink){
+  const x=fctx, W=42; x.clearRect(0,0,W,W);
+  const shake = mood==="ow" ? (Math.random()-.5)*2 : 0;
+  x.save(); x.translate(shake,0);
+  x.fillStyle=C.skin||"#ffd9b8"; x.beginPath(); x.ellipse(21,23,13,15,0,0,Math.PI*2); x.fill();                 // head
+  x.fillStyle=C.hat||"#22314d"; x.beginPath(); x.ellipse(21,13,14,8,0,Math.PI,0); x.fill(); x.fillRect(7,12,28,3); // hat
+  const hair=C.hair||"#222";
+  if (C.feature==="bangs"){ x.fillStyle=hair; x.fillRect(9,14,24,4); }
+  if (C.feature==="shaggy"){ x.fillStyle=hair; for (let i=0;i<6;i++) x.fillRect(8+i*4.5,14,4,5+(i%2)*2); }
+  // eyes
+  const ey=21, eL=15, eR=27;
+  x.fillStyle="#111";
+  if (C.feature==="shades" && mood!=="ow" && mood!=="dizzy"){ x.fillStyle="#0c0c10"; x.fillRect(9,ey-3,10,5); x.fillRect(23,ey-3,10,5); x.fillRect(19,ey-2,4,2); }
+  else if (C.feature==="goggles" && mood==="idle"){ x.fillStyle="#7ce0ff"; x.fillRect(9,ey-3,24,5); x.fillStyle="#2a7a9a"; x.fillRect(12,ey-2,6,3); x.fillRect(24,ey-2,6,3); }
+  else if (blink && mood==="idle"){ x.fillRect(eL-3,ey,6,1.5); x.fillRect(eR-3,ey,6,1.5); }
+  else if (mood==="ow"){ x.lineWidth=2; x.strokeStyle="#111"; for (const ex of [eL,eR]){ x.beginPath(); x.moveTo(ex-3,ey-3); x.lineTo(ex+3,ey+2); x.moveTo(ex-3,ey+2); x.lineTo(ex+3,ey-3); x.stroke(); } }
+  else if (mood==="dizzy"){ x.lineWidth=1.5; x.strokeStyle="#111"; for (const ex of [eL,eR]){ x.beginPath(); x.arc(ex,ey,3,0,Math.PI*1.6); x.stroke(); } }
+  else { const r = mood==="panic" ? 4.2 : (C.feature==="bigeyes"?3.6:2.4);
+    for (const ex of [eL,eR]){ x.fillStyle="#fff"; x.beginPath(); x.arc(ex,ey,r+1,0,Math.PI*2); x.fill(); x.fillStyle="#111"; x.beginPath(); x.arc(ex,ey+(mood==="panic"?-1:0),r*.55,0,Math.PI*2); x.fill(); } }
+  if (mood==="grin"||mood==="thrill"){ x.fillStyle="#111"; x.fillRect(eL-3,ey-6,6,1.5); x.fillRect(eR-3,ey-6,6,1.5); }        // raised brows
+  if (mood==="ow"){ x.fillStyle="#111"; x.fillRect(eL-4,ey-7,7,1.5); x.fillRect(eR-3,ey-7,7,1.5); }
+  // mouth
+  x.fillStyle="#3a1010";
+  if (mood==="grin"){ x.beginPath(); x.arc(21,29,6,0,Math.PI); x.fill(); x.fillStyle="#fff"; x.fillRect(16,29,10,2); }
+  else if (mood==="thrill"){ x.beginPath(); x.arc(21,29,4.5,0,Math.PI); x.fill(); }
+  else if (mood==="ow"){ x.beginPath(); x.ellipse(21,31,4,3,0,0,Math.PI*2); x.fill(); }
+  else if (mood==="panic"){ x.beginPath(); x.ellipse(21,31,3.5,5,0,0,Math.PI*2); x.fill(); }
+  else if (mood==="dizzy"){ x.strokeStyle="#3a1010"; x.lineWidth=1.5; x.beginPath(); x.moveTo(15,31); for (let i=0;i<6;i++) x.lineTo(16+i*2,31+(i%2?2:-1)); x.stroke(); }
+  else { x.fillRect(17,30,8,1.6); }
+  // character features drawn over the mouth area
+  if (C.feature==="mustache"){ x.fillStyle=hair; x.fillRect(14,27,6,2); x.fillRect(22,27,6,2); x.fillRect(13,28,2,2); x.fillRect(27,28,2,2); }
+  if (C.feature==="beard"){ x.fillStyle=hair; x.beginPath(); x.moveTo(8,25); x.quadraticCurveTo(21,46,34,25); x.lineTo(30,32); x.quadraticCurveTo(21,36,12,32); x.closePath(); x.fill(); }
+  if (C.feature==="earrings"){ x.fillStyle="#f6b40e"; x.beginPath(); x.arc(8,28,2,0,Math.PI*2); x.arc(34,28,2,0,Math.PI*2); x.fill(); }
+  if (mood==="panic"){ x.fillStyle="#7ce0ff"; x.fillRect(34,15,2,5); }                                                   // sweat drop
+  x.restore();
+}
+function updateFace(dt){
+  faceHurtT=Math.max(0,faceHurtT-dt); faceHappyT=Math.max(0,faceHappyT-dt); faceDizzyT=Math.max(0,faceDizzyT-dt);
+  const v=pBody.velocity, att=hook&&hook.phase==="attached";
+  const mood = faceHurtT>0 ? "ow" : faceDizzyT>0 ? "dizzy" : (v.y<-17 && !att && !gliding) ? "panic" : faceHappyT>0 ? "grin" : (att||gliding||Math.hypot(v.x,v.z)>18) ? "thrill" : "idle";
+  faceDrawT-=dt; const blink = mood==="idle" && (performance.now()%3200)<160;
+  if (mood!==faceMood || blink!==faceBlink || (mood==="ow" && faceDrawT<=0)){ faceMood=mood; faceBlink=blink; faceDrawT=.08; drawFace(charByKey(myCharKey),mood,blink); $("faceBox").classList.toggle("hurt",mood==="ow"); }
+}
+
 // ---------------- announcer ----------------
 // Uses Claude's voice where the viewer offers it, otherwise the browser's own speech voice.
 // Each line has a key so recorded clips can replace the synthetic voice later.
@@ -1557,5 +1624,5 @@ addEventListener("resize",()=>{ renderer.setSize(innerWidth,innerHeight); camera
 // interpolated poses start at the origin until the first physics step
 for (const b of world.bodies){ b.interpolatedPosition.copy(b.position); b.interpolatedQuaternion.copy(b.quaternion); }
 // small hook for automated testing; not used by the game itself
-window.__skyDebug={ forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded };
+window.__skyDebug={ faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; }, forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded };
 frame();

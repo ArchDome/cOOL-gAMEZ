@@ -53,6 +53,18 @@ const { openGame, checker } = require('./harness');
     const dodges = await page.evaluate(() => { const d = window.__skyDebug, k = d.CHARACTERS.find(c => c.key === 'kofi'); return k.dodge; });
     c.check('characters have distinct personalities', dodges > .3);
 
+    // Character select and the reacting face
+    await page.evaluate(() => { const el = document.getElementById('optChar'); el.value = 'matteo'; el.dispatchEvent(new Event('change')); window.__skyDebug.tick(3); });
+    await page.waitForTimeout(300);
+    const picked = await page.evaluate(() => window.__skyDebug.bots().map(b => b.C.key));
+    c.check('bots skip the character you play as', picked.length === 2 && !picked.includes('matteo'), picked.join(','));
+    await page.evaluate(() => window.__skyDebug.hurt()); await page.waitForTimeout(300);
+    c.check('face winces when you get hit', (await page.evaluate(() => window.__skyDebug.face().mood)) === 'ow');
+    await page.evaluate(() => { const d = window.__skyDebug; d.calm(); d.body.position.set(0, 120, 0); d.body.velocity.set(0, -30, 0); }); await page.waitForTimeout(1600);
+    c.check('face panics when falling fast', (await page.evaluate(() => window.__skyDebug.face().mood)) === 'panic');
+    await page.evaluate(() => { const el = document.getElementById('optChar'); el.value = 'classic'; el.dispatchEvent(new Event('change')); });
+    await page.evaluate(() => { const d = window.__skyDebug; d.calm(); d.body.position.set(-55, 8, 45); d.body.velocity.set(0, 0, 0); d.tick(60); });
+
     // Multiplayer with a scripted friend (bots off so they don't shove us out of position)
     await page.evaluate(() => { const el = document.getElementById('optBots'); el.value = '0'; el.dispatchEvent(new Event('change')); });
     await page.waitForTimeout(400);

@@ -42,7 +42,7 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] Leaderboards with arcade-style initials per map and per cup, using the artifact `db` capability so friends see the same board.
 
 ### Later
-- [ ] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
+- [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [ ] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.
 - [ ] Graphics push: bloom, better water, rain, and a quality setting tuned for iPad.
 - [ ] Owner's recorded announcer clips (`npm run voice`), when the owner sends them.

@@ -4,6 +4,21 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14 (overnight): Character select and a reacting face
+
+- **Play as:** pick any of the seven cast members, or the original Climber, on the start screen. Your colors and size show for you and your friends, and bots fill in with characters nobody picked.
+- **Doom-style portrait:** a 42×42 pixel face in the bottom-left reacts to what's happening:
+  - **ow** when you're hit
+  - **panic** when you're falling fast
+  - **dizzy** after a splash
+  - **grin** for sparks, power-ups and dunks
+  - **thrill** while swinging, gliding or going fast
+  - **idle**, with blinks
+
+  Each character has their own features: Matteo's mustache, Yuki's bangs, Lars's beard, Pip's big eyes, Kofi's shades, Valentina's earrings, Dylan's surfer hair, and the Climber's goggles.
+
+![Every face in every mood](img/faces.png)
+
 ## 2026-11-14 (overnight): Smart bots, four new maps, cups, leaderboards
 
 **Bots race for sparks.** Each bot has its own spark set and a new brain (`botRace` in `js/main.js`):
