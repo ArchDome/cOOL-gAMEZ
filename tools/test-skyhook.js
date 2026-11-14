@@ -114,6 +114,24 @@ const { openGame, checker } = require('./harness');
     await page.evaluate(() => { const el = document.getElementById('optUnits'); el.value = 'imperial'; el.dispatchEvent(new Event('change')); });
     c.check('speedometer defaults to ft/s and can switch to m/s', u0.set === 'imperial' && u0.opt === 'imperial' && u1 === 'ft/s' && u2 === 'm/s', JSON.stringify([u0, u1, u2]));
 
+    // Bot skill: four levels with different numbers (Normal is the benchmarked default)
+    const df = await page.evaluate(() => { const d = window.__skyDebug, out = { def: d.settings.botDiff, opts: [...document.querySelectorAll('#optBotDiff option')].map(o => o.value) };
+      for (const k of ['easy', 'normal', 'hard', 'brutal']) { d.settings.botDiff = k; out[k] = d.botDiff().speed; } d.settings.botDiff = 'normal'; return out; });
+    c.check('four bot skill levels, Normal by default', df.def === 'normal' && df.opts.join() === 'easy,normal,hard,brutal' && df.easy < df.normal && df.normal < df.hard && df.hard < df.brutal, JSON.stringify(df));
+
+    // Spin sniper is a one-shot KO: on you (death cam on the spot) and on a bot (KO credited)
+    const ko = await page.evaluate(() => { const d = window.__skyDebug; d.calm(); d.killMe('Sniper'); const r = { dead: d.death().deadT > 0, title: document.getElementById('deathTitle').textContent, how: d.presence().lastSplash && d.presence().lastSplash.how, y: d.body.position.y };
+      d.respawnNow(); const b = d.bots()[0]; if (b) { const k0 = d.presence().dunks; b.shieldT = 0; d.killBot('bot:' + b.id); r.botKO = d.presence().dunks === k0 + 1; } else r.botKO = 'no bots'; return r; });
+    c.check('the spin sniper knocks out on hit (you and bots)', ko.dead && ko.title === 'SNIPED' && ko.how === 'snipe' && ko.y > -1 && (ko.botKO === true || ko.botKO === 'no bots'), JSON.stringify(ko));
+
+    // Touch: pause button pauses; the face sits at the bottom middle
+    const tp = await page.evaluate(() => { const d = window.__skyDebug; d.setInput(true); const f = document.getElementById('faceBox').getBoundingClientRect();
+      const r = { faceMid: Math.round(f.left + f.width / 2), mid: Math.round(innerWidth / 2), faceBottom: Math.round(innerHeight - f.bottom), pauseShown: !document.getElementById('chatBtns').hidden };
+      document.getElementById('tPause').click(); r.paused = !d.isRunning() && !document.getElementById('start').hidden; d.setInput(false); return r; });
+    c.check('touch: pause button works and the face is bottom-centre', tp.pauseShown && tp.paused && Math.abs(tp.faceMid - tp.mid) < 4 && tp.faceBottom < 40, JSON.stringify(tp));
+    await page.evaluate(() => { document.getElementById('go').click(); });
+    await page.waitForFunction(() => window.__skyDebug.isRunning(), null, { timeout: 20000 }).catch(() => {});
+
     // Ground punch: swinging at the ground while falling bounces you up; the bat bounces higher
     const punch = await page.evaluate(() => {
       const d = window.__skyDebug, b = d.body, out = {};
@@ -145,7 +163,7 @@ const { openGame, checker } = require('./harness');
     c.check('characters have distinct personalities', dodges > .3);
 
     // Race items and destructible towers
-    await page.waitForFunction(() => { const d = window.__skyDebug, b = d.itemBoxes[0]; d.body.position.set(b.pos.x, b.pos.y, b.pos.z); d.body.velocity.set(0, 0, 0); return !!d.item().heldItem; }, null, { timeout: 15000, polling: 100 }).catch(() => {});
+    await page.waitForFunction(() => { const d = window.__skyDebug, b = d.itemBoxes[0]; if (!d.item().heldItem) b.cd = 0; d.body.position.set(b.pos.x, b.pos.y, b.pos.z); d.body.velocity.set(0, 0, 0); return !!d.item().heldItem; }, null, { timeout: 30000, polling: 100 }).catch(() => {});
     c.check('a ? box gives you an item', !!(await page.evaluate(() => window.__skyDebug.item().heldItem)));
     await page.evaluate(() => { const d = window.__skyDebug; d.giveItem('shield'); d.useItem(); d.takeHit([1, 0], true, { peer: 'x', name: 'X' }); });
     c.check('a shield blocks a hit', (await page.evaluate(() => Math.abs(window.__skyDebug.body.velocity.x))) < 5);
@@ -227,8 +245,9 @@ const { openGame, checker } = require('./harness');
     await friendAt({ bt: 0 });
 
     // Falling in the sea after being hit credits the friend
+    const sp0 = await page.evaluate(() => { const sp = window.__fake.mine().sp; return sp ? sp.n : 0; });
     await page.evaluate(() => { const b = window.__skyDebug.body; b.position.set(0, -4, -116); b.velocity.set(0, 0, 0); }); // out over the sea
-    await page.waitForFunction(() => { const sp = window.__fake.mine().sp; return sp && sp.n >= 1; }, null, { timeout: 20000 }).catch(() => {});
+    await page.waitForFunction((sp0) => { const sp = window.__fake.mine().sp; return sp && sp.n > sp0; }, sp0, { timeout: 20000 }).catch(() => {});
     const sp = await page.evaluate(() => window.__fake.mine().sp);
     c.check('splash is broadcast with who knocked me in', sp && sp.by === 'fr1end00peer0000', JSON.stringify(sp));
     const dc = await page.evaluate(() => ({ ...window.__skyDebug.death(), drops: window.__skyDebug.drops(), card: !document.getElementById('death').hidden, y: window.__skyDebug.body.position.y }));

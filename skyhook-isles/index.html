@@ -149,6 +149,11 @@ body.sumo #splits{display:none}
 .resprompt{text-align:center;font-weight:800;font-size:14px;letter-spacing:.06em;color:var(--muted);animation:respulse 1.4s ease-in-out infinite}
 @keyframes respulse{50%{opacity:.35}}
 #results,#results .card{cursor:pointer}#results input{cursor:text}
+.chatbtns #tPause{font-size:13px;letter-spacing:-.1em}
+body.in-touch .face{left:50%;transform:translateX(-50%);transform-origin:bottom center;bottom:calc(env(safe-area-inset-bottom,0px) + 12px)}
+body.in-touch.hud-compact .face{transform:translateX(-50%) scale(.72)}
+body.in-touch .rank{left:calc(50% + 62px);bottom:calc(env(safe-area-inset-bottom,0px) + 20px)}
+body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-inset-bottom,0px) + 14px)}
 .toast small{display:block;font-family:var(--body);font-weight:700;font-size:15px;color:var(--ink);margin-top:6px}
 .overlay{position:fixed;inset:0;display:grid;place-items:center;overflow:auto;background:radial-gradient(ellipse at 50% 35%,rgba(20,32,56,.35),rgba(12,18,32,.82));
   padding-block:calc(env(safe-area-inset-top,0px) + 16px) calc(env(safe-area-inset-bottom,0px) + 16px);
@@ -252,7 +257,7 @@ body.sumo #splits{display:none}
 </div></div>
 <div class="chatlog" id="chatlog" aria-live="polite"></div>
 <div class="chatbar" id="chatbar" hidden><input id="chatIn" type="text" maxlength="140" autocomplete="off" placeholder="Say something… (Enter to send, Esc to cancel)"><button type="button" id="chatMic" title="Voice to text">Mic</button><button type="button" id="chatSend">Send</button></div>
-<div class="chatbtns" id="chatBtns" hidden><button type="button" id="tChat">Chat</button><button type="button" id="tMic">Mic</button></div>
+<div class="chatbtns" id="chatBtns" hidden><button type="button" id="tPause" aria-label="Pause">❚❚</button><button type="button" id="tChat">Chat</button><button type="button" id="tMic">Mic</button></div>
 <div class="intro" id="intro" hidden><i class="stripe"></i><small id="introFrom"></small><b id="introName"></b><span id="introTrait"></span><q id="introLine"></q></div>
 <div class="touch" id="touch" hidden>
   <div class="joy" id="joy" hidden><i id="joyKnob"></i></div>
@@ -275,6 +280,7 @@ body.sumo #splits{display:none}
       <span class="opt"><label for="optChar">Play as</label><select id="optChar"></select></span>
       <span class="opt"><label for="optMap">Map</label><select id="optMap"></select></span>
       <span class="opt"><label for="optBots">Bots</label><select id="optBots"><option>0</option><option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></span>
+      <span class="opt"><label for="optBotDiff">Bot skill</label><select id="optBotDiff"><option value="easy">Easy</option><option value="normal">Normal</option><option value="hard">Hard</option><option value="brutal">Brutal</option></select></span>
     </div>
     <details class="settings"><summary>Settings</summary>
       <div class="sgrp"><b>Controls</b>

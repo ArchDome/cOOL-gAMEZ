@@ -48,7 +48,7 @@ function signTexture(THREE,color){
 }
 
 function build(api){
-  const {THREE,CANNON,scene,world,R,H,groundMat,grappleables,camBlockers,pillars,updrafts,traps,trapTrigger}=api;
+  const {THREE,CANNON,scene,world,R,H,groundMat,grappleables,camBlockers,pillars,rocks,updrafts,traps,trapTrigger}=api;
   const win=windowsTexture(THREE);
   const bodyMats=["#1d2230","#232838","#2a2633","#1b2a2f"].map(c=>c);
   const roofMat=new THREE.MeshStandardMaterial({color:"#34384a",roughness:.6,metalness:.2});
@@ -113,6 +113,39 @@ function build(api){
   for (let i=-CITY; i<=CITY; i+=16) for (const [x,z] of [[i,CITY-3],[i,-CITY+3],[CITY-3,i],[-CITY+3,i]]){
     const m=new THREE.Mesh(new THREE.SphereGeometry(.35,8,6),lampMat); m.position.set(x,STREET+4,z); scene.add(m);
   }
+  // tower cranes to swing on: two on the plaza, three on the tallest rooftops. The jib is hookable and walkable,
+  // and the hook block hanging off the end is a swing anchor (bots use it too).
+  const craneY=new THREE.MeshStandardMaterial({color:"#f2b21c",roughness:.5,metalness:.3,emissive:"#7a5200",emissiveIntensity:.9});   // glows a little so it reads against the night sky
+  const craneD=new THREE.MeshStandardMaterial({color:"#2a2c33",roughness:.6,metalness:.5});
+  const concrete=new THREE.MeshStandardMaterial({color:"#8a8c92",roughness:.9});
+  const redLamp=new THREE.MeshBasicMaterial({color:"#ff3030",toneMapped:false});
+  function solidBox(w,h,d,x,y,z,mat,rot=0){
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat); m.position.set(x,y,z); m.rotation.y=rot; m.castShadow=true; scene.add(m); grappleables.push(m); camBlockers.push(m);
+    const b=new CANNON.Body({mass:0,material:groundMat}); b.addShape(new CANNON.Box(new CANNON.Vec3(w/2,h/2,d/2))); b.position.set(x,y,z); b.quaternion.setFromEuler(0,rot,0); world.addBody(b); return m;
+  }
+  function crane(x,z,base,mastH,rot){
+    const top=base+mastH, jib=34, cj=11, ca=Math.cos(rot), sa=Math.sin(rot);
+    solidBox(2,mastH,2,x,base+mastH/2,z,craneY);
+    for (const [ox,oz] of [[-.95,-.95],[.95,-.95],[-.95,.95],[.95,.95]]){ const post=new THREE.Mesh(new THREE.BoxGeometry(.25,mastH,.25),craneD); post.position.set(x+ox,base+mastH/2,z+oz); scene.add(post); }
+    solidBox(3,2.4,3,x,top+1.2,z,craneD,rot);   // slewing cab
+    // jib along +rot, counter-jib behind it
+    solidBox(jib,1.2,1.4,x+ca*jib/2,top+3,z-sa*jib/2,craneY,rot);
+    solidBox(cj,1.2,1.6,x-ca*cj/2,top+3,z+sa*cj/2,craneY,rot);
+    solidBox(3.2,2.6,2.4,x-ca*(cj-1.6),top+1.3,z+sa*(cj-1.6),concrete,rot);   // counterweight
+    const apex=new THREE.Mesh(new THREE.ConeGeometry(.7,6,4),craneY); apex.position.set(x,top+6.4,z); scene.add(apex);
+    const lamp=new THREE.Mesh(new THREE.SphereGeometry(.4,8,6),redLamp); lamp.position.set(x,top+9.6,z); scene.add(lamp);
+    // a hook block hanging from the tip
+    const hx=x+ca*(jib-2), hz=z-sa*(jib-2), hy=top-8-R()*10;
+    const cable=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,top+3-hy,4),craneD); cable.position.set(hx,(top+3+hy)/2,hz); scene.add(cable);
+    solidBox(1.6,1.8,1.6,hx,hy,hz,craneY,rot);
+    rocks.push({x:hx,y:hy,z:hz,r:.9,top:hy+.9});
+    pillars.push({x,z,top:top+2.4,w:3});
+  }
+  { const roofs=[...pillars].sort((a,b)=>b.top-a.top).slice(0,3);
+    crane(PLAZA.x-15,PLAZA.z-12,H(PLAZA.x-15,PLAZA.z-12),52,.6);
+    crane(PLAZA.x+14,PLAZA.z+15,H(PLAZA.x+14,PLAZA.z+15),46,3.8);
+    roofs.forEach((r,i)=>crane(r.x,r.z,r.top,20+i*4,1.2+i*2.1)); }
+
   // trap: a transformer in Lantern Plaza. Overload it and every rooftop is live for 6 s: anyone standing up high
   // gets zapped into the air every second.
   if (traps && trapTrigger){ traps.push({kind:"zap",triggers:[trapTrigger(PLAZA.x+7,PLAZA.z+7,"#ffe23a",2.4)],minAbove:5,dur:6,cool:22,name:"Transformer"}); }

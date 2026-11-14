@@ -51,6 +51,7 @@ const { openGame, checker } = require('./harness');
       return r; });
     c.check(`${key}: has a trap players can trigger`, !tr.none && (tr.ok || (tr.active && tr.triggers >= 1 && (tr.kind !== 'boulder' || tr.rolled > 8))), JSON.stringify(tr));
     if (r.sumoOnly) { const ed = await page.evaluate(() => { const d = window.__skyDebug, b = d.body.position; return d.edgeFrom(b.x, b.z).d; }); c.check(`${key}: arena is narrow (edge within a few metres of spawn)`, ed <= 8, `edge ${ed} m`); }
+    if (key === 'neon') { const cr = await page.evaluate(() => window.__skyDebug.rocks.length); c.check('neon: tower cranes with hook blocks to swing on', cr >= 5, `${cr} hook blocks`); }
     if (key === 'junkyard') {
       await page.evaluate(() => { const d = window.__skyDebug; document.getElementById('optBots').value = '0'; document.getElementById('optBots').dispatchEvent(new Event('change')); d.triggerTrap(0, 'Friend'); });
       await page.waitForFunction(() => window.__skyDebug.traps[0].windup === 0, null, { timeout: 30000 }).catch(() => {});
@@ -131,6 +132,8 @@ const { openGame, checker } = require('./harness');
       b.introT = 0; b.eng = { peer: 'bot:999', t: 999, limit: 7, dk: b.dunks || 0 }; b.bait = null; b.avoid && b.avoid.clear();
       const other = d.bots()[1]; other.body.position.set(b.body.position.x + 2, b.body.position.y, b.body.position.z); b.eng.peer = 'bot:' + other.id;
       d.botThink(b, 1 / 60); return { switched: !!(b.avoid && b.avoid.size), bait: !!b.bait }; });
+    const sk = await page.evaluate(() => { const d = window.__skyDebug, b = d.bots()[1]; if (!b) return { skip: 1 }; b.shieldT = 0; const k0 = d.presence().dunks; d.killBot('bot:' + b.id); return { ko: d.presence().dunks === k0 + 1 }; });
+    c.check('sumo: a spin-sniper hit knocks a bot out and scores a KO', sk.skip || sk.ko, JSON.stringify(sk));
     c.check('sumo: bots break off a stalemate (switch target or bait at the edge)', tac.skip || tac.switched || tac.bait, JSON.stringify(tac));
     await page.evaluate(() => { localStorage.setItem('skyhook.mode', 'race'); });
   }

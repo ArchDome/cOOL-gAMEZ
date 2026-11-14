@@ -4,6 +4,18 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14: Bot skill levels, sniper KO, mobile pause, city cranes
+
+- **Bot skill** (start screen, next to Bots): Easy, Normal, Hard, Brutal. Each level scales the bots' running speed (0.78× / 1× / 1.1× / 1.22×), time between swings (1.9× / 1× / 0.7× / 0.5×), dodge chance (0.3× to 1.8×, capped at 85%) and knockback (0.8× to 1.25×). Easy bots also dither, pausing for 1–2 s every few seconds 40% of the time, so a new player gets a chance. Normal is the benchmarked default (still 129). In multiplayer the setting of whoever runs the bots applies.
+- **The spin sniper kills on hit.** A hit is an instant knock-out at the spot (a "SNIPED" death cam, lying where you were hit), credited to the shooter as a KO. On bots, it's a KO for the shooter (the bot respawns). The shield still blocks it. The hit event carries `kill: 1`, and the splash event carries `how: "snipe"`, so the shooter sees "Sniped X!" instead of "Dunked".
+- **Mobile:** a pause button (❚❚) next to Chat and Mic. On touch, the face HUD moves to the bottom middle of the screen, with the position badge beside it, clear of the joystick and buttons.
+- **Neon Harbour cranes:** two tower cranes at the edges of Lantern Plaza and three on the tallest rooftops. Each has a lattice mast, a slewing cab, a 34 m jib you can hook or walk along, a counter-jib with a concrete counterweight, a red aircraft lamp, and a hook block on a cable to swing from (bots use the hook blocks as anchors too). They glow slightly so they read against the night sky.
+- Tests: four skill levels in order, sniper KO on you and on a bot, touch pause and face position, and the Neon hook blocks. A flaky item-box check was hardened (it resets the box cooldown and allows 30 s).
+
+![Cranes over Neon Harbour](img/skyhook-neon-cranes.png)
+
+---
+
 ## 2026-11-14: Slow-motion finish, click to continue
 
 - When a match ends (the final spark is grabbed, the clock runs out, or someone reaches the KO target), time ramps down to 20% over about 0.3 s and stays there for 3 s of real time. There's a white flash, a low boom, a camera shake, and the music dips. Then the leaderboard appears. Physics, timers and the camera all run on the scaled time; the countdown uses real time.
