@@ -4,6 +4,17 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14: Light shafts and softer clouds
+
+- **Light shafts** (High graphics, day maps). A screen-space pass after bloom streaks bright pixels near the sun outward along 40 jittered samples, so anything in front of the sun (pillars, rocks, the player) breaks the light into rays. It fades in when the sun is on screen and out when it's behind you. The jitter turns the sample dots into smooth streaks.
+- **Softer clouds:** three cloud textures, each built from 60 low-alpha puffs that are brighter on top and slightly blue-grey underneath, instead of 14 hard white blobs.
+- The High-graphics test now checks that bloom, AO and light shafts all load.
+- Still open in this roadmap item: better character models.
+
+![Light shafts](img/skyhook-shafts.png)
+
+---
+
 ## 2026-11-14: Sumo mode, and a trap on every map
 
 **Sumo** (principle 3: a mode for fighters and trolls). Pick *Mode → Sumo: knock-offs* on the start screen. Pressing Play starts a round, and Start round syncs the mode to friends (`md` on the race event).

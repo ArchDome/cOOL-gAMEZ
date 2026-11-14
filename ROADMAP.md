@@ -71,7 +71,8 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] Bots use items too (grab boxes, throw bombs at nearby players, fire comets when behind).
 - [x] Graphics push: bloom, better water, rain, and a quality setting tuned for iPad.
 - [x] Screen-space ambient occlusion at High (GTAO).
-- [ ] More graphics: volumetric-looking light shafts, softer clouds, better character models.
+- [x] Light shafts and softer clouds (High).
+- [ ] Better character models (more detailed bodies, faces and outfits per cast member).
 - [ ] Owner's recorded announcer clips (`npm run voice`), when the owner sends them.
 
 ## Questions for the owner
