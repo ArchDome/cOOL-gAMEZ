@@ -4,6 +4,22 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14 (overnight): Second training run, with the bots at their best
+
+The first fully reproducible training run: 8 generations × 8 candidates, 40 s episodes, Yuki, Lars and Dylan from 3 starts each, run on a copy of the repo while other work continued. Fitness went from 2.83 to 4.44 (+57%). The winner fires from a little farther, reels slower, keeps a shorter rope, releases earlier, and boosts harder up and forward on release.
+
+Benchmark across all 7 characters (45 s × 3 starts each):
+
+| | Sparks | Falls |
+| --- | --- | --- |
+| Start of the night | about 7 | — |
+| After the bug fixes | 61 | 15 |
+| First training | 68 | 8 |
+| Plus personalities and gliding | 74 | 8 |
+| **Second training** | **92** | **9** |
+
+Dylan's "loose ropes" personality clashed with the new technique (5 sparks). I measured variants and switched him to "surfs long swings between far anchors", which keeps him close to his untuned best.
+
 ## 2026-11-14 (overnight): Sixth map, Jungle Ruins
 
 - **The island:** lush, cut by a river, with a stepped five-tier stone temple in the middle. The temple has a gold shrine on top and spark spots at every tier corner.
