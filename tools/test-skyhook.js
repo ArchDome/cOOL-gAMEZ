@@ -68,6 +68,12 @@ const { openGame, checker } = require('./harness');
     c.check('a homing comet targets the leader', /hunting Matteo|hunting Yuki/.test(comet), comet);
     await page.evaluate(() => { const d = window.__skyDebug; d.calm(); d.body.position.set(-55, 8, 45); d.body.velocity.set(0, 0, 0); d.tick(30); });
 
+    // Bots use items: give one a bomb with the player close by, and it throws it
+    const botBomb = await page.evaluate(() => { const d = window.__skyDebug, b = d.bots()[0]; if (!b) return 'no bots'; const me = d.body.position;
+      b.body.position.set(me.x + 6, me.y, me.z); b.body.velocity.set(0, 0, 0); b.item = 'bomb'; b.itemT = 1; b.introT = 0; d.botItems(b, .1); return b.item; });
+    c.check('bots throw bombs at nearby players', botBomb === null, String(botBomb));
+    await page.evaluate(() => { const d = window.__skyDebug; d.calm(); d.body.position.set(-55, 8, 45); d.body.velocity.set(0, 0, 0); d.tick(30); });
+
     // Character select and the reacting face
     await page.evaluate(() => { const el = document.getElementById('optChar'); el.value = 'matteo'; el.dispatchEvent(new Event('change')); window.__skyDebug.tick(3); });
     await page.waitForTimeout(300);

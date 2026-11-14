@@ -4,6 +4,19 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14 (overnight): Bots use items, in character
+
+- **Pickups:** bots grab ? boxes they touch. Leaders draw shields, magnets, boosts and bombs; bots behind draw bombs, comets and boosts.
+- **How they use them** (after a short beat, so it reads as a decision):
+  - **Bombs:** thrown at the nearest player. Aggressive characters (Matteo, Valentina, Lars, Kofi) throw from up to 22 m, others only up close.
+  - **Comets:** fired at the leader, which can be you. You get a warning.
+  - **Shields:** fearful Pip raises hers as soon as anyone is within 14 m. Others wait until someone is close.
+  - **Magnets:** used near their target spark.
+  - **Boosts:** only on long, dry runs toward their target. Early versions launched bots into the sea.
+- **Blast credit:** bot blasts count as last-touch, so bots can score dunks with bombs.
+
+Benchmark: 62 sparks (7 characters × 3 starts × 45 s), about the same as before items.
+
 ## 2026-11-14 (overnight): Graphics push
 
 - **Bloom** (three.js `UnrealBloomPass` with an `OutputPass` for tone mapping) makes neon signs, lit windows, lava, sparks, item boxes and lightning glow. It's stronger on night and lava maps. The add-ons load through an import map, and if they can't load, the game renders normally.

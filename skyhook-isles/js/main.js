@@ -1059,6 +1059,7 @@ function botSay(C,text,priority,log=true){
 }
 function hitBot(key,dir,bat,fromPeer,fromName){
   const b=bots.find(x=>"bot:"+x.id===key); if (!b) return;
+  if (b.shieldT>0) return;
   if (Math.random()<b.C.dodge){ const v=b.body.velocity; v.x+=-dir[1]*9; v.z+=dir[0]*9; v.y=Math.max(v.y,4); b.jumpT=simTime; toast(b.name+" dodged!",b.C.taunt); botSay(b.C,b.C.taunt); return; }
   if (Math.random()<.6) botSay(b.C,b.C.hurt);
   if (b.C.grudge) b.grudge={peer:fromPeer,until:simTime+20};
@@ -1089,6 +1090,7 @@ function botThink(b,dt){
   const p=b.body.position, v=b.body.velocity;
   b.cd-=dt; b.grappleCd-=dt; if (b.bat>0) b.bat=Math.max(0,b.bat-dt);
   if (p.y < -1.8){ botSplash(b); return; }
+  botItems(b,dt);
   // nearest player who is actually playing
   let best=null, bd=1e9;
   const cands=[];
@@ -1193,7 +1195,7 @@ function botRace(b,dt){
   b.targetT=(b.targetT||0)+dt;
   if (b.targetT>14){ (b.skip||(b.skip=new Map())).set(b.target,simTime+40); b.target=null; b.hook=null; return true; }
   const T=sparks[b.target].pos;
-  if (Math.hypot(T.x-p.x,T.y-p.y,T.z-p.z)<2.3){
+  if (Math.hypot(T.x-p.x,T.y-p.y,T.z-p.z)<(b.magnetT>0?14:2.3)){
     b.got.add(b.target); b.sparkCount++; b.target=null; if (b.sparkCount>=TOTAL) b.doneT=simTime-raceStartSim;
     if (b.sparkCount===TOTAL){ toast(b.name+" collected every spark!"); botSay(C,C.taunt,true); }
     return true;
@@ -1566,9 +1568,10 @@ function rollItem(){
   let tot=0; for (const k in w) tot+=w[k]; let r=Math.random()*tot;
   for (const k in w){ r-=w[k]; if (r<=0) return k; } return "boost";
 }
-function leaderTarget(){
+function leaderTarget(exclude){
   let best=null, bs=-1;
-  for (const b of bots) if (b.sparkCount>bs){ bs=b.sparkCount; best={key:"bot:"+b.id,name:b.name,pos:()=>b.body.position}; }
+  if (exclude && running && got>bs){ bs=got; best={key:myPeer||"me",name:myName(),pos:()=>pBody.position}; }
+  for (const b of bots) if ("bot:"+b.id!==exclude && b.sparkCount>bs){ bs=b.sparkCount; best={key:"bot:"+b.id,name:b.name,pos:()=>b.body.position}; }
   if (!amController) for (const [k,a] of botAvatars) if ((a.sparks||0)>bs){ bs=a.sparks||0; best={key:k,name:a.name,pos:()=>a.disp}; }
   for (const a of avatars.values()){ const s=Number(a.pres&&a.pres.s)||0; if (s>bs){ bs=s; best={key:a.peer,name:a.name,pos:()=>a.disp}; } }
   return best;
@@ -1604,7 +1607,9 @@ function explode(x,y,z,r,power,by,local){
   if (d<r){ const k=(1-d/r); if (Math.hypot(p.x-pBody.position.x)>=0){ shakeT=Math.max(shakeT,.6*k);
       const dx=(p.x-x)/(d||1), dz=(p.z-z)/(d||1); if (shieldT>0) toast("Shield blocked the blast!"); else { const v=pBody.velocity; v.x+=dx*26*power*k; v.z+=dz*26*power*k; v.y=Math.max(v.y,10*power*k+4); knockUntil=simTime+.9; faceHurtT=1.2; if (hook) hook.phase="retract"; gliding=false;
         if (by && by.peer!==(myPeer||"me")) lastHitBy={peer:by.peer,name:by.name,t:simTime}; } } }
-  if (amController) for (const b of bots){ const q=b.body.position, db_=Math.hypot(q.x-x,q.y-y,q.z-z); if (db_<r){ const k=1-db_/r, dx=(q.x-x)/(db_||1), dz=(q.z-z)/(db_||1), v=b.body.velocity; v.x+=dx*26*power*k; v.z+=dz*26*power*k; v.y=Math.max(v.y,10*power*k+4); b.knockUntil=simTime+.9; b.hook=null; if (by) b.lastHitBy={peer:by.peer,name:by.name,t:simTime}; } }
+  // a bot shield shows as a bubble on its avatar
+
+  if (amController) for (const b of bots){ const q=b.body.position, db_=Math.hypot(q.x-x,q.y-y,q.z-z); if (db_<r && !(b.shieldT>0) && !(by && by.peer==="bot:"+b.id && db_>2)){ const k=1-db_/r, dx=(q.x-x)/(db_||1), dz=(q.z-z)/(db_||1), v=b.body.velocity; v.x+=dx*26*power*k; v.z+=dz*26*power*k; v.y=Math.max(v.y,10*power*k+4); b.knockUntil=simTime+.9; b.hook=null; if (by) b.lastHitBy={peer:by.peer,name:by.name,t:simTime}; } }
   if (local){ boomN++; lastBoom={n:boomN,x:r2(x),y:r2(y),z:r2(z),r,p:power}; }
 }
 function updateItems(dt){
@@ -1618,18 +1623,54 @@ function updateItems(dt){
   }
   for (let i=projectiles.length-1;i>=0;i--){
     const pr=projectiles[i]; pr.t-=dt;
-    if (pr.kind==="bomb"){ pr.mesh.position.copy(pr.body.position); if (pr.t<=0){ const q=pr.body.position; explode(q.x,q.y,q.z,7,1,{peer:myPeer||"me",name:myName()},true); scene.remove(pr.mesh); world.removeBody(pr.body); projectiles.splice(i,1); } }
+    if (pr.kind==="bomb"){ pr.mesh.position.copy(pr.body.position); if (pr.t<=0){ const q=pr.body.position; explode(q.x,q.y,q.z,7,1,pr.by||{peer:myPeer||"me",name:myName()},true); scene.remove(pr.mesh); world.removeBody(pr.body); projectiles.splice(i,1); } }
     else if (pr.kind==="comet"){
       const tp=pr.target.pos(), m=pr.mesh, to=tmpV.set(tp.x-m.position.x,tp.y+.3-m.position.y,tp.z-m.position.z), d=to.length();
       if (pr.t<5.5){ to.normalize().multiplyScalar(48); pr.vel.lerp(to,1-Math.exp(-4*dt)); } else pr.vel.y-=10*dt;
       m.position.addScaledVector(pr.vel,dt);
       if (Math.random()<.5) puff({x:m.position.x,y:m.position.y+.4,z:m.position.z});
-      if ((pr.t<5.5 && d<2.2) || pr.t<=0){ explode(m.position.x,m.position.y,m.position.z,6,1.6,{peer:myPeer||"me",name:myName()},true); scene.remove(m); projectiles.splice(i,1); }
+      if ((pr.t<5.5 && d<2.2) || pr.t<=0){ explode(m.position.x,m.position.y,m.position.z,6,1.6,pr.by||{peer:myPeer||"me",name:myName()},true); scene.remove(m); projectiles.splice(i,1); }
     }
     else if (pr.kind==="flash"){ const k=1-pr.t/.45; pr.mesh.scale.setScalar(.5+pr.r*k); pr.mesh.material.opacity=.8*(1-k); if (pr.t<=0){ scene.remove(pr.mesh); pr.mesh.geometry.dispose(); pr.mesh.material.dispose(); projectiles.splice(i,1); } }
   }
   for (let i=debris.length-1;i>=0;i--){ const d=debris[i]; d.t-=dt; d.mesh.position.copy(d.body.position); d.mesh.quaternion.copy(d.body.quaternion); if (d.t<=0){ scene.remove(d.mesh); world.removeBody(d.body); debris.splice(i,1); } }
   $("item").textContent = heldItem ? ITEMS[heldItem].label : (shieldT>0 ? "SHIELD "+Math.ceil(shieldT) : magnetT>0 ? "MAGNET "+Math.ceil(magnetT) : "–");
+}
+
+// bots grab boxes as they pass, and use items in character
+function botItems(b,dt){
+  if (b.shieldT>0) b.shieldT=Math.max(0,b.shieldT-dt); if (b.magnetT>0) b.magnetT=Math.max(0,b.magnetT-dt);
+  const p=b.body.position, C=b.C;
+  if (!b.item) for (const box of itemBoxes){ if (box.cd<=0 && box.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<2.2){ box.cd=8; box.mesh.visible=false;
+    const back = b.sparkCount < Math.max(got,...bots.map(o=>o.sparkCount)) ? 1 : 0;
+    const pool = back ? ["bomb","comet","boost","bomb"] : ["shield","magnet","boost","bomb"]; b.item=pool[(Math.random()*pool.length)|0]; b.itemT=0; break; } }
+  if (!b.item) return;
+  b.itemT+=dt; if (b.itemT<.8) return;            // a beat before using it, so it reads as a decision
+  const me=running?pBody.position:null;
+  const near=[...(me?[{pos:me,peer:myPeer||"me"}]:[]),...[...avatars.values()].filter(a=>a.pres&&!a.pres.ps).map(a=>({pos:a.disp,peer:a.peer}))]
+    .map(t=>({...t,d:Math.hypot(t.pos.x-p.x,t.pos.y-p.y,t.pos.z-p.z)})).sort((x,y)=>x.d-y.d)[0];
+  const by={peer:"bot:"+b.id,name:b.name};
+  let used=false;
+  if (b.item==="shield" && (C.fear>.5 ? near&&near.d<14 : (near&&near.d<6) || b.itemT>8)){ b.shieldT=8; used=true; }
+  else if (b.item==="magnet" && b.target!=null && sparks[b.target].pos.distanceTo(tmpV.set(p.x,p.y,p.z))<30){ b.magnetT=6; used=true; }
+  else if (b.item==="boost" && b.standing && b.wish.lengthSq()>0 && b.target!=null && (()=>{ const T=sparks[b.target].pos, hd=Math.hypot(T.x-p.x,T.z-p.z); return hd>25 && !waterBetween(p,T) && H(p.x+b.wish.x*25,p.z+b.wish.z*25)>0; })()){ const v=b.body.velocity; v.x+=b.wish.x*24; v.z+=b.wish.z*24; v.y=Math.max(v.y,0)+8; b.jumpT=simTime; used=true; }
+  else if (b.item==="bomb" && near && near.d<(C.aggr>.5?22:12)){
+    const dir=tmpV.set(near.pos.x-p.x,0,near.pos.z-p.z).normalize();
+    const m=new THREE.Mesh(new THREE.SphereGeometry(.4,14,10),bombMat); const f=new THREE.Mesh(new THREE.SphereGeometry(.12,6,4),fuseMat); f.position.y=.42; m.add(f); scene.add(m);
+    const bb=new CANNON.Body({mass:1,shape:new CANNON.Sphere(.4),collisionFilterGroup:16,collisionFilterMask:1|4|16,linearDamping:.1});
+    const sp=Math.min(20,near.d*.9+4); bb.position.set(p.x+dir.x*1.2,p.y+.8,p.z+dir.z*1.2); bb.velocity.set(dir.x*sp,7,dir.z*sp); world.addBody(bb);
+    projectiles.push({kind:"bomb",mesh:m,body:bb,t:1.8,by}); used=true;
+    if (Math.random()<.5) botSay(C,C.taunt);
+  }
+  else if (b.item==="comet"){
+    const T=leaderTarget("bot:"+b.id);
+    if (T && T.key!=="bot:"+b.id){ const m=new THREE.Mesh(new THREE.SphereGeometry(.45,12,8),cometMat); m.position.set(p.x,p.y+2,p.z); scene.add(m);
+      projectiles.push({kind:"comet",mesh:m,target:T,t:7,vel:new THREE.Vector3(0,30,0),by}); used=true;
+      if (T.key===(myPeer||"me")){ toast(b.name+" fired a homing comet","It's coming for you!"); announce("race","Homing comet incoming!"); } }
+    else if (b.itemT>6){ b.item=null; }
+  }
+  if (b.itemT>15) used=true;                        // hang on to things only so long
+  if (used) b.item=null;
 }
 
 // ---------------- reacting face (Doom-style portrait) ----------------
@@ -1809,5 +1850,5 @@ if (GFX_SET.bloom>0){
 // interpolated poses start at the origin until the first physics step
 for (const b of world.bodies){ b.interpolatedPosition.copy(b.position); b.interpolatedQuaternion.copy(b.quaternion); }
 // small hook for automated testing; not used by the game itself
-window.__skyDebug={ gfx:()=>({GFX,composer:!!composer}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded };
+window.__skyDebug={ botItems:(b,dt)=>botItems(b,dt), gfx:()=>({GFX,composer:!!composer}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded };
 frame();
