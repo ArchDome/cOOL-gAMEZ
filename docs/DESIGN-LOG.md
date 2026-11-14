@@ -4,6 +4,34 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14: Custom games, sumo arenas, smarter fighting bots, Pull
+
+**Custom game** (principle 7: everything customizable). Pick *Cup → Custom game…* on the start screen.
+- Build a list of 1–8 maps in any order (repeats allowed) with Add map and × to remove.
+- Rules: mode (spark race, sumo, or mixed, which alternates), race time (2/3/4/6 min), sumo time (1:30/2:30/4:00), KOs to win (3–20), item boxes on/off, bats on/off, final spark on/off. With the final spark off, a race ends at 15 sparks.
+- Start cup plays it like a cup: points per map, final standings and awards. The definition travels in the cup's presence (`cupS.cd`), so friends follow it, and followers validate it. Custom games don't post to the cup leaderboards, since every one is different. The draft is saved per device.
+
+**Sumo arenas** (`sumoOnly: true`; they always play as sumo, and the mode picker won't switch them to race):
+- **Sumo Ring:** a 13 m wide stone donut over the sea, with a hole in the middle to fall into.
+- **Plank Cross:** four 7 m planks meeting at a small hub.
+- Red-and-white warning stripes mark every edge. Eight grapple posts stand in the sea and six rocks float overhead, so a skilled player can swing back from a knock-off. Each arena has a storm-horn trap.
+- No buildings on either (`destructibles.count: 0` now really means zero instead of falling back to 4).
+
+**Smarter fighting bots:**
+- **Stalemates end.** After 7–11 s of fighting the same opponent without a KO, a bot either leaves them alone for 9 s and picks someone else, or (if it's a dodger) goes to bait at the edge.
+- **Edge bait:** the bot waits a couple of metres from the edge facing in. When an opponent rushes at it (closing at over 3.5 m/s), it sidesteps and swings as they run past. It gives up after 7 s.
+- **Push toward the edge:** within 9 m, bots circle to the land side of their target before shoving, so the shove sends them toward the nearest drop. The nearest edge is found by marching out in 12 directions, cached per metre.
+- The race benchmark is unchanged at 129 sparks.
+
+**Pull** (C on desktop, a new Pull button on touch). While hooked onto something loose (crate, car, the idol) or someone (friend or bot), it drags them toward you at up to 13–20 m/s, faster for lighter things, without pulling you. Then bat or throw them. A friend holding Pull on you drags you to them, and anyone pulled off an edge counts as their KO. On a fixed anchor, it does nothing different (use Shift to reel yourself in). Presence: a 7th field on `h`.
+
+**Players panel** shows KOs in sumo.
+
+![Plank Cross](img/skyhook-arena-cross.png)
+![Sumo Ring](img/skyhook-arena-ring.png)
+
+---
+
 ## 2026-11-14: No more going through the mountain
 
 - **Bug (owner):** at high speed you could pass through the terrain. At 45 m/s sideways plus a 90 m/s dive, a body moves more than its own width per 1/60 s step, and the test measured the body's centre up to 0.8 m *below* the surface before the fix.

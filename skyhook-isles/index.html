@@ -138,6 +138,14 @@ body.hud-compact .rank{left:calc(max(16px,env(safe-area-inset-left,0px)) + 88px)
 body.hud-compact .rank b{font-size:34px}
 body.hud-compact .intro{transform:scale(.8);transform-origin:bottom left}
 body.sumo #splits{display:none}
+.custom{display:grid;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.18)}
+.cumaps{display:flex;flex-wrap:wrap;gap:6px}
+.cuchip{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;background:rgba(124,224,255,.12);border:1px solid var(--line);border-radius:999px;padding:4px 6px 4px 10px}
+.cuchip button{font:800 14px var(--body);color:var(--ink);background:rgba(0,0,0,.3);border:0;border-radius:50%;width:22px;height:22px;line-height:1}
+.cuadd{display:flex;gap:8px}.cuadd select,.curules select{font:700 14px var(--body);color:var(--ink);background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.cuadd button{font:700 14px var(--body);color:var(--ink);background:rgba(124,224,255,.18);border:1px solid var(--hook);border-radius:8px;padding:6px 12px}
+.curules{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;font-size:14px;font-weight:700}
+.curules input[type=checkbox]{accent-color:var(--hook);width:16px;height:16px}
 .toast small{display:block;font-family:var(--body);font-weight:700;font-size:15px;color:var(--ink);margin-top:6px}
 .overlay{position:fixed;inset:0;display:grid;place-items:center;overflow:auto;background:radial-gradient(ellipse at 50% 35%,rgba(20,32,56,.35),rgba(12,18,32,.82));
   padding-block:calc(env(safe-area-inset-top,0px) + 16px) calc(env(safe-area-inset-bottom,0px) + 16px);
@@ -245,6 +253,7 @@ body.sumo #splits{display:none}
   <div class="joy" id="joy" hidden><i id="joyKnob"></i></div>
   <div class="btns">
     <button type="button" id="tReel">Reel</button>
+    <button type="button" id="tPull">Pull</button>
     <button type="button" id="tHook">Hook</button>
     <button type="button" id="tJump">Jump</button>
     <button type="button" id="tHit">Hit</button>
@@ -286,6 +295,21 @@ body.sumo #splits{display:none}
     <div class="net" id="net"><i></i><span>Connecting to the island…</span></div>
     <div class="cupbar" id="cupBar"><label for="optCup" class="sect" style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Cup</label>
       <select id="optCup"></select><button type="button" class="primary" id="startCup">Start cup</button><span id="cupState" style="font-size:13px;color:var(--muted)"></span></div>
+    <div class="custom" id="customBox" hidden>
+      <div class="sp-head"><span>Custom game</span><span id="cuCount"></span></div>
+      <div class="cumaps" id="cuMaps"></div>
+      <div class="cuadd"><select id="cuAddMap" aria-label="Map to add"></select><button type="button" id="cuAdd">Add map</button></div>
+      <div class="curules">
+        <span class="opt"><label for="cuMode">Mode</label><select id="cuMode"><option value="race">Spark race</option><option value="sumo">Sumo</option><option value="mixed">Mixed (alternate)</option></select></span>
+        <span class="opt"><label for="cuRace">Race time</label><select id="cuRace"><option value="120">2 min</option><option value="180">3 min</option><option value="240">4 min</option><option value="360">6 min</option></select></span>
+        <span class="opt"><label for="cuSumo">Sumo time</label><select id="cuSumo"><option value="90">1:30</option><option value="150">2:30</option><option value="240">4:00</option></select></span>
+        <span class="opt"><label for="cuKos">KOs to win</label><select id="cuKos"><option>3</option><option>5</option><option>10</option><option>15</option><option>20</option></select></span>
+        <label class="chk"><input type="checkbox" id="cuItems"> Item boxes</label>
+        <label class="chk"><input type="checkbox" id="cuBats"> Bats</label>
+        <label class="chk"><input type="checkbox" id="cuFinal"> Final spark</label>
+      </div>
+      <small style="color:var(--muted)">Sumo arenas always play as sumo. Press Start cup to begin; friends on the island follow you through it.</small>
+    </div>
     <button class="go" type="button" id="go">Play</button>
     <div class="boards" id="boards" hidden><span style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)" id="boardTitle">Best times</span><div class="board-list" id="boardList"></div></div>
     <details class="howto"><summary>Controls</summary>
@@ -293,6 +317,7 @@ body.sumo #splits{display:none}
         <dt>WASD</dt><dd>Move. Hold Shift to sprint.</dd>
         <dt>Mouse</dt><dd>Look. Hold the left or right button (or E) to grapple where you aim.</dd>
         <dt>Shift</dt><dd>While hooked, reel in. Hook a crate and reel to yank it.</dd>
+        <dt>C</dt><dd>While hooked, pull what you hooked (a crate, the idol, a friend, a bot) toward you. Then F to throw or bat it.</dd>
         <dt>Space</dt><dd>Jump and double jump. While hooked, let go with a boost.</dd>
         <dt>Wheel · R</dt><dd>Zoom the camera · respawn.</dd>
         <dt>G</dt><dd>Use your item: grab rainbow ? boxes for a rocket boost, bomb, homing comet, shield or spark magnet. Bombs blow holes in towers.</dd>
@@ -303,6 +328,7 @@ body.sumo #splits{display:none}
         <dt>Esc</dt><dd>Pause. Click the game to capture the mouse again.</dd>
       </dl>
       <dl class="keys" id="keysTouch" hidden>
+        <dt>Pull</dt><dd>While hooked onto something loose or someone, drag it toward you.</dd>
         <dt>Left thumb</dt><dd>Drag to move.</dd>
         <dt>Right thumb</dt><dd>Drag to look around.</dd>
         <dt>Hook</dt><dd>Hold to grapple at the crosshair, release to let go.</dd>

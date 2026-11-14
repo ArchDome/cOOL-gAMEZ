@@ -89,6 +89,15 @@ const { openGame, checker } = require('./harness');
       const v = d.pickFrenchVoice(L); return { pick: v && v.name, none: d.pickFrenchVoice([{ name: 'Alex', lang: 'en-US' }]), def: d.settings.announcer, opt: document.getElementById('optAnnouncer').value }; });
     c.check('the French announcer is the default and picks a French female voice', fr.pick === 'Amélie' && fr.none === null && fr.def === 'french' && fr.opt === 'french', JSON.stringify(fr));
 
+    // Pull: hook a loose crate and pull it to you; you stay put
+    const pl = await page.evaluate(() => { const d = window.__skyDebug, dyn = d.dynamics.find(x => x.body.mass > 0 && x.body.mass < 10); if (!dyn) return { skip: 1 };
+      const me = d.body.position, b = dyn.body, V = b.position.constructor;
+      d.calm(); b.position.set(me.x + 12, me.y + .5, me.z); b.velocity.set(0, 0, 0); b.wakeUp(); const me0 = me.clone();
+      d.setHook({ phase: 'attached', tip: d.camera.position.clone(), body: b, local: new V(0, 0, 0), point: d.camera.position.clone(), len: 12, miss: false, remote: null, obj: null });
+      d.setPull(true); const d0 = Math.hypot(b.position.x - me.x, b.position.z - me.z); d.tick(45); const d1 = Math.hypot(b.position.x - me.x, b.position.z - me.z);
+      d.setPull(false); d.setHook(null); return { d0: +d0.toFixed(1), d1: +d1.toFixed(1), meMoved: +Math.hypot(me.x - me0.x, me.z - me0.z).toFixed(2) }; });
+    c.check('pull drags a hooked crate to you (it travels; you mostly stay put, bar the bump when it arrives)', pl.skip || (pl.d0 - pl.d1 > 6 && pl.meMoved < (pl.d0 - pl.d1) / 2), JSON.stringify(pl));
+
     // Ground punch: swinging at the ground while falling bounces you up; the bat bounces higher
     const punch = await page.evaluate(() => {
       const d = window.__skyDebug, b = d.body, out = {};
@@ -182,6 +191,16 @@ const { openGame, checker } = require('./harness');
     await page.waitForFunction((vx0) => window.__skyDebug.body.velocity.x - vx0 > 5, vx0, { timeout: 20000, polling: 50 }).catch(() => {});
     const vx1 = await page.evaluate(() => window.__skyDebug.body.velocity.x);
     c.check('being hit by a bat knocks me back', vx1 - vx0 > 5, `vx ${vx0.toFixed(1)} -> ${vx1.toFixed(1)}`);
+
+    // A friend who hooks me and holds Pull drags me toward them
+    const pv = await page.evaluate(() => window.__skyDebug.body.position.clone());
+    const fp = await page.evaluate(() => { const a = [...window.__skyDebug.avatars.values()][0]; return a ? [a.disp.x, a.disp.y, a.disp.z] : null; });
+    if (fp) {
+      await page.evaluate((fp) => { const d = window.__skyDebug; d.calm(); d.body.position.set(fp[0] + 8, fp[1] + .5, fp[2]); d.body.velocity.set(0, 0, 0); }, fp);
+      await friendAt({ h: [2, pv.x, pv.y, pv.z, 4, 'me000000peer0000', 1] });
+      await page.waitForFunction((fp) => { const v = window.__skyDebug.body.velocity, p = window.__skyDebug.body.position, dx = fp[0] - p.x, dz = fp[2] - p.z, l = Math.hypot(dx, dz) || 1; return (v.x * dx + v.z * dz) / l > 5; }, fp, { timeout: 20000, polling: 50 }).then(() => c.check('a friend pulling me drags me toward them', true), () => c.check('a friend pulling me drags me toward them', false));
+      await friendAt({ h: 0 });
+    }
 
     // Falling in the sea after being hit credits the friend
     await page.evaluate(() => { const b = window.__skyDebug.body; b.position.set(0, -4, -116); b.velocity.set(0, 0, 0); }); // out over the sea
