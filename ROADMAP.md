@@ -71,6 +71,12 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] Bot tactics: no endless shoving matches. Switch targets when a fight isn't working, bait near the edge then sidestep and push.
 - [x] Hook reel-in: an option to pull players and objects toward you with the hook.
 
+### Owner's batch 3, 2026-11-14
+- [ ] Bot difficulty: 4 levels (Easy, Normal, Hard, Brutal) in settings, synced for whoever runs the bots.
+- [ ] Spin sniper kills on hit: instant knock-out, credited to the shooter.
+- [ ] Mobile: a pause button, and the face HUD at the bottom middle.
+- [ ] Neon Harbour: tower cranes to swing on.
+
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.
