@@ -337,7 +337,7 @@ const spawnPos=new CANNON.Vec3(SPAWN.x,H(SPAWN.x,SPAWN.z)+2,SPAWN.z);
 pBody.position.copy(spawnPos); world.addBody(pBody);
 const hero=new THREE.Group(); scene.add(hero);
 const heroBody=new THREE.Group(); hero.add(heroBody);
-let heroBat=null;
+let heroBat=null, heroGun=null, sniperGlowMat=null;
 {
   const suit=new THREE.MeshStandardMaterial({color:"#f26b3a",roughness:.6});
   const dark=new THREE.MeshStandardMaterial({color:"#22314d",roughness:.7});
@@ -353,6 +353,13 @@ let heroBat=null;
     const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.075,.035,1.05,10),wood); barrel.position.y=.5; bat.add(barrel);
     const knob=new THREE.Mesh(new THREE.SphereGeometry(.05,8,6),wood); knob.position.y=-.03; bat.add(knob);
     bat.visible=false; heroBody.add(bat); heroBat=bat; }
+  { const gun=new THREE.Group(); gun.position.set(.34,.28,-.2);
+    const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.04,.05,1.3,8),new THREE.MeshStandardMaterial({color:"#2a2f38",metalness:.7,roughness:.35})); barrel.rotation.x=Math.PI/2; barrel.position.z=-.45; gun.add(barrel);
+    const stock=new THREE.Mesh(new THREE.BoxGeometry(.12,.2,.5),new THREE.MeshStandardMaterial({color:"#5a3a22",roughness:.7})); stock.position.z=.15; gun.add(stock);
+    const scope=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,.36,8),new THREE.MeshStandardMaterial({color:"#1a1d22",metalness:.6})); scope.rotation.x=Math.PI/2; scope.position.set(0,.12,-.2); gun.add(scope);
+    sniperGlowMat=new THREE.MeshStandardMaterial({color:"#3a3f48",emissive:"#000000",emissiveIntensity:2.5});
+    const coil=new THREE.Mesh(new THREE.TorusGeometry(.08,.025,6,14),sniperGlowMat); coil.position.z=-.7; gun.add(coil); const coil2=coil.clone(); coil2.position.z=-.95; gun.add(coil2);
+    gun.visible=false; heroBody.add(gun); heroGun=gun; }
   for (const side of [-1,1]){ const arm=new THREE.Group(); arm.name=side<0?"armL":"armR"; arm.position.set(side*.42,.3,0);
     const limb=new THREE.Mesh(new THREE.CapsuleGeometry(.1,.34,3,8),suit); limb.position.y=-.24; limb.name="limb"; arm.add(limb);
     const hand=new THREE.Mesh(new THREE.SphereGeometry(.11,8,6),skin); hand.position.y=-.48; arm.add(hand); heroBody.add(arm); }
@@ -914,6 +921,9 @@ function frame(){
   { let turn=hero.rotation.y-lastYaw; turn=Math.atan2(Math.sin(turn),Math.cos(turn)); lastYaw=hero.rotation.y; wing.rotation.z += (Math.max(-.5,Math.min(.5,-turn/Math.max(dt,1e-3)*.12))-wing.rotation.z)*Math.min(1,6*dt); }
   if (swingAnim>0) swingAnim=Math.max(0,swingAnim-dt/.28);
   heroBat.visible=batTime>0; poseSwing(heroBody,heroBat,swingAnim,swingBat);
+  if (running) trackSpin(dt);
+  heroGun.visible=heldItem==="sniper" && !heroBat.visible;
+  if (heroGun.visible){ const k=sniperCharge>0 ? .6+.4*Math.sin(performance.now()/70) : Math.min(1,Math.abs(spinAcc)/(Math.PI*2))*.5; sniperGlowMat.emissive.setRGB(.3*k,1.6*k,2*k); }
   heroBody.rotation.z = simTime<spinUntil ? (spinUntil-simTime)*14 : 0;
   heroBody.rotation.x = gliding ? -1.1 : onGround ? -Math.min(.25,hs*.02) : (attached? -.35 : Math.max(-.5,Math.min(.5,-v.y*.02)));
   hand.set(0,.35,-.1).applyEuler(hero.rotation).add(hero.position);
@@ -1006,7 +1016,7 @@ function sendPresence(){
   if (now-presT < (running?50:1000)) return; presT=now;
   const p=pBody.interpolatedPosition, v=pBody.velocity;
   const h = hook ? [hook.phase==="fly"?1:hook.phase==="attached"?2:3, r2(hook.tip.x),r2(hook.tip.y),r2(hook.tip.z), r2(hook.len||0), hook.remote||""] : 0;
-  room.presence({n:myName(), p:[r2(p.x),r2(p.y),r2(p.z)], v:[r2(v.x),r2(v.y),r2(v.z)], yw:r2(hero.rotation.y), g:gliding?1:0, h, s:got, t:Math.round(elapsed*10)/10, rs:runState, ps:running?0:1, mp:MAP.key, pc:myCharKey, sw:swingN, bt:batTime>0?1:0, hit:lastHit, sp:lastSplash, dk:dunks, bots:botsPayload(), bsp:lastBsp, chat:lastChat, bchat:lastBchat, boom:lastBoom, cupS:cupPresence(), fin:lastFin, fg:lastFinGot, trp:lastTrap, st:[stats.deaths,stats.hits,stats.homers,stats.punches,stats.items,Math.round(stats.airTime),Math.round(stats.topSpeed),stats.traps,stats.throws,stats.smashes]}).catch(()=>{});
+  room.presence({n:myName(), p:[r2(p.x),r2(p.y),r2(p.z)], v:[r2(v.x),r2(v.y),r2(v.z)], yw:r2(hero.rotation.y), g:gliding?1:0, h, s:got, t:Math.round(elapsed*10)/10, rs:runState, ps:running?0:1, mp:MAP.key, pc:myCharKey, sw:swingN, bt:batTime>0?1:0, hit:lastHit, sp:lastSplash, dk:dunks, bots:botsPayload(), bsp:lastBsp, chat:lastChat, bchat:lastBchat, boom:lastBoom, cupS:cupPresence(), fin:lastFin, fg:lastFinGot, trp:lastTrap, st:[stats.deaths,stats.hits,stats.homers,stats.punches,stats.items,Math.round(stats.airTime),Math.round(stats.topSpeed),stats.traps,stats.throws,stats.smashes,stats.snipes||0]}).catch(()=>{});
 }
 function nameSprite(text,color){
   const c=document.createElement("canvas"); let x=c.getContext("2d"); const font="700 30px 'Nunito Sans', system-ui, sans-serif";
@@ -1834,7 +1844,7 @@ function standings(){
   for (const b of bots){ const a=botAvatars.get("bot:"+b.id); rows.push({name:b.name,bot:true,s:b.sparkCount,t:b.sparkCount>=TOTAL?b.doneT:null,k:b.dunks||0,d:b.falls||0,color:a?a.color:"#c9d3df"}); }
   if (!amController) for (const a of botAvatars.values()) rows.push({name:a.name,bot:true,s:a.sparks||0,t:null,k:a.dunks||0,d:a.falls||0,color:a.color});
   for (const a of avatars.values()){ const ps=a.pres||{}, st=Array.isArray(ps.st)?ps.st:[]; rows.push({name:a.name,s:Number(ps.s)||0,t:ps.rs==="done"?Number(ps.t)||null:null,k:Math.max(0,Number(ps.dk)||0),d:Math.max(0,Number(st[0])||0),color:a.color,
-    st:{deaths:Number(st[0])||0,hits:Number(st[1])||0,homers:Number(st[2])||0,punches:Number(st[3])||0,items:Number(st[4])||0,airTime:Number(st[5])||0,topSpeed:Number(st[6])||0,traps:Number(st[7])||0,throws:Number(st[8])||0,smashes:Number(st[9])||0,dunks:Math.max(0,Number(ps.dk)||0)}}); }
+    st:{deaths:Number(st[0])||0,hits:Number(st[1])||0,homers:Number(st[2])||0,punches:Number(st[3])||0,items:Number(st[4])||0,airTime:Number(st[5])||0,topSpeed:Number(st[6])||0,traps:Number(st[7])||0,throws:Number(st[8])||0,smashes:Number(st[9])||0,snipes:Number(st[10])||0,dunks:Math.max(0,Number(ps.dk)||0)}}); }
   for (const r of rows){ r.fin = !!finale.grabbedBy && r.name===finale.grabbedBy; r.score=r.s+(r.fin?FINAL_BONUS:0); }
   rows.sort((x,y)=>y.score-x.score || (x.t??1e9)-(y.t??1e9));
   return rows;
@@ -1898,7 +1908,7 @@ function followCup(pr,ps){
 function addCupStats(rows){
   cup.stats=cup.stats||{};
   for (const r of rows){ const a=cup.stats[r.name]=cup.stats[r.name]||{s:0,k:0,d:0,hits:0,homers:0,punches:0,items:0,air:0,top:0,traps:0,throws:0,smashes:0,bot:r.bot?1:0,me:r.me?1:0};
-    a.s+=r.s||0; a.k+=r.k||0; a.d+=r.d||0; const st=r.st; if (st){ a.hits+=st.hits||0; a.homers+=st.homers||0; a.punches+=st.punches||0; a.items+=st.items||0; a.traps=(a.traps||0)+(st.traps||0); a.throws=(a.throws||0)+(st.throws||0); a.smashes=(a.smashes||0)+(st.smashes||0); a.air+=st.airTime||0; a.top=Math.max(a.top,st.topSpeed||0); } }
+    a.s+=r.s||0; a.k+=r.k||0; a.d+=r.d||0; const st=r.st; if (st){ a.hits+=st.hits||0; a.homers+=st.homers||0; a.punches+=st.punches||0; a.items+=st.items||0; a.traps=(a.traps||0)+(st.traps||0); a.throws=(a.throws||0)+(st.throws||0); a.smashes=(a.smashes||0)+(st.smashes||0); a.snipes=(a.snipes||0)+(st.snipes||0); a.air+=st.airTime||0; a.top=Math.max(a.top,st.topSpeed||0); } }
 }
 const AWARDS=[
   {k:"s",   t:"Spark Hoarder",   d:v=>`${v} sparks in the cup`},
@@ -1910,6 +1920,7 @@ const AWARDS=[
   {k:"air", t:"Frequent Flyer",  d:v=>`${Math.round(v)} s in the air`},
   {k:"top", t:"Speed Demon",     d:v=>`top speed ${Math.round(v)} m/s`},
   {k:"items",t:"Item Gremlin",   d:v=>`${v} items used`},
+  {k:"snipes",t:"Trickshot Artist",d:v=>`${v} spin-sniper hit${v>1?"s":""}`},
   {k:"traps",t:"Trap Master",    d:v=>`set off ${v} trap${v>1?"s":""}`},
   {k:"throws",t:"Yeet Lord",     d:v=>`${v} thing${v>1?"s":""} thrown`},
   {k:"smashes",t:"Wrecking Ball",d:v=>`${v} wall${v>1?"s":""} smashed`},
@@ -1981,6 +1992,7 @@ if (window.claude && typeof window.claude.use==="function") window.claude.use("d
 const ITEMS={
   boost:{name:"Rocket boost",label:"BOOST"}, bomb:{name:"Bomb",label:"BOMB"}, comet:{name:"Homing comet",label:"COMET"},
   shield:{name:"Shield bubble",label:"SHIELD"}, magnet:{name:"Spark magnet",label:"MAGNET"},
+  sniper:{name:"Spin sniper",label:"SNIPER"},
 };
 let heldItem=null, shieldT=0, magnetT=0, boomN=0, lastBoom=0;
 const lastBoomSeen=new Map(), projectiles=[];
@@ -1988,7 +2000,7 @@ const shieldMesh=new THREE.Mesh(new THREE.SphereGeometry(1.2,20,14),new THREE.Me
 function myRank(){ const rows=standings(); const i=rows.findIndex(r=>r.me); return {rank:i<0?0:i, n:rows.length}; }
 function rollItem(){
   const {rank,n}=myRank(), back = n>1 ? rank/(n-1) : .5;   // 0 = leading, 1 = last
-  const w={ boost:1, shield:1.4*(1-back)+.2, magnet:1.2*(1-back)+.3, bomb:.4+1.2*back, comet:back>.45 ? 1.6*back : 0 };
+  const w={ boost:1, shield:1.4*(1-back)+.2, magnet:1.2*(1-back)+.3, bomb:.4+1.2*back, comet:back>.45 ? 1.6*back : 0, sniper:.7 };
   let tot=0; for (const k in w) tot+=w[k]; let r=Math.random()*tot;
   for (const k in w){ r-=w[k]; if (r<=0) return k; } return "boost";
 }
@@ -2002,8 +2014,48 @@ function leaderTarget(exclude){
 }
 const bombMat=new THREE.MeshStandardMaterial({color:"#1a1a20",metalness:.4,roughness:.4}), fuseMat=new THREE.MeshBasicMaterial({color:"#ff6a2e"});
 const cometMat=new THREE.MeshBasicMaterial({color:"#7cc8ff",toneMapped:false});
+// spin sniper: it only fires after you turn a full 360°, which charges it for a few seconds (the gun glows).
+// That forces trickshots: spin off a swing, spin while gliding, then fire.
+let spinAcc=0, spinQuiet=0, sniperCharge=0, lastSpinYaw=null;
+const SNIPER_CHARGE=3.2, SNIPER_RANGE=160;
+function trackSpin(dt){
+  if (heldItem!=="sniper"){ spinAcc=0; sniperCharge=0; lastSpinYaw=yaw; return; }
+  if (lastSpinYaw==null) lastSpinYaw=yaw;
+  let d=yaw-lastSpinYaw; d=Math.atan2(Math.sin(d),Math.cos(d)); lastSpinYaw=yaw;
+  if (Math.abs(d)>.002){ if (Math.sign(d)!==Math.sign(spinAcc) && Math.abs(spinAcc)>.3) spinAcc*=.5; spinAcc+=d; spinQuiet=0; } else { spinQuiet+=dt; if (spinQuiet>.6) spinAcc*=Math.exp(-3*dt); }
+  if (sniperCharge>0){ sniperCharge=Math.max(0,sniperCharge-dt); if (!sniperCharge) toast("Sniper cooled down","Spin again to charge it"); }
+  if (Math.abs(spinAcc)>=Math.PI*2){ spinAcc=0; const was=sniperCharge>0; sniperCharge=SNIPER_CHARGE; if (!was){ [660,880,1320].forEach((f,i)=>tone(f,.12,"sawtooth",.05,1.3,i*.05)); toast("CHARGED!",isTouch?"Tap Item to fire":"Press G to fire"); } }
+}
+function fireSniper(){
+  const dir=new THREE.Vector3(); camera.getWorldDirection(dir);
+  const from=camera.position.clone().addScaledVector(dir,camera.position.distanceTo(camTarget));
+  let best=null;
+  const consider=(key,a,isBot)=>{ const to=tmpV.set(a.disp.x-from.x,a.disp.y+.4-from.y,a.disp.z-from.z), along=to.dot(dir); if (along<1 || along>SNIPER_RANGE) return;
+    const off=Math.sqrt(Math.max(0,to.lengthSq()-along*along)); if (off<1.3+along*.012 && (!best || along<best.along)) best={key,a,along,isBot}; };
+  for (const a of avatars.values()) consider(a.peer,a,false);
+  for (const [key,a] of botAvatars) consider(key,a,true);
+  // walls stop the bullet
+  let endD=SNIPER_RANGE; ray.set(from,dir); ray.far=SNIPER_RANGE; const wall=ray.intersectObjects(grappleables,false).find(h=>!h.object.userData.remote); if (wall) endD=wall.distance;
+  const td=terrainRay(from,dir,SNIPER_RANGE); if (td<endD) endD=td;
+  if (best && best.along>endD+.5) best=null;
+  const hitD=best?best.along:endD;
+  // tracer
+  const end=from.clone().addScaledVector(dir,hitD), len=hand.distanceTo(end);
+  const tr=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,1,6,1,true),new THREE.MeshBasicMaterial({color:"#9af6ff",transparent:true,opacity:.9,toneMapped:false,depthWrite:false}));
+  tr.position.copy(hand).add(end).multiplyScalar(.5); tr.scale.set(1,len,1); tr.quaternion.setFromUnitVectors(UP,tmpV2.subVectors(end,hand).normalize()); scene.add(tr);
+  projectiles.push({kind:"tracer",mesh:tr,t:.35});
+  noise(.12,{type:"highpass",f:1800,vol:.9}); tone(140,.35,"sawtooth",.18,.3); shakeT=Math.max(shakeT,.3);
+  const v=pBody.velocity; v.x-=dir.x*6; v.y-=dir.y*6; v.z-=dir.z*6;   // recoil
+  if (!best){ explode(end.x,end.y,end.z,2.2,.5,{peer:myPeer||"me",name:myName()},true); toast("Missed!"); return; }
+  const hd=Math.hypot(dir.x,dir.z)||1, d2=[r2(dir.x/hd),r2(dir.z/hd)];
+  if (best.isBot && amController) hitBot(best.key,d2,true,myPeer||"me",myName());
+  else { hitN++; lastHit={n:hitN,to:best.key,d:d2,f:1,m:1.6}; }
+  stats.hits++; stats.snipes=(stats.snipes||0)+1; crack(); faceHappyT=2;
+  const air=!onGround; announce("trickshot", air?"Trickshot!":"Sniped!",true); toast(air?"TRICKSHOT!":"SNIPED!",best.a.name+" from "+Math.round(best.along)+" m");
+}
 function useItem(){
   if (!running || raceCount>0 || !heldItem) return;
+  if (heldItem==="sniper"){ audioOn(); if (sniperCharge<=0){ toast("Spin 360° to charge it!","Turn a full circle, then fire while it glows"); tone(220,.12,"square",.04); return; } heldItem=null; sniperCharge=0; stats.items++; fireSniper(); return; }
   audioOn(); const it=heldItem; heldItem=null; stats.items++;
   const fwd=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)), p=pBody.position, v=pBody.velocity;
   if (it==="boost"){ v.x+=fwd.x*26; v.z+=fwd.z*26; v.y=Math.max(v.y,0)+9; knockUntil=simTime+.5; puff(p); whoosh(true); toast("Rocket boost!"); }
@@ -2057,10 +2109,11 @@ function updateItems(dt,itemDt=simFrozen?0:dt){
     }
     else if (pr.kind==="lava"){ const m=pr.mesh; pr.vel.y-=26*dt; m.position.addScaledVector(pr.vel,dt); m.rotation.x+=dt*5; if (Math.random()<.4) puff({x:m.position.x,y:m.position.y+.4,z:m.position.z});
       if (pr.t<=0 || (pr.vel.y<0 && m.position.y<Math.max(0,H(m.position.x,m.position.z))+.4)){ explode(m.position.x,m.position.y,m.position.z,5,.9,pr.by,false); scene.remove(m); m.geometry.dispose(); projectiles.splice(i,1); } }
+    else if (pr.kind==="tracer"){ pr.mesh.material.opacity=.9*Math.max(0,pr.t/.35); if (pr.t<=0){ scene.remove(pr.mesh); pr.mesh.geometry.dispose(); pr.mesh.material.dispose(); projectiles.splice(i,1); } }
     else if (pr.kind==="flash"){ const k=1-pr.t/.45; pr.mesh.scale.setScalar(.5+pr.r*k); pr.mesh.material.opacity=.8*(1-k); if (pr.t<=0){ scene.remove(pr.mesh); pr.mesh.geometry.dispose(); pr.mesh.material.dispose(); projectiles.splice(i,1); } }
   }
   for (let i=debris.length-1;i>=0;i--){ const d=debris[i]; d.t-=dt; d.mesh.position.copy(d.body.position); d.mesh.quaternion.copy(d.body.quaternion); if (d.t<=0){ scene.remove(d.mesh); world.removeBody(d.body); debris.splice(i,1); } }
-  $("item").textContent = heldItem ? ITEMS[heldItem].label : (shieldT>0 ? "SHIELD "+Math.ceil(shieldT) : magnetT>0 ? "MAGNET "+Math.ceil(magnetT) : "–");
+  $("item").textContent = heldItem==="sniper" ? (sniperCharge>0 ? "FIRE "+Math.ceil(sniperCharge) : "SPIN "+Math.round(Math.min(1,Math.abs(spinAcc)/(Math.PI*2))*100)+"%") : heldItem ? ITEMS[heldItem].label : (shieldT>0 ? "SHIELD "+Math.ceil(shieldT) : magnetT>0 ? "MAGNET "+Math.ceil(magnetT) : "–");
 }
 
 // bots grab boxes as they pass, and use items in character
@@ -2312,5 +2365,5 @@ $("deathGo").addEventListener("click",e=>{ e.preventDefault(); respawn(null); })
 // interpolated poses start at the origin until the first physics step
 for (const b of world.bodies){ b.interpolatedPosition.copy(b.position); b.interpolatedQuaternion.copy(b.quaternion); }
 // small hook for automated testing; not used by the game itself
-window.__skyDebug={ gliderPickupsList:()=>gliderPickups, renderInfo:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,meshes:(()=>{ let n=0; scene.traverse(o=>{ if(o.isMesh) n++; }); return n; })()}), headlessStart:(nBots=1)=>{ simFrozen=true; wantBots=nBots; running=true; $("start").hidden=true; for (const C of CHARACTERS) introSeen.add(C.key); introQ.length=0; }, botItems:(b,dt)=>botItems(b,dt), gfx:()=>({GFX,composer:!!composer,ao:aoOn}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, cupAwards:()=>cupAwards(), showCupFinal:()=>showCupFinal(cupDef()), forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); for (const g of [...gliderPickups,...batPickups]) if (g.cd>0) g.cd-=1/60; for (const b of itemBoxes) if (b.cd>0) b.cd-=1/60; } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded, traps, projectiles, camInfo:()=>({cam:camera.position.toArray().map(n=>+n.toFixed(2)),body:pBody.position.toArray().map(n=>+n.toFixed(2)),flashT,hemi:hemi.intensity,camCur}), triggerTrap:(i,n)=>triggerTrap(i,{peer:'x',name:n||'Tester'},true), meMag, yeet:b=>yeet(b), thrown, dynamics, finale, spawnFinale:(x,y,z,by)=>spawnFinale(new THREE.Vector3(x,y,z),by||myName(),true), finaleSpot:p=>finaleSpot(p), grabFinale:n=>grabFinale(n,true), resetFinale:()=>resetFinale(), finaleGrp, searchlights, standings:()=>standings(), settings, applyInputUI, setInput:t=>setInput(t), inputTouch:()=>isTouch, castAim:d=>castAim(d), assistAim:(d,l)=>assistAim(d,l), tapHook:(x,y)=>tapHook(x,y), camera, camTarget, hand, hookUp:()=>hookUp(), death:()=>({deadT,DEATH_SECS}), respawnNow:()=>respawn(null), setDeathSecs:n=>{ DEATH_SECS=n; }, stats:()=>JSON.parse(JSON.stringify(stats)), drops:()=>drops.length, groundPunch:b=>groundPunch(b), setOnGround:v=>{ onGround=v; } };
+window.__skyDebug={ gliderPickupsList:()=>gliderPickups, renderInfo:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,meshes:(()=>{ let n=0; scene.traverse(o=>{ if(o.isMesh) n++; }); return n; })()}), headlessStart:(nBots=1)=>{ simFrozen=true; wantBots=nBots; running=true; $("start").hidden=true; for (const C of CHARACTERS) introSeen.add(C.key); introQ.length=0; }, botItems:(b,dt)=>botItems(b,dt), gfx:()=>({GFX,composer:!!composer,ao:aoOn}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, cupAwards:()=>cupAwards(), showCupFinal:()=>showCupFinal(cupDef()), forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); for (const g of [...gliderPickups,...batPickups]) if (g.cd>0) g.cd-=1/60; for (const b of itemBoxes) if (b.cd>0) b.cd-=1/60; } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded, sniper:()=>({spinAcc,sniperCharge,held:heldItem}), traps, projectiles, camInfo:()=>({cam:camera.position.toArray().map(n=>+n.toFixed(2)),body:pBody.position.toArray().map(n=>+n.toFixed(2)),flashT,hemi:hemi.intensity,camCur}), triggerTrap:(i,n)=>triggerTrap(i,{peer:'x',name:n||'Tester'},true), meMag, yeet:b=>yeet(b), thrown, dynamics, finale, spawnFinale:(x,y,z,by)=>spawnFinale(new THREE.Vector3(x,y,z),by||myName(),true), finaleSpot:p=>finaleSpot(p), grabFinale:n=>grabFinale(n,true), resetFinale:()=>resetFinale(), finaleGrp, searchlights, standings:()=>standings(), settings, applyInputUI, setInput:t=>setInput(t), inputTouch:()=>isTouch, castAim:d=>castAim(d), assistAim:(d,l)=>assistAim(d,l), tapHook:(x,y)=>tapHook(x,y), camera, camTarget, hand, hookUp:()=>hookUp(), death:()=>({deadT,DEATH_SECS}), respawnNow:()=>respawn(null), setDeathSecs:n=>{ DEATH_SECS=n; }, stats:()=>JSON.parse(JSON.stringify(stats)), drops:()=>drops.length, groundPunch:b=>groundPunch(b), setOnGround:v=>{ onGround=v; } };
 frame();

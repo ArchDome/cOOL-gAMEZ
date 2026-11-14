@@ -59,7 +59,7 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] (junkyard magnets and volcano idol done; one per remaining map still to do: isles, neon, glacier, jungle) Map traps players can trigger: junkyard magnet (sticks players for a while), volcano idol (grapple it, throw it in the crater, the volcano erupts), plus one per map, inspired by death-run traps.
 - [x] Throwable props: grapple an item, pull it close, throw it at people.
 - [ ] Sumo deathmatch mode: knock players into the void. Points for knockoffs, item throws.
-- [ ] Sniper rifle item: charge it by spinning 360°, the gun glows while charged (limited time), and the shot has huge knockback.
+- [x] Sniper rifle item: charge it by spinning 360°, the gun glows while charged (limited time), and the shot has huge knockback.
 - [x] Mobile: detect the input method and switch the UI (hide keyboard hints like "T to restart", a compact HUD on small screens).
 - [x] Mobile aiming: sensitivity setting, gyroscope aim (toggle), aim assist that snaps the crosshair to nearby hook points (strength setting).
 - [x] Simplified touch controls option: the camera follows behind the player, tap where to grapple and it reels automatically.

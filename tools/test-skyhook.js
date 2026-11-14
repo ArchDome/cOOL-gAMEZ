@@ -75,6 +75,15 @@ const { openGame, checker } = require('./harness');
     const yt = await page.evaluate(() => { const d = window.__skyDebug, dyn = d.dynamics[0]; if (!dyn) return { skip: 'no props' }; d.yeet(dyn.body); const v = dyn.body.velocity; return { speed: Math.hypot(v.x, v.y, v.z), tracked: d.thrown.some(o => o.body === dyn.body) }; });
     c.check('hooked props can be thrown', yt.skip || (yt.speed > 15 && yt.tracked), JSON.stringify(yt));
 
+    // Spin sniper: won't fire until you turn a full 360°, then fires once
+    await page.evaluate(() => { const d = window.__skyDebug; d.giveItem('sniper'); d.useItem(); });
+    const sn0 = await page.evaluate(() => window.__skyDebug.sniper());
+    for (let i = 0; i < 10; i++) await page.evaluate((i) => new Promise(r => { window.__skyDebug.view(1 + i * 0.8, .2); requestAnimationFrame(() => requestAnimationFrame(r)); }), i);
+    const sn1 = await page.evaluate(() => window.__skyDebug.sniper());
+    await page.evaluate(() => window.__skyDebug.useItem());
+    const sn2 = await page.evaluate(() => window.__skyDebug.sniper());
+    c.check('the spin sniper needs a 360 to charge, then fires', sn0.held === 'sniper' && sn1.sniperCharge > 0 && sn2.held === null, JSON.stringify([sn0, sn1, sn2]));
+
     // Ground punch: swinging at the ground while falling bounces you up; the bat bounces higher
     const punch = await page.evaluate(() => {
       const d = window.__skyDebug, b = d.body, out = {};

@@ -4,6 +4,14 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14: Spin sniper
+
+- A new item from ? boxes, available to anyone (no rank weighting). It **only fires after you turn a full 360°**: the HUD shows `SPIN 0–100%`, and the coils on the barrel glow brighter as you turn. A full turn charges it for 3.2 s (`FIRE 3`), with a rising tone and a pulsing cyan glow. Spin while swinging or gliding, then fire: the requirement is the trick. Spinning the other way halves your progress, and holding still lets it fade.
+- **The shot:** hitscan from the crosshair, up to 160 m, with a generous aim cone that widens slightly with distance. Walls and terrain stop it. A hit is a bat hit ×1.6 (the biggest knockback in the game). You get a recoil kick, a cyan tracer, and the announcer shouts "Trickshot!" if you're airborne or "Sniped!" if not. A miss sets off a small blast where the bullet lands.
+- **Trickshot Artist** award; `snipes` stat in presence.
+
+---
+
 ## 2026-11-14: Maps are toys: traps, throwing, smashing walls
 
 Principle 4 ("every map has something to trigger") and principle 1 ("if they want to break through a wall, let them").
