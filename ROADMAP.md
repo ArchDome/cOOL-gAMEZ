@@ -56,9 +56,9 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] Stats per player: sparks, kills, deaths, falls, bat hits, air time, top speed. Show them in results.
 - [x] Custom awards at the end of a cup (Speed Demon, Menace, Survivor, Troll, Most Dramatic Death...).
 - [x] Final spark: when someone has all normal sparks, a big spark spawns with dramatic music and a light beam. Bonus points. It spawns closer to whoever finished first.
-- [x] (junkyard magnets and volcano idol done; one per remaining map still to do: isles, neon, glacier, jungle) Map traps players can trigger: junkyard magnet (sticks players for a while), volcano idol (grapple it, throw it in the crater, the volcano erupts), plus one per map, inspired by death-run traps.
+- [x] Map traps players can trigger (all six maps): junkyard magnet (sticks players for a while), volcano idol (grapple it, throw it in the crater, the volcano erupts), plus one per map, inspired by death-run traps.
 - [x] Throwable props: grapple an item, pull it close, throw it at people.
-- [ ] Sumo deathmatch mode: knock players into the void. Points for knockoffs, item throws.
+- [x] Sumo deathmatch mode: knock players into the void. Points for knockoffs, item throws.
 - [x] Sniper rifle item: charge it by spinning 360°, the gun glows while charged (limited time), and the shot has huge knockback.
 - [x] Mobile: detect the input method and switch the UI (hide keyboard hints like "T to restart", a compact HUD on small screens).
 - [x] Mobile aiming: sensitivity setting, gyroscope aim (toggle), aim assist that snaps the crosshair to nearby hook points (strength setting).

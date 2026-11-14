@@ -35,7 +35,7 @@ function colorAt(x,y,z,ny,c,THREE){
 }
 
 function build(api){
-  const {THREE,CANNON,scene,world,R,H,slopeAt,S,groundMat,grappleables,camBlockers,dynamics,pillars,rocks,trees,updrafts}=api;
+  const {THREE,CANNON,scene,world,R,H,slopeAt,S,groundMat,grappleables,camBlockers,dynamics,pillars,rocks,trees,updrafts,traps,trapTrigger}=api;
   const stoneMat=new THREE.MeshStandardMaterial({color:"#b8ab95",flatShading:true,roughness:.9});
   const stoneMat2=new THREE.MeshStandardMaterial({color:"#a49881",flatShading:true,roughness:.9});
   const mossMat=new THREE.MeshStandardMaterial({color:"#6aa84a",flatShading:true,roughness:.95});
@@ -126,6 +126,9 @@ function build(api){
     const rings=[]; for(let k=0;k<6;k++){ const ring=new THREE.Mesh(new THREE.TorusGeometry(2.2,.06,4,24),new THREE.MeshBasicMaterial({color:"#ffffff",transparent:true,opacity:.6,depthWrite:false})); ring.rotation.x=Math.PI/2; grp.add(ring); rings.push(ring); }
     updrafts.push({x,z,g,top,rings});
   }
+  // trap: a storm horn near the meadow. Sound it and a gale blows across the island toward the sea for 6 s
+  // (gliders ride it; anyone near an edge goes for a swim).
+  if (traps && trapTrigger){ const hx=SPAWN.x+16, hz=SPAWN.z-14; traps.push({kind:"gust",triggers:[trapTrigger(hx,hz,"#7cd8ff",2.6)],dir:[PEAK.x-SPAWN.x,PEAK.z-SPAWN.z],dur:6,cool:22,name:"Storm horn"}); }
 }
 
 function placeName(p,H){

@@ -22,7 +22,7 @@ function colorAt(x,y,z,ny,c,THREE){
 }
 
 function build(api){
-  const {THREE,CANNON,scene,world,R,H,slopeAt,groundMat,grappleables,camBlockers,pillars,rocks,updrafts}=api;
+  const {THREE,CANNON,scene,world,R,H,slopeAt,groundMat,grappleables,camBlockers,pillars,rocks,updrafts,traps,trapTrigger}=api;
   const iceMat=new THREE.MeshStandardMaterial({color:"#a8d8ff",emissive:"#3a8ad0",emissiveIntensity:.35,roughness:.15,metalness:.1,transparent:true,opacity:.92,flatShading:true});
   const iceDark=new THREE.MeshStandardMaterial({color:"#6fa6d6",emissive:"#1a4a80",emissiveIntensity:.3,roughness:.2,flatShading:true});
   // ice spires: tall tapered prisms, a box collider each
@@ -66,6 +66,8 @@ function build(api){
     for (let i=0;i<pos.count;i++){ const x=pos.getX(i); pos.setZ(i,Math.sin(x*.02+k)*40); }
     const m=new THREE.Mesh(g,auroraMat.clone()); m.material.color.set(k%2?"#5ad8ff":"#3dffa8"); m.position.set((k-1.5)*60,190+k*14,-120+k*50); m.rotation.x=-.25; scene.add(m);
   }
+  // trap: an avalanche bell on the ice crown. Ring it and a giant snowball rolls down toward base camp.
+  if (traps && trapTrigger){ const bx=PEAK.x+6, bz=PEAK.z+6; traps.push({kind:"boulder",triggers:[trapTrigger(bx,bz,"#bfe8ff",2.4)],from:{x:PEAK.x+4,y:H(PEAK.x+4,PEAK.z+4)+5,z:PEAK.z+4},to:SPAWN,r:2.6,color:"#f4fbff",label:"AVALANCHE!",dur:12,cool:30,name:"Avalanche bell"}); }
 }
 
 function placeName(p,H){

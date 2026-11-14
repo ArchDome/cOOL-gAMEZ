@@ -137,6 +137,7 @@ body.hud-compact .face{transform:scale(.72);transform-origin:bottom left}
 body.hud-compact .rank{left:calc(max(16px,env(safe-area-inset-left,0px)) + 88px)}
 body.hud-compact .rank b{font-size:34px}
 body.hud-compact .intro{transform:scale(.8);transform-origin:bottom left}
+body.sumo #splits{display:none}
 .toast small{display:block;font-family:var(--body);font-weight:700;font-size:15px;color:var(--ink);margin-top:6px}
 .overlay{position:fixed;inset:0;display:grid;place-items:center;overflow:auto;background:radial-gradient(ellipse at 50% 35%,rgba(20,32,56,.35),rgba(12,18,32,.82));
   padding-block:calc(env(safe-area-inset-top,0px) + 16px) calc(env(safe-area-inset-bottom,0px) + 16px);
@@ -198,7 +199,7 @@ body.hud-compact .intro{transform:scale(.8);transform-origin:bottom left}
     <div class="chip brand">Skyhook<small id="where">Skyhook Isles · The meadow</small></div>
     <div class="rightcol">
       <div class="chip stats">
-        <div class="stat sp"><b id="sparks">0/15</b><span>Sparks</span></div>
+        <div class="stat sp"><b id="sparks">0/15</b><span id="sparksLbl">Sparks</span></div>
         <div class="stat"><b id="speed">0</b><span>m/s</span></div>
         <div class="stat gl"><b id="glider">–</b><span>Glider</span></div>
         <div class="stat bt"><b id="bat">–</b><span>Bat</span></div>
@@ -214,7 +215,7 @@ body.hud-compact .intro{transform:scale(.8);transform-origin:bottom left}
       <div class="chip players" id="players" hidden>
         <div class="sp-head"><span>On the island</span><span id="plCount"></span></div>
         <div id="plList"></div>
-        <div class="splits" style="width:auto;padding:0;background:none;border:0"><button type="button" id="raceBtn">Start race (everyone restarts)</button></div>
+        <div class="splits" style="width:auto;padding:0;background:none;border:0"><button type="button" id="raceBtn">Start round (everyone restarts)</button></div>
       </div>
     </div>
   </div>
@@ -256,6 +257,7 @@ body.hud-compact .intro{transform:scale(.8);transform-origin:bottom left}
     <p>Grapple, swing and glide across five maps, from floating isles to a neon city in the rain. Race friends and a cast of rivals for 15 sparks, grab ? boxes for bombs and homing comets, and knock everyone into the sea.</p>
 
     <div class="opts">
+      <span class="opt"><label for="optMode">Mode</label><select id="optMode"><option value="race">Spark race</option><option value="sumo">Sumo: knock-offs</option></select></span>
       <span class="opt"><label for="optChar">Play as</label><select id="optChar"></select></span>
       <span class="opt"><label for="optMap">Map</label><select id="optMap"></select></span>
       <span class="opt"><label for="optBots">Bots</label><select id="optBots"><option>0</option><option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></span>

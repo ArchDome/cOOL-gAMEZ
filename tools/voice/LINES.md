@@ -19,6 +19,9 @@ Record each line as its own file and name it with the key (e.g. `homerun.m4a`). 
 | `final` | The final spark appears | "THE FINAL SPARK HAS APPEARED!" |
 | `magnets` | Someone powers the junkyard magnets | "Magnets on!" |
 | `erupt` | The volcano erupts | "The volcano is erupting!" |
+| `gust` | Someone sounds the storm horn | "Hold on to your hats!" |
+| `surge` | Someone overloads the transformer | "Power surge!" |
+| `boulder` | A boulder or snowball is let loose | "Look out below!" |
 | `trickshot` | A spin-sniper hit | "TRICKSHOT!" |
 | `finalgot` | Someone grabs the final spark | "What a finish!" |
 

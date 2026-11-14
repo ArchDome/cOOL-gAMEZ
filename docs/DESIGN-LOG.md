@@ -4,6 +4,24 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14: Sumo mode, and a trap on every map
+
+**Sumo** (principle 3: a mode for fighters and trolls). Pick *Mode → Sumo: knock-offs* on the start screen. Pressing Play starts a round, and Start round syncs the mode to friends (`md` on the race event).
+- Sparks and splits are out of play. The HUD shows **KOs** and the timer counts down a 2:30 round. The first to **10 KOs** or the most at the bell wins (ties go to fewer falls). Results show KOs, falls and hits.
+- You respawn at a random spot on land with a death cam of at most 3 s. Bats respawn every 8 s. Item boxes favor bombs and spin snipers (no spark magnet).
+- **Bots fight everyone, each other included.** Only true cowards (fear > 0.8) run, and only from someone armed. Bot-on-bot knockoffs count as KOs for the bot.
+- KOs and stats reset at the start of each round or race.
+
+**Traps on the other four maps**, using three new engine kinds and a shared `trapTrigger()` post (striped pole with a glowing button):
+- **Skyhook Isles: storm horn** (`gust`) near the meadow. A 6 s gale blows across the island toward the sea, strong enough to push people standing on the ground (60 m/s² against ground grip) and much stronger in the air. Gliders ride it. Wind streaks show the direction.
+- **Neon Harbour: transformer** (`zap`) in Lantern Plaza. For 6 s the rooftops are live: anyone standing more than 5 m above the street gets zapped into the air every 0.9 s.
+- **Frozen Spires: avalanche bell** (`boulder`) on the ice crown. A giant snowball rolls down toward base camp.
+- **Jungle Ruins: temple lever** (`boulder`). A stone ball rolls down the temple steps toward the camp.
+- Boulders flatten anyone they touch: 30 m/s knockback, a tumble, and dunk credit to whoever set them off. Each game rolls its own copy from the same start.
+- Tests: every map must have a trap, triggering must work, and boulders must actually roll (glacier 24 m, jungle 60 m in 2.5 s). Bot benchmark unchanged at 129 sparks with all of this in.
+
+---
+
 ## 2026-11-14: Spin sniper
 
 - A new item from ? boxes, available to anyone (no rank weighting). It **only fires after you turn a full 360°**: the HUD shows `SPIN 0–100%`, and the coils on the barrel glow brighter as you turn. A full turn charges it for 3.2 s (`FIRE 3`), with a rising tone and a pulsing cyan glow. Spin while swinging or gliding, then fire: the requirement is the trick. Spinning the other way halves your progress, and holding still lets it fade.

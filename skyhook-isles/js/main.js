@@ -159,7 +159,7 @@ const dynamics=[];       // {mesh, body}
 // ---------------- map objects ----------------
 const pillars=[], rocks=[], trees=[], updrafts=[];
 const traps=[];   // things players can set off, declared by the map (see setupTraps)
-MAP.build({THREE,CANNON,scene,world,R,H,slopeAt,lerp,S,HALF,SPAWN,PEAK,groundMat,grappleables,camBlockers,dynamics,pillars,rocks,trees,updrafts,traps});
+MAP.build({THREE,CANNON,scene,world,R,H,slopeAt,lerp,S,HALF,SPAWN,PEAK,groundMat,grappleables,camBlockers,dynamics,pillars,rocks,trees,updrafts,traps,trapTrigger});
 
 // ---------------- sparks ----------------
 const sparks=[];
@@ -394,10 +394,14 @@ const touchMove={x:0,y:0};
 // player settings (saved per device) and input-aware UI: the game follows whatever you last touched
 const SET_KEY="skyhook.settings.v1";
 const settings=Object.assign({controls:"classic",assist:isTouch?1:0,sens:1,gyro:false,gyroInv:false,hud:isTouch?"compact":"full"},(()=>{ try{ return JSON.parse(localStorage.getItem(SET_KEY)||"{}")||{}; }catch(e){ return {}; } })());
+// game mode: "race" (sparks) or "sumo" (knock everyone off; no sparks)
+let MODE="race"; try{ MODE=localStorage.getItem("skyhook.mode")==="sumo"?"sumo":"race"; }catch(e){}
+const SUMO_TIME=150, SUMO_KOS=10;
+const sumo=()=>MODE==="sumo";
 const saveSettings=()=>{ try{ localStorage.setItem(SET_KEY,JSON.stringify(settings)); }catch(e){} };
 function applyInputUI(){
   const b=document.body; b.classList.toggle("in-touch",isTouch); b.classList.toggle("kbm",!isTouch);
-  b.classList.toggle("hud-compact",settings.hud==="compact"); b.classList.toggle("simple",settings.controls==="simple");
+  b.classList.toggle("hud-compact",settings.hud==="compact"); b.classList.toggle("sumo",MODE==="sumo"); b.classList.toggle("simple",settings.controls==="simple");
   $("keysDesk").hidden=isTouch; $("keysTouch").hidden=!isTouch; if (isTouch) $("hint").hidden=true;
   $("touch").hidden=!(isTouch && running); $("chatBtns").hidden=!isTouch;
 }
@@ -645,7 +649,7 @@ world.addEventListener("preStep",()=>{
     const v=pBody.velocity, target = inUpdraft ? 9 : glideSink;
     v.y += 26*dt; v.y += (target - v.y)*(1-Math.exp(-4*dt));
   }
-  magnetStep(pBody,meMag,dt,true);
+  magnetStep(pBody,meMag,dt,true); if (traps.length && deadT<=0) trapForces(pBody,dt,true,null);
   // fast enough and you go straight through a wall
   { const v=pBody.velocity, sp=Math.hypot(v.x,v.y,v.z); if (sp>21 && towers.length){ const p=pBody.position;
       if (blastTowers(p.x+v.x*.06,p.y+v.y*.06,p.z+v.z*.06,1.9,.7)){ v.x*=.9; v.y*=.9; v.z*=.9; crack(); shakeT=Math.max(shakeT,.25); stats.smashes++; } } }
@@ -798,7 +802,7 @@ function updateDrops(dt){
 let DEATH_SECS=10; try{ const d=localStorage.getItem("skyhook.deathcam"); if (d!=null) DEATH_SECS=+d; }catch(e){}
 let deadT=0, deadFor=0; const deathPos=new THREE.Vector3();
 function startDeathCam(title,sub){
-  deadT=deadFor=DEATH_SECS; deathPos.set(pBody.position.x,0,pBody.position.z); hook=null; gliding=false;
+  deadT=deadFor=MODE==="sumo"?Math.min(DEATH_SECS,3):DEATH_SECS; deathPos.set(pBody.position.x,0,pBody.position.z); hook=null; gliding=false;
   $("deathTitle").textContent=title; $("deathSub").textContent=sub||""; $("death").hidden=false; renderDeath();
 }
 function renderDeath(){ const el=$("deathCount"), txt=`Respawn in ${Math.ceil(deadT)} · ${isTouch?"tap here or Jump":"Space"} to go now`; if (el.textContent!==txt) el.textContent=txt; }
@@ -807,6 +811,7 @@ function toast(big,small){ const t=$("toast"); t.replaceChildren(document.create
 let lastSafe=spawnPos.clone(), safeT=0;
 function respawn(msg){
   deadT=0; $("death").hidden=true;
+  if (MODE==="sumo" && running){ const q=landNear(Math.random()<.5?SPAWN:PEAK); lastSafe.set(q[0],q[1],q[2]); }
   pBody.position.copy(lastSafe); pBody.position.y+=1.5; pBody.velocity.set(0,0,0); pBody.interpolatedPosition.copy(pBody.position); hook=null; camSmooth=null; gliding=false;
   if (msg) toast(msg); tone(220,.3,"sine",.07,.5);
 }
@@ -872,7 +877,9 @@ function renderSplits(force){
   $("sob").textContent = sob!=null ? fmtT(sob) : "–";
 }
 function renderTimer(){
-  const tEl=$("timer"); tEl.textContent=fmtT(elapsed);
+  const tEl=$("timer");
+  if (MODE==="sumo"){ const left=raceLive ? Math.max(0,SUMO_TIME-Math.max(0,simTime-raceStartSim)) : SUMO_TIME; tEl.textContent=fmt(left); tEl.className="runtime"+(raceLive?"":" ready"); return; }
+  tEl.textContent=fmtT(elapsed);
   let cls="runtime";
   if (runState==="ready") cls+=" ready";
   else if (runState==="done") cls+=" done";
@@ -889,6 +896,7 @@ function showStart(paused){
 }
 $("go").addEventListener("click",()=>{
   audioOn(); $("start").hidden=true; running=true; clock.getDelta(); $("faceBox").hidden=false; faceMood=""; setTimeout(cupAutoStart,300);
+  if (MODE==="sumo" && !raceLive && raceCount<=0 && !cup) setTimeout(()=>{ if (running && !raceLive && raceCount<=0) startRound(); },1500);
   if (settings.gyro) enableGyro();
   if (isTouch){ $("touch").hidden=false; return; }
   captureMouse();
@@ -950,11 +958,11 @@ function frame(){
   for (const g of batPickups){
     if (g.cd>0){ g.cd-=simFrozen?0:dt; g.grp.visible=g.beam.visible=g.cd<=0; continue; }
     g.grp.rotation.y+=dt*1.8; g.grp.position.y=g.pos.y+Math.sin(t*2.1+g.pos.x)*.25;
-    if (running && g.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<2.2){ g.cd=BAT_RESPAWN; g.grp.visible=g.beam.visible=false; batTime=BAT_TIME;
+    if (running && g.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<2.2){ g.cd=MODE==="sumo"?8:BAT_RESPAWN; g.grp.visible=g.beam.visible=false; batTime=BAT_TIME;
       faceHappyT=1.6; tone(220,.2,"square",.06); tone(330,.25,"square",.05,1,.08); announce("bat","Bat acquired. Go get 'em."); toast("Baseball bat!", isTouch?"Tap Hit to swing · 30 s":"Press F to swing · 30 s"); }
   }
   // sparks
-  for (const s of sparks){ if (s.got) continue; s.mesh.rotation.y+=dt*2; s.mesh.position.y=s.pos.y+Math.sin(t*2+s.pos.x)*.2;
+  for (const s of sparks){ if (s.got) continue; if (MODE==="sumo"){ if (s.mesh.visible) s.mesh.visible=s.beam.visible=false; continue; } else if (!s.mesh.visible){ s.mesh.visible=s.beam.visible=true; } s.mesh.rotation.y+=dt*2; s.mesh.position.y=s.pos.y+Math.sin(t*2+s.pos.x)*.2;
     if (running && s.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<(magnetT>0?14:1.9)){ s.got=true; s.mesh.visible=false; s.beam.visible=false; got++;
       [880,1108,1318].forEach((f,i)=>tone(f,.18,"triangle",.07,1,i*.07));
       if (runState==="ready") runState="running";
@@ -972,7 +980,7 @@ function frame(){
   for (let i=puffs.length-1;i>=0;i--){ const m=puffs[i]; m.userData.t+=dt; m.position.addScaledVector(m.userData.v,dt); m.material.opacity=.6*(1-m.userData.t/.5); if(m.userData.t>.5){ scene.remove(m); m.geometry.dispose(); m.material.dispose(); puffs.splice(i,1); } }
   hudT+=dt;
   if (hudT>.1){ hudT=0;
-    $("sparks").textContent=`${got}/${TOTAL}`; renderSplits(false); $("speed").textContent=Math.round(Math.hypot(v.x,v.y,v.z)); $("glider").textContent = gliderTime>0 ? Math.ceil(gliderTime)+"s" : "–"; $("bat").textContent = batTime>0 ? Math.ceil(batTime)+"s" : "–"; updateMusic();
+    $("sparks").textContent = MODE==="sumo" ? String(dunks) : `${got}/${TOTAL}`; $("sparksLbl").textContent = MODE==="sumo" ? "KOs" : "Sparks"; renderSplits(false); $("speed").textContent=Math.round(Math.hypot(v.x,v.y,v.z)); $("glider").textContent = gliderTime>0 ? Math.ceil(gliderTime)+"s" : "–"; $("bat").textContent = batTime>0 ? Math.ceil(batTime)+"s" : "–"; updateMusic();
     $("where").textContent=MAP.name+" · "+placeName(p); renderPlayers(); renderRibbon();
     if (running && deadT<=0){ if (!onGround && !attached) stats.airTime+=.1; stats.topSpeed=Math.max(stats.topSpeed,Math.hypot(v.x,v.y,v.z)); }
     if (!isTouch){ const h=$("hint");
@@ -1086,7 +1094,7 @@ function updateRemotes(dt){
         if (myPeer && bsp.by===myPeer){ const nm=cleanName(bsp.name); dunks++; announce("dunk","Dunked! "+nm+" is swimming."); toast("Dunked "+nm+"!","Bots can't swim."); } } }
       const bt=ps.bt?1:0; if (lastBtSeen.has(pr.peer) && bt && !lastBtSeen.get(pr.peer)){ announce("enemybat",a.name+" has the bat. Run!"); toast(a.name+" grabbed a bat"); } lastBtSeen.set(pr.peer,bt);
       if (typeof ps.sw==="number"){ if (a.swLast!=null && ps.sw!==a.swLast){ a.swing=1; a.swingBat=!!ps.bt; } a.swLast=ps.sw; }
-      if (typeof ps.race==="number"){ if (!raceSeen.has(pr.peer)) raceSeen.set(pr.peer,ps.race); else if (ps.race>raceSeen.get(pr.peer)){ raceSeen.set(pr.peer,ps.race); if (ps.race!==raceId) beginRace(ps.race,a.name); } }
+      if (typeof ps.race==="number"){ if (!raceSeen.has(pr.peer)) raceSeen.set(pr.peer,ps.race); else if (ps.race>raceSeen.get(pr.peer)){ raceSeen.set(pr.peer,ps.race); if (ps.race!==raceId) beginRace(ps.race,a.name,ps.md); } }
     }
     const age=Math.min(.25,(now-a.recv)/1000);
     tmpT.copy(a.np).addScaledVector(a.nv,age);
@@ -1257,6 +1265,9 @@ function setupTraps(){
   traps.forEach((T,i)=>{ T.i=i; T.active=0; T.cd=0; T.windup=0; T.by=null; T.bombT=0;
     for (const m of (T.triggers||[])){ m.userData.trap=i; if (!grappleables.includes(m)) grappleables.push(m); }
     if (T.kind==="magnet"){ T.dur=T.dur||8; T.cool=T.cool||18; T.mat=T.magnets[0] && T.magnets[0].ring.material; T.base=T.mat ? T.mat.color.clone() : null; }
+    if (T.kind==="gust"){ T.dur=T.dur||6; T.cool=T.cool||22; const l=Math.hypot(T.dir[0],T.dir[1])||1; T.dir=[T.dir[0]/l,T.dir[1]/l]; }
+    if (T.kind==="zap"){ T.dur=T.dur||6; T.cool=T.cool||22; T.minAbove=T.minAbove??5; }
+    if (T.kind==="boulder"){ T.dur=T.dur||11; T.cool=T.cool||30; T.r=T.r||2.4; }
     if (T.kind==="idol"){ T.dur=T.dur||12; T.cool=T.cool||40;
       const g=new THREE.Group();
       const body=new THREE.Mesh(new THREE.BoxGeometry(.9,1.3,.7),idolStone); g.add(body);
@@ -1273,6 +1284,15 @@ function setupTraps(){
     }
   });
 }
+// a generic trigger post for map traps: a striped pole with a big glowing button on top (hit it or hook it)
+function trapTrigger(x,z,color="#ff3a2a",ht=2.2){
+  const g=H(x,z), grp=new THREE.Group(); grp.position.set(x,g,z); scene.add(grp);
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(.22,.28,ht,8),new THREE.MeshStandardMaterial({color:"#2a2a30",roughness:.6,metalness:.4})); pole.position.y=ht/2; pole.castShadow=true; grp.add(pole);
+  for (let k=0;k<3;k++){ const band=new THREE.Mesh(new THREE.CylinderGeometry(.25,.25,.18,8),new THREE.MeshStandardMaterial({color:"#ffd020",roughness:.5})); band.position.y=.4+k*.6; grp.add(band); }
+  const btn=new THREE.Mesh(new THREE.SphereGeometry(.55,14,10),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:1.4})); btn.position.y=ht+.35; grp.add(btn);
+  const b=new CANNON.Body({mass:0,material:groundMat}); b.addShape(new CANNON.Cylinder(.28,.28,ht,8)); b.position.set(x,g+ht/2,z); world.addBody(b);
+  camBlockers.push(pole); return btn;
+}
 function claimIdol(b){ for (const T of traps) if (T.idol && T.idol.body===b) T.lastTouch={peer:myPeer||"me",name:myName()}; }
 function onHookBite(h){
   const tr=h.obj && h.obj.userData.trap; if (tr!=null) triggerTrap(tr,{peer:myPeer||"me",name:myName()},true);
@@ -1286,6 +1306,9 @@ function triggerTrap(i,by,local){
   const mine=by.name===myName();
   if (T.kind==="magnet"){ toast("MAGNETS ON!", mine?"Anyone near a magnet gets stuck. Heh.":by.name+" powered the magnets. Stay clear!"); announce("magnets","Magnets on!",true);
     for (let k=0;k<4;k++) tone(110,.25,"sawtooth",.05,1.02,k*.2); }
+  if (T.kind==="gust"){ toast("GUST!", mine?"Hold on to something.":by.name+" called the wind. Hold on!"); announce("gust","Hold on to your hats!",true); noise(T.dur,{type:"bandpass",f:400,f2:900,q:.6,vol:.25}); gustFx(true); }
+  if (T.kind==="zap"){ toast("POWER SURGE!", mine?"The rooftops are live.":by.name+" overloaded the grid. Get off the roofs!"); announce("surge","Power surge!",true); T.pulse=0; }
+  if (T.kind==="boulder"){ toast(T.label||"BOULDER!", mine?"Here it comes...":by.name+" let it roll. Look out below!"); announce("boulder","Look out below!",true); spawnBoulder(T); }
   if (T.kind==="idol"){ const c=T.crater; toast("ERUPTION!", mine?"You fed the idol to the volcano.":by.name+" fed the idol to the volcano. Take cover!"); announce("erupt","The volcano is erupting!",true);
     flashT=.9; shakeT=Math.max(shakeT,1.2); explode(c.x,c.y+3,c.z,22,1.5,by,false); noise(3,{type:"lowpass",f:300,f2:40,vol:.8}); tone(40,3,"sine",.4,.6);
     resetIdol(T); }
@@ -1304,12 +1327,44 @@ function magnetStep(body,st,dt,isMe){
       if (d<10){ const k=(52*(1-d/10)+6)*dt/d; v.x+=ux*k; v.y+=uy*k+26*dt*.5; v.z+=uz*k; } } }
   st.mag=null;
 }
+// wind streaks for gusts
+const gustLines=[]; const gustMat=new THREE.MeshBasicMaterial({color:"#ffffff",transparent:true,opacity:.35,depthWrite:false});
+function gustFx(on){ if (on && !gustLines.length) for (let i=0;i<70;i++){ const m=new THREE.Mesh(new THREE.BoxGeometry(.04,.04,3),gustMat); m.visible=false; scene.add(m); gustLines.push(m); } }
+function spawnBoulder(T){
+  if (T.ball){ scene.remove(T.ball.mesh); world.removeBody(T.ball.body); }
+  const m=new THREE.Mesh(new THREE.IcosahedronGeometry(T.r,1),new THREE.MeshStandardMaterial({color:T.color||"#7a6a58",roughness:.9,flatShading:true})); m.castShadow=true; scene.add(m);
+  const b=new CANNON.Body({mass:60,shape:new CANNON.Sphere(T.r),collisionFilterGroup:16,collisionFilterMask:1|4|16,linearDamping:.02,angularDamping:.02});
+  b.position.set(T.from.x,T.from.y,T.from.z); const dx=T.to.x-T.from.x, dz=T.to.z-T.from.z, dl=Math.hypot(dx,dz)||1; b.velocity.set(dx/dl*16,0,dz/dl*16); world.addBody(b);
+  T.ball={mesh:m,body:b,hit:new Set()};
+}
+// what a trap does to one body each physics step (me, or a bot on the controller's game)
+function trapForces(body,dt,isMe,st){
+  for (const T of traps){ if (T.active<=0) continue;
+    const v=body.velocity, p=body.position;
+    if (T.kind==="gust"){ const onG = isMe ? standing : st.standing; const k=(onG?60:24)*dt*(isMe&&gliding?1.4:1); v.x+=T.dir[0]*k; v.z+=T.dir[1]*k; }
+    if (T.kind==="boulder" && T.ball){ const q=T.ball.body.position, id=isMe?"me":st.key; if (!T.ball.hit.has(id) && Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<T.r+.8){ T.ball.hit.add(id);
+      const bv=T.ball.body.velocity, bl=Math.hypot(bv.x,bv.z)||1, dir=[bv.x/bl,bv.z/bl];
+      if (isMe){ if (shieldT>0) toast("Shield blocked it!"); else { v.x+=dir[0]*30; v.z+=dir[1]*30; v.y=Math.max(v.y,11); knockUntil=simTime+1.1; spinUntil=simTime+1; faceHurtT=1.2; shakeT=Math.max(shakeT,.5); crack(); toast("FLATTENED!"); if (T.by && T.by.name!==myName()) lastHitBy={peer:T.by.peer,name:T.by.name,t:simTime}; } }
+      else if (st.bot){ v.x+=dir[0]*30; v.z+=dir[1]*30; v.y=Math.max(v.y,11); st.bot.knockUntil=simTime+1.1; if (T.by) st.bot.lastHitBy={peer:T.by.peer,name:T.by.name,t:simTime}; } } }
+  }
+}
 function updateTraps(dt){
   for (const T of traps){
     if (T.cd>0) T.cd=Math.max(0,T.cd-dt);
     if (T.windup>0) T.windup=Math.max(0,T.windup-dt);
     if (T.active>0) T.active=Math.max(0,T.active-dt);
     if (T.kind==="magnet" && T.mat){ const on=T.active>0; T.mat.color.copy(on ? (T.windup>0 && Math.sin(performance.now()/40)>0 ? T.base : tmpCol.set("#ff3020")) : T.base); T.mat.emissive.copy(T.mat.color); }
+    if (T.kind==="gust" && T.active>0 && gustLines.length){ const c=camera.position;
+      for (const m of gustLines){ if (!m.visible || m.position.distanceTo(c)>40){ m.visible=true; m.position.set(c.x-T.dir[0]*30+(Math.random()-.5)*50,c.y+(Math.random()-.5)*20,c.z-T.dir[1]*30+(Math.random()-.5)*50); m.lookAt(m.position.x+T.dir[0],m.position.y,m.position.z+T.dir[1]); }
+        m.position.x+=T.dir[0]*45*dt; m.position.z+=T.dir[1]*45*dt; } }
+    if (T.kind==="gust" && T.active<=0 && gustLines.length && gustLines[0].visible) for (const m of gustLines) m.visible=false;
+    if (T.kind==="zap" && T.active>0){ T.pulse=(T.pulse||0)-dt; if (T.pulse<=0){ T.pulse=.9; flashT=Math.max(flashT,.15); tone(90,.25,"sawtooth",.06,1.5);
+        // anyone on a roof gets zapped up into the air
+        if (running && deadT<=0 && standing && pBody.position.y-Math.max(0,H(pBody.position.x,pBody.position.z))>T.minAbove){ const v=pBody.velocity; v.y=13; v.x+=(Math.random()-.5)*14; v.z+=(Math.random()-.5)*14; knockUntil=simTime+.6; faceHurtT=1; shakeT=Math.max(shakeT,.3); toast("ZAP!"); puff(pBody.position); if (T.by && T.by.name!==myName()) lastHitBy={peer:T.by.peer,name:T.by.name,t:simTime}; }
+        if (amController) for (const b of bots){ const q=b.body.position; if (b.standing && q.y-Math.max(0,H(q.x,q.z))>T.minAbove){ b.body.velocity.y=13; b.body.velocity.x+=(Math.random()-.5)*14; b.body.velocity.z+=(Math.random()-.5)*14; b.knockUntil=simTime+.6; if (T.by) b.lastHitBy={peer:T.by.peer,name:T.by.name,t:simTime}; } } } }
+    if (T.kind==="boulder" && T.ball){ const b=T.ball.body; T.ball.mesh.position.copy(b.interpolatedPosition); T.ball.mesh.quaternion.copy(b.interpolatedQuaternion);
+      if (Math.hypot(b.velocity.x,b.velocity.z)>3 && Math.random()<.3) puff({x:b.position.x,y:b.position.y-T.r+.5,z:b.position.z});
+      if (T.active<=0 || b.position.y<-4){ scene.remove(T.ball.mesh); T.ball.mesh.geometry.dispose(); world.removeBody(b); T.ball=null; } }
     if (T.kind==="idol"){
       const q=T.idol.body.position, c=T.crater;
       if (q.y<-1.5 || q.y<H(q.x,q.z)-4) resetIdol(T);
@@ -1417,6 +1472,7 @@ function botSplash(b){
   const by=b.lastHitBy && simTime-b.lastHitBy.t<8 ? b.lastHitBy : null;
   b.body.position.set(...landNear(pBody.position)); b.body.velocity.set(0,0,0); b.body.interpolatedPosition.copy(b.body.position); b.hook=null; b.lastHitBy=null;
   if (!by) return;
+  if (by.peer.startsWith("bot:")){ creditBot(by.peer); return; }
   if (by.peer===(myPeer||"me")){ dunks++; faceHappyT=2; announce("dunk","Dunked! "+b.name+" is swimming."); toast("Dunked "+b.name+"!","Bots can't swim."); }
   else { bspN++; lastBsp={n:bspN,by:by.peer,name:b.name}; }
 }
@@ -1425,6 +1481,7 @@ function botAttack(b,t){
   let dx=t.pos.x-p.x, dz=t.pos.z-p.z; const d=Math.hypot(dx,dz)||1; dx/=d; dz/=d;
   const near=Math.hypot(p.x-pBody.position.x,p.z-pBody.position.z)<35;
   if (t.me){ takeHit([dx,dz],bat,{peer:"bot:"+b.id,name:b.name},b.C.power); }
+  else if (t.bot){ hitBot(t.peer,[dx,dz],bat,"bot:"+b.id,b.name); if (near) (bat?crack:thud)(); }
   else { hitN++; lastHit={n:hitN,to:t.peer,d:[r2(dx),r2(dz)],f:bat?1:0,bn:b.name,bid:b.id,m:b.C.power}; if (near) (bat?crack:thud)(); }
   if (Math.random()<.35) botSay(b.C,b.C.taunt);
   if (near && !t.me) whoosh(bat);
@@ -1441,18 +1498,19 @@ function botThink(b,dt){
   const cands=[];
   if (running && raceCount<=0) cands.push({me:true,peer:myPeer||"me",pos:pBody.position});
   for (const a of avatars.values()) if (a.pres && !a.pres.ps) cands.push({me:false,peer:a.peer,pos:a.disp});
+  if (MODE==="sumo") for (const o of bots) if (o!==b && !(o.introT>0)) cands.push({me:false,bot:true,peer:"bot:"+o.id,pos:o.body.position});
   for (const c of cands){ const d=Math.hypot(c.pos.x-p.x,c.pos.y-p.y,c.pos.z-p.z); if (d<bd){ bd=d; best=c; } }
   const C=b.C;
   if (b.introT>0){ b.introT-=dt; b.wish.set(0,0,0); return; }
   // grudge: hunt whoever hit us last
   if (b.grudge && simTime<b.grudge.until){ const g=cands.find(c=>c.peer===b.grudge.peer); if (g){ best=g; bd=Math.hypot(g.pos.x-p.x,g.pos.y-p.y,g.pos.z-p.z); } } else b.grudge=null;
   // aggressive characters break off the race to fight anyone who comes close; grudges always win
-  const fightRange = b.grudge ? 120 : (C.aggr>.4 ? 6+C.aggr*22 : 0);
+  const fightRange = MODE==="sumo" ? 999 : b.grudge ? 120 : (C.aggr>.4 ? 6+C.aggr*22 : 0);
   let goal = best && bd<fightRange ? best.pos : null;
   // fear: run from anyone close, especially if they carry a bat
   let fleeing=false;
   if (best && bd<12){ const armed = best.me ? batTime>0 : !!(avatars.get(best.peer)&&avatars.get(best.peer).pres&&avatars.get(best.peer).pres.bt);
-    if (C.fear>.5 || (armed && C.fear>0) ){ fleeing = bd>2.4 || C.fear<.9; } }
+    if (MODE==="sumo" ? (C.fear>.8 && armed) : (C.fear>.5 || (armed && C.fear>0))){ fleeing = bd>2.4 || C.fear<.9; } }
   if (fleeing){ const fx=p.x-best.pos.x, fz=p.z-best.pos.z, fl=Math.hypot(fx,fz)||1; b.wish.set(fx/fl,0,fz/fl); b.speed=11*C.speed;
     if (simTime-b.lastSay>4 && Math.random()<.02){ b.lastSay=simTime; botSay(C,C.hurt); }
     if (p.y<-1.8) botSplash(b); if (Math.hypot(v.x,v.z)>1) b.yaw=Math.atan2(-v.x,-v.z); return; }
@@ -1548,6 +1606,7 @@ function fireBotHook(b,aim,P){
   b.hook={point:hit.point.clone(),len:hit.distance*P.lenFactor,t:0}; b.reel=P.reel; return true;
 }
 function botRace(b,dt){
+  if (MODE==="sumo") return false;
   const C=b.C, P=botParams(C), p=b.body.position, v=b.body.velocity;
   if (!ANCHORS) buildAnchors();
   let T;
@@ -1615,7 +1674,7 @@ function botRace(b,dt){
 }
 // per physics step: rope, hover over the ground, walking
 function botsPreStep(dt){
-  if (amController && traps.length) for (const b of bots){ const st=b.magSt||(b.magSt={}); magnetStep(b.body,st,dt,false);
+  if (amController && traps.length) for (const b of bots){ const st=b.magSt||(b.magSt={}); magnetStep(b.body,st,dt,false); st.key="bot:"+b.id; st.bot=b; st.standing=b.standing; trapForces(b.body,dt,false,st);
     if (st.mag){ b.hook=null; b.knockUntil=simTime+.2; if (st.by && st.by.name!==b.name) b.lastHitBy={peer:st.by.peer,name:st.by.name,t:simTime}; if (simTime-st.t>3+b.C.fear*2){ st.free=simTime+3; st.mag=null; } } }
   if (!amController) return;
   for (const b of bots){
@@ -1845,6 +1904,7 @@ function standings(){
   if (!amController) for (const a of botAvatars.values()) rows.push({name:a.name,bot:true,s:a.sparks||0,t:null,k:a.dunks||0,d:a.falls||0,color:a.color});
   for (const a of avatars.values()){ const ps=a.pres||{}, st=Array.isArray(ps.st)?ps.st:[]; rows.push({name:a.name,s:Number(ps.s)||0,t:ps.rs==="done"?Number(ps.t)||null:null,k:Math.max(0,Number(ps.dk)||0),d:Math.max(0,Number(st[0])||0),color:a.color,
     st:{deaths:Number(st[0])||0,hits:Number(st[1])||0,homers:Number(st[2])||0,punches:Number(st[3])||0,items:Number(st[4])||0,airTime:Number(st[5])||0,topSpeed:Number(st[6])||0,traps:Number(st[7])||0,throws:Number(st[8])||0,smashes:Number(st[9])||0,snipes:Number(st[10])||0,dunks:Math.max(0,Number(ps.dk)||0)}}); }
+  if (MODE==="sumo"){ for (const r of rows){ r.fin=false; r.score=r.k||0; } rows.sort((x,y)=>y.score-x.score || (x.d||0)-(y.d||0)); return rows; }
   for (const r of rows){ r.fin = !!finale.grabbedBy && r.name===finale.grabbedBy; r.score=r.s+(r.fin?FINAL_BONUS:0); }
   rows.sort((x,y)=>y.score-x.score || (x.t??1e9)-(y.t??1e9));
   return rows;
@@ -1852,6 +1912,7 @@ function standings(){
 function checkRaceEnd(){
   if (!raceLive || raceOver || raceCount>0) return;
   const t=simTime-raceStartSim, rows=standings();
+  if (MODE==="sumo"){ if (t>=SUMO_TIME || rows.some(r=>r.score>=SUMO_KOS)) endRace(rows,t); return; }
   if (finale.got || t>=ROUND_TIME) endRace(rows,t);
 }
 function endRace(rows){
@@ -1863,9 +1924,9 @@ function endRace(rows){
 }
 function standingsTable(rows,withPoints){
   const tb=$("resTable"); tb.replaceChildren();
-  const hd=document.createElement("div"); hd.className="hd"; for (const t of ["#","Racer","Sparks","Time","K/D",withPoints?"Pts":""]){ const s=document.createElement("span"); s.textContent=t; hd.append(s); } tb.append(hd);
+  const hd=document.createElement("div"); hd.className="hd"; for (const t of (MODE==="sumo" ? ["#","Fighter","KOs","Falls","Hits",withPoints?"Pts":""] : ["#","Racer","Sparks","Time","K/D",withPoints?"Pts":""])){ const s=document.createElement("span"); s.textContent=t; hd.append(s); } tb.append(hd);
   rows.forEach((r,i)=>{ const row=document.createElement("div"); if (r.me) row.className="me";
-    const cells=[String(i+1), r.name+(r.me?" (you)":r.bot?" · bot":""), r.s+"/"+TOTAL+(r.fin?" ★":""), r.t!=null?fmt(r.t):"–", (r.k||0)+"/"+(r.d||0), withPoints?String(r.pts??POINTS[i]??0):""];
+    const cells= MODE==="sumo" ? [String(i+1), r.name+(r.me?" (you)":r.bot?" · bot":""), String(r.k||0), String(r.d||0), r.st?String(r.st.hits||0):"–", withPoints?String(r.pts??POINTS[i]??0):""] : [String(i+1), r.name+(r.me?" (you)":r.bot?" · bot":""), r.s+"/"+TOTAL+(r.fin?" ★":""), r.t!=null?fmt(r.t):"–", (r.k||0)+"/"+(r.d||0), withPoints?String(r.pts??POINTS[i]??0):""];
     for (const c of cells){ const s=document.createElement("span"); s.textContent=c; row.append(s); } tb.append(row); });
 }
 function showResults(rows,inCup,d){
@@ -1873,7 +1934,7 @@ function showResults(rows,inCup,d){
   $("awards").hidden=true;
   const last = inCup && cup.idx>=d.maps.length-1;
   $("resKicker").textContent = inCup ? `${d.name} · race ${cup.idx+1} of ${d.maps.length}` : MAP.name;
-  $("resTitle").textContent = rows[0].me ? "You win the race!" : rows[0].name+" wins the race";
+  $("resTitle").textContent = MODE==="sumo" ? (rows[0].me ? "Last one standing: you!" : rows[0].name+" rules the ring") : rows[0].me ? "You win the race!" : rows[0].name+" wins the race";
   standingsTable(rows,inCup);
   $("resNote").textContent = inCup ? "Cup points so far: "+Object.entries(cup.points).sort((a,b)=>b[1]-a[1]).map(([n,p])=>`${n} ${p}`).join(" · ") : "";
   $("resInitials").hidden = !(db && rows.find(r=>r.me) && rows.find(r=>r.me).t!=null);
@@ -2000,7 +2061,8 @@ const shieldMesh=new THREE.Mesh(new THREE.SphereGeometry(1.2,20,14),new THREE.Me
 function myRank(){ const rows=standings(); const i=rows.findIndex(r=>r.me); return {rank:i<0?0:i, n:rows.length}; }
 function rollItem(){
   const {rank,n}=myRank(), back = n>1 ? rank/(n-1) : .5;   // 0 = leading, 1 = last
-  const w={ boost:1, shield:1.4*(1-back)+.2, magnet:1.2*(1-back)+.3, bomb:.4+1.2*back, comet:back>.45 ? 1.6*back : 0, sniper:.7 };
+  const w = MODE==="sumo" ? { boost:1, shield:.8, magnet:0, bomb:1.4, comet:.8, sniper:1.4 }
+    : { boost:1, shield:1.4*(1-back)+.2, magnet:1.2*(1-back)+.3, bomb:.4+1.2*back, comet:back>.45 ? 1.6*back : 0, sniper:.7 };
   let tot=0; for (const k in w) tot+=w[k]; let r=Math.random()*tot;
   for (const k in w){ r-=w[k]; if (r<=0) return k; } return "boost";
 }
@@ -2283,7 +2345,11 @@ function saveAudio(){ audioOpts.music=$("optMusic").value; audioOpts.sfx=$("optS
 ["optMusic","optSfx","optVoice"].forEach(id=>$(id).addEventListener("change",saveAudio));
 
 // races: whoever presses Start race bumps a number in their presence; everyone who sees it restarts with a countdown
-function beginRace(id,byName){
+function setMode(m){ m = m==="sumo" ? "sumo" : "race"; if (m===MODE) return; MODE=m; try{ localStorage.setItem("skyhook.mode",m); }catch(e){} const sel=$("optMode"); if (sel) sel.value=m; applyInputUI(); resetFinale(); }
+function beginRace(id,byName,mode){
+  if (mode) setMode(mode);
+  dunks=0; for (const k of ["deaths","dunks","hits","homers","hitsTaken","punches","items","airTime","topSpeed","traps","throws","smashes","snipes"]) stats[k]=0; stats.dunkedBy={};
+  for (const b of bots){ b.dunks=0; b.falls=0; }
   raceId=id; restartRun(); buildTowers(); heldItem=null; raceLive=true; raceOver=false; raceStartSim=simTime+3; raceCount=3; for (const b of bots){ b.got.clear(); b.sparkCount=0; b.target=null; b.hook=null; b.final=false; } announce("race","Race starting!",true);
   for (const a of botAvatars.values()) queueIntro(a.ch,true); tone(440,.15,"square",.05);
   toast("3", byName ? byName+" started a race" : "Race starting for everyone on the island");
@@ -2291,10 +2357,11 @@ function beginRace(id,byName){
 function tickRace(dt){
   if (raceCount<=0) return;
   const before=Math.ceil(raceCount); raceCount-=dt; const after=Math.ceil(raceCount);
-  if (raceCount<=0){ raceCount=0; runState="running"; elapsed=0; toast("GO!","Most sparks fastest wins."); announce("go","Go!",true); tone(880,.25,"square",.06); }
+  if (raceCount<=0){ raceCount=0; runState="running"; elapsed=0; toast("GO!",MODE==="sumo"?`Knock them off. First to ${SUMO_KOS} wins.`:"Most sparks fastest wins."); announce("go","Go!",true); tone(880,.25,"square",.06); }
   else if (after!==before){ toast(String(after)); tone(440,.15,"square",.05); }
 }
-$("raceBtn").addEventListener("click",e=>{ e.currentTarget.blur(); if (!room){ toast("Online play isn't available here"); return; } const id=Date.now(); room.presence({race:id}).catch(()=>{}); beginRace(id,null); });
+function startRound(){ const id=Date.now(); if (room) room.presence({race:id,md:MODE}).catch(()=>{}); beginRace(id,null,MODE); }
+$("raceBtn").addEventListener("click",e=>{ e.currentTarget.blur(); startRound(); });
 let plKey="";
 // live standings: a strip at the top (leader, you, whoever is close) and a Mario Kart style position badge
 const ordinal=n=>n+(n%100>=11&&n%100<=13?"th":["th","st","nd","rd"][n%10]||"th");
@@ -2359,11 +2426,12 @@ if (GFX_SET.bloom>0){
       saveSettings(); applyInputUI(); }); };
   bind("optControls","controls"); bind("optAssist","assist",Number); bind("optSens","sens",Number); bind("optHud","hud"); bind("optGyro","gyro"); bind("optGyroInv","gyroInv");
   $("sensVal").textContent=(+o.sens).toFixed(1)+"×"; }
+{ const sel=$("optMode"); sel.value=MODE; sel.addEventListener("change",()=>{ setMode(sel.value); restartRun(); toast(MODE==="sumo"?"Sumo mode":"Spark race", MODE==="sumo"?"Knock everyone into the sea. Press Play or Start round.":"Collect sparks. The final spark ends the race."); }); }
 { const sel=$("optDeath"); sel.value=String(DEATH_SECS); if (sel.value!==String(DEATH_SECS)) sel.value="10"; sel.addEventListener("change",()=>{ DEATH_SECS=+sel.value; try{ localStorage.setItem("skyhook.deathcam",sel.value); }catch(e){} }); }
 $("deathGo").addEventListener("click",e=>{ e.preventDefault(); respawn(null); });
 { const sel=$("optGfx"); sel.value=GFX; sel.addEventListener("change",()=>{ try{ localStorage.setItem("skyhook.gfx",sel.value); }catch(e){} location.reload(); }); }
 // interpolated poses start at the origin until the first physics step
 for (const b of world.bodies){ b.interpolatedPosition.copy(b.position); b.interpolatedQuaternion.copy(b.quaternion); }
 // small hook for automated testing; not used by the game itself
-window.__skyDebug={ gliderPickupsList:()=>gliderPickups, renderInfo:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,meshes:(()=>{ let n=0; scene.traverse(o=>{ if(o.isMesh) n++; }); return n; })()}), headlessStart:(nBots=1)=>{ simFrozen=true; wantBots=nBots; running=true; $("start").hidden=true; for (const C of CHARACTERS) introSeen.add(C.key); introQ.length=0; }, botItems:(b,dt)=>botItems(b,dt), gfx:()=>({GFX,composer:!!composer,ao:aoOn}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, cupAwards:()=>cupAwards(), showCupFinal:()=>showCupFinal(cupDef()), forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); for (const g of [...gliderPickups,...batPickups]) if (g.cd>0) g.cd-=1/60; for (const b of itemBoxes) if (b.cd>0) b.cd-=1/60; } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded, sniper:()=>({spinAcc,sniperCharge,held:heldItem}), traps, projectiles, camInfo:()=>({cam:camera.position.toArray().map(n=>+n.toFixed(2)),body:pBody.position.toArray().map(n=>+n.toFixed(2)),flashT,hemi:hemi.intensity,camCur}), triggerTrap:(i,n)=>triggerTrap(i,{peer:'x',name:n||'Tester'},true), meMag, yeet:b=>yeet(b), thrown, dynamics, finale, spawnFinale:(x,y,z,by)=>spawnFinale(new THREE.Vector3(x,y,z),by||myName(),true), finaleSpot:p=>finaleSpot(p), grabFinale:n=>grabFinale(n,true), resetFinale:()=>resetFinale(), finaleGrp, searchlights, standings:()=>standings(), settings, applyInputUI, setInput:t=>setInput(t), inputTouch:()=>isTouch, castAim:d=>castAim(d), assistAim:(d,l)=>assistAim(d,l), tapHook:(x,y)=>tapHook(x,y), camera, camTarget, hand, hookUp:()=>hookUp(), death:()=>({deadT,DEATH_SECS}), respawnNow:()=>respawn(null), setDeathSecs:n=>{ DEATH_SECS=n; }, stats:()=>JSON.parse(JSON.stringify(stats)), drops:()=>drops.length, groundPunch:b=>groundPunch(b), setOnGround:v=>{ onGround=v; } };
+window.__skyDebug={ gliderPickupsList:()=>gliderPickups, renderInfo:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,meshes:(()=>{ let n=0; scene.traverse(o=>{ if(o.isMesh) n++; }); return n; })()}), headlessStart:(nBots=1)=>{ simFrozen=true; wantBots=nBots; running=true; $("start").hidden=true; for (const C of CHARACTERS) introSeen.add(C.key); introQ.length=0; }, botItems:(b,dt)=>botItems(b,dt), gfx:()=>({GFX,composer:!!composer,ao:aoOn}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, cupAwards:()=>cupAwards(), showCupFinal:()=>showCupFinal(cupDef()), forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); for (const g of [...gliderPickups,...batPickups]) if (g.cd>0) g.cd-=1/60; for (const b of itemBoxes) if (b.cd>0) b.cd-=1/60; } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded, mode:()=>MODE, setMode:m=>setMode(m), startRound:()=>startRound(), checkRaceEnd:()=>checkRaceEnd(), sniper:()=>({spinAcc,sniperCharge,held:heldItem}), traps, projectiles, camInfo:()=>({cam:camera.position.toArray().map(n=>+n.toFixed(2)),body:pBody.position.toArray().map(n=>+n.toFixed(2)),flashT,hemi:hemi.intensity,camCur}), triggerTrap:(i,n)=>triggerTrap(i,{peer:'x',name:n||'Tester'},true), meMag, yeet:b=>yeet(b), thrown, dynamics, finale, spawnFinale:(x,y,z,by)=>spawnFinale(new THREE.Vector3(x,y,z),by||myName(),true), finaleSpot:p=>finaleSpot(p), grabFinale:n=>grabFinale(n,true), resetFinale:()=>resetFinale(), finaleGrp, searchlights, standings:()=>standings(), settings, applyInputUI, setInput:t=>setInput(t), inputTouch:()=>isTouch, castAim:d=>castAim(d), assistAim:(d,l)=>assistAim(d,l), tapHook:(x,y)=>tapHook(x,y), camera, camTarget, hand, hookUp:()=>hookUp(), death:()=>({deadT,DEATH_SECS}), respawnNow:()=>respawn(null), setDeathSecs:n=>{ DEATH_SECS=n; }, stats:()=>JSON.parse(JSON.stringify(stats)), drops:()=>drops.length, groundPunch:b=>groundPunch(b), setOnGround:v=>{ onGround=v; } };
 frame();

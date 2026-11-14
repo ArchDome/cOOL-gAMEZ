@@ -48,7 +48,7 @@ function signTexture(THREE,color){
 }
 
 function build(api){
-  const {THREE,CANNON,scene,world,R,H,groundMat,grappleables,camBlockers,pillars,updrafts}=api;
+  const {THREE,CANNON,scene,world,R,H,groundMat,grappleables,camBlockers,pillars,updrafts,traps,trapTrigger}=api;
   const win=windowsTexture(THREE);
   const bodyMats=["#1d2230","#232838","#2a2633","#1b2a2f"].map(c=>c);
   const roofMat=new THREE.MeshStandardMaterial({color:"#34384a",roughness:.6,metalness:.2});
@@ -113,6 +113,9 @@ function build(api){
   for (let i=-CITY; i<=CITY; i+=16) for (const [x,z] of [[i,CITY-3],[i,-CITY+3],[CITY-3,i],[-CITY+3,i]]){
     const m=new THREE.Mesh(new THREE.SphereGeometry(.35,8,6),lampMat); m.position.set(x,STREET+4,z); scene.add(m);
   }
+  // trap: a transformer in Lantern Plaza. Overload it and every rooftop is live for 6 s: anyone standing up high
+  // gets zapped into the air every second.
+  if (traps && trapTrigger){ traps.push({kind:"zap",triggers:[trapTrigger(PLAZA.x+7,PLAZA.z+7,"#ffe23a",2.4)],minAbove:5,dur:6,cool:22,name:"Transformer"}); }
 }
 
 function placeName(p,H){

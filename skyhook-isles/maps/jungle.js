@@ -25,7 +25,7 @@ function colorAt(x,y,z,ny,c,THREE){
 }
 
 function build(api){
-  const {THREE,CANNON,scene,world,R,H,slopeAt,groundMat,grappleables,camBlockers,pillars,rocks,trees,updrafts}=api;
+  const {THREE,CANNON,scene,world,R,H,slopeAt,groundMat,grappleables,camBlockers,pillars,rocks,trees,updrafts,traps,trapTrigger}=api;
   const stone=new THREE.MeshStandardMaterial({color:"#8a8670",roughness:.9,flatShading:true});
   const stone2=new THREE.MeshStandardMaterial({color:"#76735e",roughness:.9,flatShading:true});
   const mossy=new THREE.MeshStandardMaterial({color:"#4f7a3a",roughness:.95,flatShading:true});
@@ -101,6 +101,8 @@ function build(api){
     const rings=[]; for (let i=0;i<6;i++){ const ring=new THREE.Mesh(new THREE.TorusGeometry(2.2,.07,4,22),new THREE.MeshBasicMaterial({color:"#ffffff",transparent:true,opacity:.5,depthWrite:false})); ring.rotation.x=Math.PI/2; grp.add(ring); rings.push(ring); }
     updrafts.push({x,z,g,top,rings});
   }
+  // trap: a lever on the temple summit. Pull it and the stone ball rolls down the steps toward the camp.
+  if (traps && trapTrigger){ const lx=PEAK.x+5, lz=PEAK.z+5; traps.push({kind:"boulder",triggers:[trapTrigger(lx,lz,"#9aff5a",2.2)],from:{x:PEAK.x,y:H(PEAK.x,PEAK.z)+6,z:PEAK.z},to:SPAWN,r:2.4,color:"#8a7a5e",label:"ROLLING STONE!",dur:12,cool:30,name:"Temple lever"}); }
 }
 
 function placeName(p,H){
