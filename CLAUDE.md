@@ -24,6 +24,7 @@ When you change a game, republish to its existing artifact URL (pass the URL, or
 - **Artifact page rules.** No `<html>`, `<head>` or `<body>` tags: the page starts with `<title>`, then `<style>`. Include `[hidden]{display:none!important}` yourself, because local test runs don't get the artifact skeleton's reset.
 - **Phones and tablets.** The owner plays on an iPad, so every game needs touch controls (on-screen buttons, thumb drag) alongside keyboard and mouse.
 - **Physics timing.** Run physics at a fixed step. Render from interpolated poses (`body.interpolatedPosition` in cannon-es), not the raw ones, or motion jitters on high-refresh screens.
+- **Character on the ground.** Don't let the player's collision sphere roll over terrain triangles; it bounces. `skyhook-isles` uses a hover controller: each step it reads the ground height (`Heightfield.getHeightAt` plus a downward ray against other bodies) and springs the body to a fixed ride height. Face the input direction on the ground, not the velocity.
 - **Multiplayer** (see `roquet-royale/`): the host's browser runs the simulation and shares a snapshot via room `presence` about 20 times a second. Clients send numbered inputs in their own presence and the host applies each number once. Presence works for every viewer, while event topics are admin-only by default, which is why presence is used. Keep each presence object under 4 KiB.
 - **UI that updates often.** Don't rebuild DOM with buttons on every network update, because rebuilds swallow clicks. Re-render only when what's shown changes.
 - **Bots.** Tune bot difficulty against an idle human, so rounds don't end before a person can act.
@@ -33,7 +34,7 @@ When you change a game, republish to its existing artifact URL (pass the URL, or
 - Check scripts parse: extract the `<script>` body and run `node --check`, or for module scripts write it to a `.mjs` file first.
 - Run gameplay in headless Chromium with Playwright. Use `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader` for WebGL. It renders slowly, so don't judge frame rate from it.
 - **The cloud sandbox blocks cdn.jsdelivr.net**, but npm is reachable. Run `npm pack three@0.160.0 cannon-es@0.20.0` in a scratch folder, unpack, and use Playwright `page.route()` to serve the CDN URLs from those local files. The published page still loads from the CDN.
-- `skyhook-isles` exposes `window.__skyDebug` (player body, pillars, aim and hook state, view setter) for automated tests.
+- `skyhook-isles` exposes `window.__skyDebug` for automated tests: player body, pillars, sparks, glider pickups, hook and ground state, a view setter, a `keys` set, and `tick(n)`, which steps controls and physics exactly n frames of 1/60 s. Use `tick` for physics measurements, because headless rendering is too slow for real-time timing.
 - The artifact `room` capability doesn't exist in local test runs, so multiplayer can't be tested here. Say so when reporting results.
 
 ## Zettelkasten
