@@ -65,6 +65,12 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] Simplified touch controls option: the camera follows behind the player, tap where to grapple and it reels automatically.
 - [x] Settings panel: every option above is configurable and saved per device.
 
+### Owner's batch 2, 2026-11-14
+- [ ] Custom game: pick which maps go in (any order), and adjust the rules: number of maps, mode per game (race or sumo), round time, sumo KO target, bots, items on/off, death cam. Saved, and synced to friends like cups.
+- [ ] Sumo arenas: unique maps for sumo. Narrow platforms where everyone is a few hits from the edge.
+- [ ] Bot tactics: no endless shoving matches. Switch targets when a fight isn't working, bait near the edge then sidestep and push.
+- [ ] Hook reel-in: an option to pull players and objects toward you with the hook.
+
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.
