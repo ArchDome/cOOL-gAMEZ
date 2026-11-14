@@ -3,17 +3,23 @@
 // simulate `seconds` at 60 Hz with exact physics steps, then score sparks collected minus half the falls.
 const STARTS = [[-55, 8, 45], [10, 30, -10], [60, 12, 40]];
 
+// Headless start: the real-time loop never advances the simulation, and entrances are skipped,
+// so an evaluation depends only on its inputs, not on how fast the machine happens to be.
 async function setupPage(page) {
-  await page.waitForFunction(() => window.__skyDebug, null, { timeout: 30000 });
-  await page.selectOption('#optBots', '1');
-  await page.click('#go');
-  await page.waitForTimeout(600);
+  await page.waitForFunction(() => window.__skyDebug, null, { timeout: 120000 });
+  await page.evaluate(() => { window.__skyDebug.headlessStart(1); window.__skyDebug.tick(2); });
+}
+async function reloadPage(page) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try { await page.reload({ timeout: 120000 }); await setupPage(page); return; }
+    catch (e) { if (attempt === 2) throw e; }
+  }
 }
 
 // returns { mean, rows: [{key, start, sparks, falls}] }
 // Reloads the page first: the physics engine keeps internal ordering state, so only a fresh world is exactly reproducible.
 async function evaluate(page, params, chars, seconds, starts = STARTS, overrides = null) {
-  await page.reload(); await setupPage(page);
+  await reloadPage(page);
   return page.evaluate(([params, chars, seconds, starts, overrides]) => {
     const d = window.__skyDebug;
     if (params) d.setBotParams('default', params);
@@ -27,8 +33,9 @@ async function evaluate(page, params, chars, seconds, starts = STARTS, overrides
         d.restartRun();
         const C = d.CHARACTERS.find(c => c.key === key), b = d.bots()[0];
         Object.assign(b, { C, ch: d.CHARACTERS.indexOf(C), name: C.name, introT: 0, target: null, hook: null, falls: 0, sparkCount: 0, bat: 0,
-          pickup: null, grudge: null, stuck: 0, cd: 1, grappleCd: 0, knockUntil: -9, jumpT: -9, lastHitBy: null, skip: new Map(), targetT: 0, backoff: 0 });
-        b.got.clear();
+          pickup: null, grudge: null, stuck: 0, cd: 1, grappleCd: 0, knockUntil: -9, jumpT: -9, lastHitBy: null, skip: new Map(), targetT: 0, backoff: 0,
+          speed: 7.5, airAcc: 9, reel: 16, standing: false, item: null, itemT: 0, shieldT: 0, magnetT: 0, perch: null, perchT: 0, wander: null, wanderT: 0, doneT: undefined });
+        b.got.clear(); b.wish.set(0, 0, 0); b.body.angularVelocity.set(0, 0, 0);   // physics runs before the brain each tick, so stale state would leak in
         const [x, y, z] = starts[si]; b.body.position.set(x, d.probe({ x, y: 200, z })[0] + 1.2 || y, z); b.body.velocity.set(0, 0, 0);
         for (let i = 0; i < seconds * 60; i++) { d.body.position.set(0, 160, -150); d.body.velocity.set(0, 0, 0); d.tick(1); }
         rows.push({ key, start: si, sparks: b.sparkCount, falls: b.falls || 0 });

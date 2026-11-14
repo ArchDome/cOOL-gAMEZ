@@ -25,15 +25,11 @@ const { openGame, checker } = require('./harness');
     c.check('no vertical bouncing while walking', walk.vyMin > -6 && walk.vyMax < 6, `vy ${walk.vyMin.toFixed(1)}..${walk.vyMax.toFixed(1)} m/s`);
 
     // Glider
-    const glide = await page.evaluate(() => {
-      const d = window.__skyDebug, g = d.gliderPickups[0]; d.body.position.set(g.pos.x, g.pos.y, g.pos.z); return null;
-    });
-    await page.waitForTimeout(500);
+    await page.waitForFunction(() => { const d = window.__skyDebug, g = d.gliderPickups[0]; d.body.position.set(g.pos.x, g.pos.y, g.pos.z); d.body.velocity.set(0, 0, 0); return d.glide().gliderTime > 0; }, null, { timeout: 15000, polling: 100 }).catch(() => {});
     c.check('glider pickup grants time', (await page.evaluate(() => window.__skyDebug.glide().gliderTime)) > 25);
 
     // Bat pickup
-    await page.evaluate(() => { const d = window.__skyDebug, g = d.batPickups[0]; d.body.position.set(g.pos.x, g.pos.y, g.pos.z); });
-    await page.waitForTimeout(500);
+    await page.waitForFunction(() => { const d = window.__skyDebug, g = d.batPickups[0]; d.body.position.set(g.pos.x, g.pos.y, g.pos.z); d.body.velocity.set(0, 0, 0); return d.bat() > 0; }, null, { timeout: 15000, polling: 100 }).catch(() => {});
     c.check('bat pickup grants time', (await page.evaluate(() => window.__skyDebug.bat())) > 25);
 
     // Bots (solo: this game runs them)
