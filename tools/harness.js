@@ -41,7 +41,7 @@ function fakeRoomInit() {
 }
 
 // Static file server for the repo: games load their code as ES modules, which browsers refuse from file:// URLs.
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.mp3': 'audio/mpeg', '.png': 'image/png', '.css': 'text/css' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.mp3': 'audio/mpeg', '.png': 'image/png', '.css': 'text/css' };
 let server = null, serverPort = 0;
 function startServer() {
   if (server) return Promise.resolve(serverPort);

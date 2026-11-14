@@ -4,6 +4,15 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14 (overnight): iPad layout pass
+
+I checked the game in an iPad Pro 11" landscape touch viewport.
+- **Start screen:** Play was below the fold. It's now right after the options, and the controls list folds into a "Controls" section. The pitch now describes all five maps.
+- **Chat buttons** overlapped the map name. They now sit below it, with the chat log moved down to match.
+- **Draw calls** are only 66–160 per frame on every map (frustum culling does the work), so batching geometry isn't needed for iPad performance.
+
+![iPad start screen](img/ipad-start.png) ![iPad in play](img/ipad-play.png)
+
 ## 2026-11-14 (overnight): Arms, sun and clouds
 
 - **Arms:** every character has arms in their suit color.

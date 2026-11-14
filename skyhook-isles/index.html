@@ -49,7 +49,8 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
 .chatbar input{flex:1;min-width:0;font:600 16px var(--body);color:var(--ink);background:rgba(10,16,28,.92);border:1px solid var(--hook);border-radius:12px;padding:10px 12px;-webkit-user-select:text;user-select:text}
 .chatbar button,.chatbtns button{font:800 13px var(--body);color:var(--ink);background:rgba(14,22,38,.85);border:1px solid var(--line);border-radius:12px;padding:0 14px;cursor:pointer}
 .chatbar button.rec,.chatbtns button.rec{background:#b3261e;border-color:#ff7a62}
-.chatbtns{position:fixed;left:max(16px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 86px);display:flex;gap:6px;pointer-events:auto;transform:translateY(-44px)}
+.chatbtns{position:fixed;left:max(16px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 86px);display:flex;gap:6px;pointer-events:auto}
+.chatbtns:not([hidden]) ~ .chatlog, body.touch .chatlog{top:calc(env(safe-area-inset-top,0px) + 128px)}
 .chatbtns button{height:34px}
 .boards{display:grid;gap:6px}
 .board-list{display:grid;gap:3px;font-variant-numeric:tabular-nums;font-size:14px}
@@ -77,6 +78,8 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
 .face span{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap;overflow:hidden;max-width:88px;text-overflow:ellipsis}
 .face.hurt{border-color:#ff7a62}
 @media (max-width:560px){ .face{transform:scale(.8);transform-origin:bottom left} }
+.howto summary{cursor:pointer;font-weight:800;font-size:14px;color:var(--muted)}
+.howto[open] summary{margin-bottom:10px}
 .opts{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;font-size:14px;font-weight:700}
 .opts select{font:700 14px var(--body);color:var(--ink);background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
 .opts .chk{display:flex;gap:6px;align-items:center;cursor:pointer}
@@ -201,29 +204,8 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
 <div class="overlay" id="start">
   <div class="card">
     <h1>Skyhook <em>Isles</em></h1>
-    <p>An island of stone pillars and floating rocks. Swing between them with your grapple and collect the 15 sparks. Each one sends a beam of light into the sky.</p>
-    <dl class="keys" id="keysDesk">
-      <dt>WASD</dt><dd>Move. Hold Shift to sprint.</dd>
-      <dt>Mouse</dt><dd>Look. Hold the left or right button (or E) to grapple where you aim.</dd>
-      <dt>Shift</dt><dd>While hooked, reel in. Hook a crate and reel to yank it.</dd>
-      <dt>Space</dt><dd>Jump and double jump. While hooked, let go with a boost.</dd>
-      <dt>Wheel · R</dt><dd>Zoom the camera · respawn.</dd>
-      <dt>G</dt><dd>Use your item: grab rainbow ? boxes for a rocket boost, bomb, homing comet, shield or spark magnet. Bombs blow holes in towers.</dd>
-      <dt>F</dt><dd>Shove whoever is right in front of you. With a red bat pickup it becomes a home-run swing.</dd>
-      <dt>Glider</dt><dd>Grab a cyan glider pickup, then hold Space while falling. Look down to dive, up to float.</dd>
-      <dt>Enter · V</dt><dd>Type in chat, or hold V and talk to send voice as text. Characters answer back in text. Scroll the chat panel to see earlier messages.</dd>
-      <dt>T</dt><dd>Restart the speedrun. The timer starts on your first move.</dd>
-      <dt>Esc</dt><dd>Pause. Click the game to capture the mouse again.</dd>
-    </dl>
-    <dl class="keys" id="keysTouch" hidden>
-      <dt>Left thumb</dt><dd>Drag to move.</dd>
-      <dt>Right thumb</dt><dd>Drag to look around.</dd>
-      <dt>Hook</dt><dd>Hold to grapple at the crosshair, release to let go.</dd>
-      <dt>Reel · Jump</dt><dd>Reel in while hooked. Jump while hooked to launch off.</dd>
-      <dt>Hit</dt><dd>Shove anyone close in front of you. Grab a red bat for a home-run swing.</dd>
-      <dt>Glider</dt><dd>After a cyan pickup, hold Jump while falling to glide.</dd>
-      <dt>Restart run</dt><dd>Resets the island. The timer starts on your first move.</dd>
-    </dl>
+    <p>Grapple, swing and glide across five maps, from floating isles to a neon city in the rain. Race friends and a cast of rivals for 15 sparks, grab ? boxes for bombs and homing comets, and knock everyone into the sea.</p>
+
     <div class="opts">
       <label for="optChar">Play as</label>
       <select id="optChar"></select>
@@ -244,6 +226,30 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
       <select id="optCup"></select><button type="button" class="primary" id="startCup">Start cup</button><span id="cupState" style="font-size:13px;color:var(--muted)"></span></div>
     <button class="go" type="button" id="go">Play</button>
     <div class="boards" id="boards" hidden><span style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)" id="boardTitle">Best times</span><div class="board-list" id="boardList"></div></div>
+    <details class="howto"><summary>Controls</summary>
+    <dl class="keys" id="keysDesk">
+        <dt>WASD</dt><dd>Move. Hold Shift to sprint.</dd>
+        <dt>Mouse</dt><dd>Look. Hold the left or right button (or E) to grapple where you aim.</dd>
+        <dt>Shift</dt><dd>While hooked, reel in. Hook a crate and reel to yank it.</dd>
+        <dt>Space</dt><dd>Jump and double jump. While hooked, let go with a boost.</dd>
+        <dt>Wheel · R</dt><dd>Zoom the camera · respawn.</dd>
+        <dt>G</dt><dd>Use your item: grab rainbow ? boxes for a rocket boost, bomb, homing comet, shield or spark magnet. Bombs blow holes in towers.</dd>
+        <dt>F</dt><dd>Shove whoever is right in front of you. With a red bat pickup it becomes a home-run swing.</dd>
+        <dt>Glider</dt><dd>Grab a cyan glider pickup, then hold Space while falling. Look down to dive, up to float.</dd>
+        <dt>Enter · V</dt><dd>Type in chat, or hold V and talk to send voice as text. Characters answer back in text. Scroll the chat panel to see earlier messages.</dd>
+        <dt>T</dt><dd>Restart the speedrun. The timer starts on your first move.</dd>
+        <dt>Esc</dt><dd>Pause. Click the game to capture the mouse again.</dd>
+      </dl>
+      <dl class="keys" id="keysTouch" hidden>
+        <dt>Left thumb</dt><dd>Drag to move.</dd>
+        <dt>Right thumb</dt><dd>Drag to look around.</dd>
+        <dt>Hook</dt><dd>Hold to grapple at the crosshair, release to let go.</dd>
+        <dt>Reel · Jump</dt><dd>Reel in while hooked. Jump while hooked to launch off.</dd>
+        <dt>Hit</dt><dd>Shove anyone close in front of you. Grab a red bat for a home-run swing.</dd>
+        <dt>Glider</dt><dd>After a cyan pickup, hold Jump while falling to glide.</dd>
+        <dt>Restart run</dt><dd>Resets the island. The timer starts on your first move.</dd>
+      </dl>
+    </details>
     <div class="best" id="best"></div>
     <div class="err" id="err" hidden></div>
   </div>
