@@ -138,6 +138,17 @@ function H(x,z){
   h=lerp(5.5,h,smooth(12,30,Math.hypot(x-SPAWN.x,z-SPAWN.z)));
   return lerp(-7,h,fall);
 }
+// march a ray against the terrain height function; returns hit distance or Infinity
+function terrainRay(o,d,maxD){
+  let prev=0, step=1.2;
+  if (o.y < H(o.x,o.z)) return 0;
+  for (let t=step; t<=maxD; t+=step){
+    const x=o.x+d.x*t, y=o.y+d.y*t, z=o.z+d.z*t;
+    if (y < H(x,z)){ let a=prev, b=t; for (let k=0;k<8;k++){ const m=(a+b)/2; if (o.y+d.y*m < H(o.x+d.x*m,o.z+d.z*m)) b=m; else a=m; } return b; }
+    prev=t; if (t>20) step=2;
+  }
+  return Infinity;
+}
 const slopeAt=(x,z)=>Math.hypot(H(x+1,z)-H(x-1,z),H(x,z+1)-H(x,z-1))/2;
 
 // ---------------- renderer / scene ----------------
@@ -175,6 +186,7 @@ world.addContactMaterial(new CANNON.ContactMaterial(groundMat,playerMat,{frictio
 world.addContactMaterial(new CANNON.ContactMaterial(playerMat,world.defaultMaterial,{friction:0,restitution:0}));
 world.defaultContactMaterial.friction=.4;
 
+let terrainMesh=null;
 const grappleables=[];   // meshes the hook can bite into
 const camBlockers=[];    // meshes the camera won't pass through
 const dynamics=[];       // {mesh, body}
@@ -198,7 +210,7 @@ const dynamics=[];       // {mesh, body}
   }
   g.setAttribute("color",new THREE.BufferAttribute(col,3));
   const m=new THREE.Mesh(g,new THREE.MeshStandardMaterial({vertexColors:true,flatShading:true,roughness:.95}));
-  m.receiveShadow=true; m.castShadow=true; scene.add(m); grappleables.push(m); camBlockers.push(m);
+  m.receiveShadow=true; m.castShadow=true; scene.add(m); terrainMesh=m;
   const data=[]; for(let i=0;i<N;i++){ const row=[]; for(let j=0;j<N;j++) row.push(H(-HALF+i*ES,HALF-j*ES)); data.push(row); }
   const b=new CANNON.Body({mass:0,material:groundMat}); b.addShape(new CANNON.Heightfield(data,{elementSize:ES}));
   b.position.set(-HALF,0,HALF); b.quaternion.setFromEuler(-Math.PI/2,0,0); world.addBody(b);
@@ -377,7 +389,7 @@ canvas.addEventListener("pointermove",e=>{
 const pUp=e=>{ if (e.pointerType==="touch"){ touchUp(e); return; } if (dragLook && e.pointerId===dragLook.id) dragLook=null; if (locked || e.button===2) hookUp(); };
 canvas.addEventListener("pointerup",pUp); canvas.addEventListener("pointercancel",pUp);
 canvas.addEventListener("wheel",e=>{ camDist=Math.min(15,Math.max(3.5,camDist+e.deltaY*.01)); e.preventDefault(); },{passive:false});
-function look(dx,dy){ yaw-=dx*.0026; pitch=Math.min(1.25,Math.max(-.55,pitch+dy*.0022)); }
+function look(dx,dy){ if (Math.abs(dx)>250||Math.abs(dy)>250) return;  yaw-=dx*.0026; pitch=Math.min(1.25,Math.max(-.55,pitch+dy*.0022)); }
 document.addEventListener("pointerlockchange",()=>{
   locked = document.pointerLockElement===canvas;
   if (!locked && running && triedLock && !isTouch){ running=false; hookUp(); showStart(true); }
@@ -469,7 +481,7 @@ function updateHook(dt){
 }
 
 // ---------------- movement ----------------
-let grounded=false, lastGround=-9, airJumps=1, simTime=0, groundNormalY=1;
+let grounded=false, onGround=false, lastJump=-9, lastGround=-9, airJumps=1, simTime=0, groundNormalY=1;
 world.addEventListener("preStep",()=>{
   const dt=world.dt||1/60;
   ropeStep(dt);
@@ -483,6 +495,7 @@ world.addEventListener("postStep",()=>{
   }
   grounded=g; groundNormalY=best||1; simTime+=world.dt||1/60;
   if (g){ lastGround=simTime; airJumps=1; }
+  onGround = g || (simTime-lastGround<.1 && simTime-lastJump>.25);
 });
 const fwd=new THREE.Vector3(), right=new THREE.Vector3(), wish=new THREE.Vector3();
 function controls(dt){
@@ -496,8 +509,9 @@ function controls(dt){
   const sprint = keys.has("shift") && !attached;
   const speed = sprint ? 13 : 8.5;
   const v=pBody.velocity;
-  if (grounded && !attached){
-    const k=Math.min(1,15*dt); v.x+=(wish.x*speed-v.x)*k; v.z+=(wish.z*speed-v.z)*k;
+  if (onGround && !attached){
+    const k=1-Math.exp(-14*dt); v.x+=(wish.x*speed-v.x)*k; v.z+=(wish.z*speed-v.z)*k;
+    if (!grounded && v.y>-12) v.y-=40*dt;   // hug the slope instead of skipping off bumps
   } else if (wish.lengthSq()>0){
     const acc = attached ? 18 : 11, along=v.x*wish.x+v.z*wish.z, wl=wish.length();
     if (along < speed*wl || attached){ v.x+=wish.x*acc*dt; v.z+=wish.z*acc*dt; }
@@ -505,7 +519,7 @@ function controls(dt){
   if (jumpQueued){
     jumpQueued=false;
     if (attached){ hook.phase="retract"; v.y=Math.max(v.y,0)+8; const hs=Math.hypot(v.x,v.z); if(hs>1){ v.x*=1.12; v.z*=1.12; } tone(600,.15,"triangle",.06,1.8); }
-    else if (grounded || simTime-lastGround<.12){ v.y=11; lastGround=-9; tone(420,.1,"triangle",.05,1.6); }
+    else if (grounded || simTime-lastGround<.12){ v.y=11; lastGround=-9; lastJump=simTime; tone(420,.1,"triangle",.05,1.6); }
     else if (airJumps>0){ airJumps--; v.y=Math.max(v.y,9.5); tone(560,.12,"triangle",.05,1.6); puff(pBody.position); }
   }
   const hs=Math.hypot(v.x,v.z); if (hs>45){ v.x*=45/hs; v.z*=45/hs; }
@@ -513,11 +527,12 @@ function controls(dt){
 
 // ---------------- camera ----------------
 const camTarget=new THREE.Vector3(), camWant=new THREE.Vector3(), lookAtV=new THREE.Vector3();
-let camSmooth=null;
+let camSmooth=null, camCur=7.5, camDt=1/60;
 function updateCamera(){
-  const p=pBody.position;
+  const p=pBody.interpolatedPosition;
   const tgt=tmpV.set(p.x,p.y+1.1,p.z);
-  if (!camSmooth) camSmooth=tgt.clone(); else camSmooth.lerp(tgt,.35);
+  if (!camSmooth) camSmooth=tgt.clone();
+  else { camSmooth.x=tgt.x; camSmooth.z=tgt.z; camSmooth.y+=(tgt.y-camSmooth.y)*(1-Math.exp(-18*camDt)); }
   right.set(Math.cos(yaw),0,-Math.sin(yaw));
   camTarget.copy(camSmooth).addScaledVector(right,.7);
   const cp=Math.cos(pitch);
@@ -526,7 +541,10 @@ function updateCamera(){
   const dir=tmpV2.subVectors(camWant,camTarget); const dl=dir.length(); dir.divideScalar(dl);
   ray.set(camTarget,dir); ray.far=dl;
   const hit=ray.intersectObjects(camBlockers,false)[0];
-  if (hit) camWant.copy(camTarget).addScaledVector(dir,Math.max(.8,hit.distance-.35));
+  let allow=Math.min(dl, hit?hit.distance-.35:dl, terrainRay(camTarget,dir,dl)-.5);
+  allow=Math.max(.8,allow);
+  camCur = allow<camCur ? allow : camCur+(allow-camCur)*(1-Math.exp(-4*camDt));
+  camWant.copy(camTarget).addScaledVector(dir,camCur);
   const gy=H(camWant.x,camWant.z)+.6; if (camWant.y<gy) camWant.y=gy;
   camera.position.copy(camWant);
   camera.lookAt(camTarget);
@@ -536,7 +554,12 @@ function updateCamera(){
   ray.set(camera.position,ad); ray.far=HOOK_RANGE+camDist;
   const skip=camera.position.distanceTo(camTarget)-.2;
   aimHit=null;
-  for (const h of ray.intersectObjects(grappleables,false)){ if (h.distance>skip){ if (h.point.distanceTo(hand)<=HOOK_RANGE) aimHit=h; break; } }
+  let objHit=null;
+  for (const h of ray.intersectObjects(grappleables,false)){ if (h.distance>skip){ objHit=h; break; } }
+  const o2=tmpV.copy(camera.position).addScaledVector(ad,skip);
+  const td=terrainRay(o2,ad,HOOK_RANGE+2)+skip;
+  if (td<Infinity && (!objHit || td<objHit.distance)) objHit={distance:td, point:camera.position.clone().addScaledVector(ad,td), object:terrainMesh};
+  if (objHit && objHit.point.distanceTo(hand)<=HOOK_RANGE) aimHit=objHit;
   $("cross").classList.toggle("lock",!!aimHit && !hook);
 }
 
@@ -548,7 +571,7 @@ let toastT=0;
 function toast(big,small){ const t=$("toast"); t.replaceChildren(document.createTextNode(big)); if(small){ const s=document.createElement("small"); s.textContent=small; t.append(s); } t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,2200); }
 let lastSafe=spawnPos.clone(), safeT=0;
 function respawn(msg){
-  pBody.position.copy(lastSafe); pBody.position.y+=1.5; pBody.velocity.set(0,0,0); hook=null; camSmooth=null;
+  pBody.position.copy(lastSafe); pBody.position.y+=1.5; pBody.velocity.set(0,0,0); pBody.interpolatedPosition.copy(pBody.position); hook=null; camSmooth=null;
   if (msg) toast(msg); tone(220,.3,"sine",.07,.5);
 }
 
@@ -564,7 +587,9 @@ function showStart(paused){
 $("go").addEventListener("click",()=>{
   audioOn(); $("start").hidden=true; running=true; clock.getDelta();
   if (isTouch){ $("touch").hidden=false; return; }
-  try{ const r=canvas.requestPointerLock(); triedLock=true; if (r && r.catch) r.catch(()=>{ triedLock=false; }); }catch(e){ triedLock=false; }
+  const lock=opts=>{ try{ const r=canvas.requestPointerLock(opts); triedLock=true; return r; }catch(e){ triedLock=false; return null; } };
+  const r=lock({unadjustedMovement:true});
+  if (r && r.catch) r.catch(()=>{ const r2=lock(); if (r2 && r2.catch) r2.catch(()=>{ triedLock=false; }); });
 });
 function placeName(p){
   if (p.y>40) return "High above the isles";
@@ -577,23 +602,23 @@ function placeName(p){
 
 // ---------------- loop ----------------
 const clock=new THREE.Clock();
-let hudT=0;
+let hudT=0, swings=0;
 function frame(){
   requestAnimationFrame(frame);
   const dt=Math.min(clock.getDelta(),.05);
   const t=clock.elapsedTime;
   if (running){ controls(dt); world.step(1/60,dt,4); if(!finished) elapsed+=dt; }
-  for (const d of dynamics){ d.mesh.position.copy(d.body.position); d.mesh.quaternion.copy(d.body.quaternion); }
+  for (const d of dynamics){ d.mesh.position.copy(d.body.interpolatedPosition); d.mesh.quaternion.copy(d.body.interpolatedQuaternion); }
   // hero
-  const p=pBody.position, v=pBody.velocity;
+  const p=pBody.interpolatedPosition, v=pBody.velocity; camDt=dt;
   hero.position.set(p.x,p.y-.5+.5,p.z);
   const hs=Math.hypot(v.x,v.z);
   const attached=hook&&hook.phase==="attached";
   const faceYaw = (hs>1.5) ? Math.atan2(-v.x,-v.z) : (hook ? yaw : hero.rotation.y);
   let dy=faceYaw-hero.rotation.y; dy=Math.atan2(Math.sin(dy),Math.cos(dy)); hero.rotation.y+=dy*Math.min(1,10*dt);
-  const bob = grounded && hs>1 ? Math.abs(Math.sin(t*hs*1.4))*.08 : 0;
+  const bob = onGround && hs>1 ? Math.abs(Math.sin(t*hs*1.4))*.08 : 0;
   heroBody.position.y=bob-.08;
-  heroBody.rotation.x = grounded ? -Math.min(.25,hs*.02) : (attached? -.35 : Math.max(-.5,Math.min(.5,-v.y*.02)));
+  heroBody.rotation.x = onGround ? -Math.min(.25,hs*.02) : (attached? -.35 : Math.max(-.5,Math.min(.5,-v.y*.02)));
   hand.set(0,.35,-.1).applyEuler(hero.rotation).add(hero.position);
   if (running){
     if (p.y < -1.8){ respawn("Splash! Back to dry land"); }
@@ -616,14 +641,17 @@ function frame(){
     $("sparks").textContent=`${got}/${TOTAL}`; $("timer").textContent=fmt(elapsed); $("speed").textContent=Math.round(Math.hypot(v.x,v.y,v.z));
     $("where").textContent=placeName(p);
     if (!isTouch){ const h=$("hint");
+      if (attached) swings++;
       const html = attached ? "Swinging. Hold <kbd>Shift</kbd> to reel in, <kbd>Space</kbd> to launch off, let go to fly." :
-        aimHit ? "Target in range. Hold <kbd>Mouse</kbd> or <kbd>E</kbd> to grapple." :
-        "Aim at anything solid within 75 m. The crosshair turns blue when the hook can reach it.";
+        "Aim at anything solid. When the crosshair turns blue, hold <kbd>Mouse</kbd> or <kbd>E</kbd> to grapple.";
+      h.hidden = elapsed>45 && swings>20;
       if (h.dataset.v!==html){ h.dataset.v=html; h.innerHTML=html; } }
   }
   renderer.render(scene,camera);
 }
 addEventListener("resize",()=>{ renderer.setSize(innerWidth,innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); });
+// interpolated poses start at the origin until the first physics step
+for (const b of world.bodies){ b.interpolatedPosition.copy(b.position); b.interpolatedQuaternion.copy(b.quaternion); }
 // small hook for automated testing; not used by the game itself
 window.__skyDebug={ body:pBody, pillars, rocks, view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded };
 frame();
