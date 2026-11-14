@@ -44,7 +44,7 @@ This file is the work queue for Claude sessions, including unattended and schedu
 ### Next ideas (unattended sessions may pick these up)
 - [ ] Synced multiplayer cups: the player who starts a cup broadcasts it, friends follow map switches, and the host's points table is authoritative.
 - [ ] Per-character training runs for the weakest racers (`npm run train-bots -- 10 8 40 kofi`, then pip), on a repo copy.
-- [ ] Bots that use the glider (they can grab pickups but never glide).
+- [x] Bots that use the glider (they can grab pickups but never glide).
 - [ ] A sixth map so Map Pack 2 doesn't reuse Neon Harbour.
 
 ### Later

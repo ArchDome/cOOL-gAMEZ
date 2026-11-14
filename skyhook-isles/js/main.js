@@ -1142,6 +1142,8 @@ function botThink(b,dt){
   // detour for a bat if one is close
   b.pickup=null;
   if (b.bat<=0) for (const g of batPickups){ if (g.cd>0) continue; const d=g.pos.distanceTo(tmpV.set(p.x,p.y,p.z)); if (d<35 && d<bd*.8){ goal=g.pos; b.pickup=g; break; } }
+  if (!(b.gliderT>0)) for (const g of gliderPickups){ if (g.cd<=0 && g.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<2.2){ b.gliderT=GLIDE_TIME; g.cd=GLIDER_RESPAWN; g.grp.visible=g.beam.visible=false; break; } }
+  if (b.gliderT>0) b.gliderT=Math.max(0,b.gliderT-dt);
   if (b.pickup && b.pickup.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<2.2){ b.bat=BAT_TIME; b.pickup.cd=BAT_RESPAWN; b.pickup.grp.visible=b.pickup.beam.visible=false; toast(b.name+" grabbed a bat"); announce("enemybat",b.name+" has the bat. Run!"); b.pickup=null; }
   if (!goal && !b.pickup){ if (botRace(b,dt)){ botHop(b,dt); return; } }
   if (!goal){ b.wanderT-=dt; if (!b.wander || b.wanderT<=0){ b.wander=new THREE.Vector3(...landNear(p)); b.wanderT=6; } goal=b.wander; }
@@ -1300,6 +1302,8 @@ function botsPreStep(dt){
       const [gy,ny]=groundBelow(p), h=p.y-gy;
       if (ny>.6 && h<RIDE+PROBE){ b.standing=true; v.y=Math.max(-20,Math.min(10,(gy+RIDE-p.y)*18))+26*dt; }
     }
+    b.gliding = b.gliderT>0 && !b.standing && !b.hook && v.y<-2 && simTime>b.knockUntil && b.target!=null && Math.hypot(sparks[b.target].pos.x-p.x,sparks[b.target].pos.z-p.z)>15 && p.y>sparks[b.target].pos.y-4;
+    if (b.gliding){ v.y+=26*dt; v.y+=(-3-v.y)*(1-Math.exp(-4*dt)); const hs=Math.hypot(v.x,v.z); if (hs<17){ v.x+=b.wish.x*10*dt; v.z+=b.wish.z*10*dt; } }
     if (b.standing && simTime>b.knockUntil){ const k=1-Math.exp(-10*dt); v.x+=(b.wish.x*b.speed-v.x)*k; v.z+=(b.wish.z*b.speed-v.z)*k; }
     else if (b.wish.lengthSq()>0){ const aa=b.airAcc||9; v.x+=b.wish.x*aa*dt; v.z+=b.wish.z*aa*dt; }
     if (!b.hook && v.y>22) v.y=22;
@@ -1313,7 +1317,7 @@ function botsPreStep(dt){
 function botsPayload(){
   if (!amController || !bots.length) return 0;
   return bots.map(b=>{ const q=b.body.interpolatedPosition, v=b.body.velocity;
-    return [b.id,b.name,r2(q.x),r2(q.y),r2(q.z),r2(v.x),r2(v.y),r2(v.z),r2(b.yaw),b.bat>0?1:0,b.swingN,b.hook?[r2(b.hook.point.x),r2(b.hook.point.y),r2(b.hook.point.z)]:0,b.dunks,b.ch,b.sparkCount]; });
+    return [b.id,b.name,r2(q.x),r2(q.y),r2(q.z),r2(v.x),r2(v.y),r2(v.z),r2(b.yaw),b.bat>0?1:0,b.swingN,b.hook?[r2(b.hook.point.x),r2(b.hook.point.y),r2(b.hook.point.z)]:0,b.dunks,b.ch,b.sparkCount,b.gliding?1:0]; });
 }
 function updateBots(dt){
   const ctrl=isBotController();
@@ -1325,7 +1329,7 @@ function updateBots(dt){
   }
   // gather poses: our own bots, or the ones another player is running
   const now=performance.now(), seen=new Set();
-  const show=(key,name,pos,vel,yaw,bat,swingN,tip,dk,raw,local,ch,sc=0)=>{
+  const show=(key,name,pos,vel,yaw,bat,swingN,tip,dk,raw,local,ch,sc=0,gl=false)=>{
     seen.add(key);
     let a=botAvatars.get(key);
     if (!a){ a=makeAvatar(key); const C=CHARACTERS[ch]||CHARACTERS[0]; a.ch=ch; a.C=C;
@@ -1343,8 +1347,9 @@ function updateBots(dt){
     if (a.swLast!=null && swingN!==a.swLast){ a.swing=1; a.swingBat=bat; }
     a.swLast=swingN;
     if (a.bat) a.bat.visible=bat; if (a.swing>0) a.swing=Math.max(0,a.swing-dt/.28); poseSwing(a.body,a.bat,a.swing,a.swingBat);
-    a.body.rotation.x = tip ? -.35 : 0;
-    a.phase=(a.phase||0)+Math.hypot(vel.x,vel.z)*1.4*dt; poseArms(a.body, tip?"rope" : vel.y<-14?"fall":"walk", a.phase, Math.min(1,Math.hypot(vel.x,vel.z)/6));
+    a.open=(a.open||0)+((gl?1:0)-(a.open||0))*Math.min(1,10*dt); a.wing.visible=a.open>.02; a.wing.scale.set(a.open,1,.4+.6*a.open);
+    a.body.rotation.x = gl ? -1.1 : tip ? -.35 : 0;
+    a.phase=(a.phase||0)+Math.hypot(vel.x,vel.z)*1.4*dt; poseArms(a.body, tip?"rope" : gl?"glide" : vel.y<-14?"fall":"walk", a.phase, Math.min(1,Math.hypot(vel.x,vel.z)/6));
     a.body.rotation.z=0; a.body.position.x=0; a.body.scale.set(1,1,1);
     if (a.introT>0){ a.introT=Math.max(0,a.introT-dt); const u=1-a.introT/1.8, w=Math.sin(Math.PI*u);
       switch (a.C.anim){
@@ -1365,14 +1370,14 @@ function updateBots(dt){
     else a.rope.visible=a.tip.visible=false;
   };
   if (amController){
-    for (const b of bots) show("bot:"+b.id,b.name,b.body.interpolatedPosition,b.body.velocity,b.yaw,b.bat>0,b.swingN,b.hook?b.hook.point:null,b.dunks,null,true,b.ch,b.sparkCount);
+    for (const b of bots) show("bot:"+b.id,b.name,b.body.interpolatedPosition,b.body.velocity,b.yaw,b.bat>0,b.swingN,b.hook?b.hook.point:null,b.dunks,null,true,b.ch,b.sparkCount,!!b.gliding);
   } else {
     for (const a of avatars.values()){
       const list=a.pres && a.pres.bots; if (!Array.isArray(list)) continue;
       for (const e of list.slice(0,8)){
         if (!Array.isArray(e) || e.length<13 || ![e[2],e[3],e[4],e[5],e[6],e[7],e[8]].every(n=>typeof n==="number" && isFinite(n) && Math.abs(n)<5000)) continue;
         const tip=Array.isArray(e[11]) && e[11].length===3 && e[11].every(Number.isFinite) ? new THREE.Vector3(...e[11]) : null;
-        show("bot:"+(e[0]|0),cleanName(e[1]),new THREE.Vector3(e[2],e[3],e[4]),new THREE.Vector3(e[5],e[6],e[7]),e[8],!!e[9],e[10]|0,tip,Math.max(0,e[12]|0),e,false,Math.max(0,Math.min(CHARACTERS.length-1,e[13]|0)),Math.max(0,Math.min(99,e[14]|0)));
+        show("bot:"+(e[0]|0),cleanName(e[1]),new THREE.Vector3(e[2],e[3],e[4]),new THREE.Vector3(e[5],e[6],e[7]),e[8],!!e[9],e[10]|0,tip,Math.max(0,e[12]|0),e,false,Math.max(0,Math.min(CHARACTERS.length-1,e[13]|0)),Math.max(0,Math.min(99,e[14]|0)),!!e[15]);
       }
     }
   }
@@ -1893,5 +1898,5 @@ if (GFX_SET.bloom>0){
 // interpolated poses start at the origin until the first physics step
 for (const b of world.bodies){ b.interpolatedPosition.copy(b.position); b.interpolatedQuaternion.copy(b.quaternion); }
 // small hook for automated testing; not used by the game itself
-window.__skyDebug={ renderInfo:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,meshes:(()=>{ let n=0; scene.traverse(o=>{ if(o.isMesh) n++; }); return n; })()}), headlessStart:(nBots=1)=>{ simFrozen=true; wantBots=nBots; running=true; $("start").hidden=true; for (const C of CHARACTERS) introSeen.add(C.key); introQ.length=0; }, botItems:(b,dt)=>botItems(b,dt), gfx:()=>({GFX,composer:!!composer}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); for (const g of [...gliderPickups,...batPickups]) if (g.cd>0) g.cd-=1/60; for (const b of itemBoxes) if (b.cd>0) b.cd-=1/60; } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded };
+window.__skyDebug={ gliderPickupsList:()=>gliderPickups, renderInfo:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,meshes:(()=>{ let n=0; scene.traverse(o=>{ if(o.isMesh) n++; }); return n; })()}), headlessStart:(nBots=1)=>{ simFrozen=true; wantBots=nBots; running=true; $("start").hidden=true; for (const C of CHARACTERS) introSeen.add(C.key); introQ.length=0; }, botItems:(b,dt)=>botItems(b,dt), gfx:()=>({GFX,composer:!!composer}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); for (const g of [...gliderPickups,...batPickups]) if (g.cd>0) g.cd-=1/60; for (const b of itemBoxes) if (b.cd>0) b.cd-=1/60; } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded };
 frame();

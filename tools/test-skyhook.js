@@ -68,6 +68,10 @@ const { openGame, checker } = require('./harness');
     const botBomb = await page.evaluate(() => { const d = window.__skyDebug, b = d.bots()[0]; if (!b) return 'no bots'; const me = d.body.position;
       b.body.position.set(me.x + 6, me.y, me.z); b.body.velocity.set(0, 0, 0); b.item = 'bomb'; b.itemT = 1; b.introT = 0; d.botItems(b, .1); return b.item; });
     c.check('bots throw bombs at nearby players', botBomb === null, String(botBomb));
+    const botGlide = await page.evaluate(() => { const d = window.__skyDebug, b = d.bots()[0]; if (!b) return 'no bots';
+      b.gliderT = 30; b.hook = null; b.introT = 0; b.body.position.set(0, 90, 0); b.body.velocity.set(0, -6, 0); b.target = 0; d.tick(30);
+      return { gliding: !!b.gliding, vy: +b.body.velocity.y.toFixed(1) }; });
+    c.check('bots glide when they have a glider', botGlide.gliding && botGlide.vy > -6, JSON.stringify(botGlide));
     await page.evaluate(() => { const d = window.__skyDebug; d.calm(); d.body.position.set(-55, 8, 45); d.body.velocity.set(0, 0, 0); d.tick(30); });
 
     // Character select and the reacting face

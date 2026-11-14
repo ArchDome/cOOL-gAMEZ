@@ -34,7 +34,7 @@ async function evaluate(page, params, chars, seconds, starts = STARTS, overrides
         const C = d.CHARACTERS.find(c => c.key === key), b = d.bots()[0];
         Object.assign(b, { C, ch: d.CHARACTERS.indexOf(C), name: C.name, introT: 0, target: null, hook: null, falls: 0, sparkCount: 0, bat: 0,
           pickup: null, grudge: null, stuck: 0, cd: 1, grappleCd: 0, knockUntil: -9, jumpT: -9, lastHitBy: null, skip: new Map(), targetT: 0, backoff: 0,
-          speed: 7.5, airAcc: 9, reel: 16, standing: false, item: null, itemT: 0, shieldT: 0, magnetT: 0, perch: null, perchT: 0, wander: null, wanderT: 0, doneT: undefined });
+          speed: 7.5, airAcc: 9, reel: 16, standing: false, item: null, itemT: 0, shieldT: 0, magnetT: 0, perch: null, perchT: 0, wander: null, wanderT: 0, doneT: undefined, gliderT: 0, gliding: false });
         b.got.clear(); b.wish.set(0, 0, 0); b.body.angularVelocity.set(0, 0, 0);   // physics runs before the brain each tick, so stale state would leak in
         const [x, y, z] = starts[si]; b.body.position.set(x, d.probe({ x, y: 200, z })[0] + 1.2 || y, z); b.body.velocity.set(0, 0, 0);
         for (let i = 0; i < seconds * 60; i++) { d.body.position.set(0, 160, -150); d.body.velocity.set(0, 0, 0); d.tick(1); }

@@ -4,6 +4,12 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14 (overnight): Bots glide
+
+Bots now pick up glider pickups they touch. When one is falling with no rope out, its target spark is more than 15 m away and it's above the target, it opens the wing: the same lift as the player, a 3 m/s sink, and a push toward the target. Friends see the wing and the arm pose too.
+
+Benchmark with personalities and gliding: **74 sparks** (7 characters × 3 starts × 45 s), the best yet, with 8 falls.
+
 ## 2026-11-14 (overnight): iPad layout pass
 
 I checked the game in an iPad Pro 11" landscape touch viewport.
