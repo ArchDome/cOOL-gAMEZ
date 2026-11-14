@@ -7,7 +7,7 @@ Browser games, one folder per game. Each game is a single self-contained `index.
 | Folder | Artifact (play link) | Notes |
 | --- | --- | --- |
 | `roquet-royale/` | https://claude.ai/artifact/STGnGiFPmcQWjn5R3fE2v2 | 2D canvas, real-time multiplayer via the artifact `room` capability |
-| `skyhook-isles/` | https://claude.ai/artifact/UyJ73agkVdwAh8vXyqM3wp | 3D, Three.js 0.160 + cannon-es 0.20 from jsDelivr |
+| `skyhook-isles/` | https://claude.ai/artifact/UyJ73agkVdwAh8vXyqM3wp | 3D, Three.js 0.160 + cannon-es 0.20 from jsDelivr. Multiplayer via `room`, with client-side physics and shared poses |
 
 When you change a game, republish to its existing artifact URL (pass the URL, or publish the same file path in the same session). Never create a second artifact for an existing game. Republishing reloads every open view, which drops players out of a live match, so say so when you ship an update.
 
@@ -35,7 +35,7 @@ When you change a game, republish to its existing artifact URL (pass the URL, or
 - Run gameplay in headless Chromium with Playwright. Use `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader` for WebGL. It renders slowly, so don't judge frame rate from it.
 - **The cloud sandbox blocks cdn.jsdelivr.net**, but npm is reachable. Run `npm pack three@0.160.0 cannon-es@0.20.0` in a scratch folder, unpack, and use Playwright `page.route()` to serve the CDN URLs from those local files. The published page still loads from the CDN.
 - `skyhook-isles` exposes `window.__skyDebug` for automated tests: player body, pillars, sparks, glider pickups, hook and ground state, a view setter, a `keys` set, and `tick(n)`, which steps controls and physics exactly n frames of 1/60 s. Use `tick` for physics measurements, because headless rendering is too slow for real-time timing.
-- The artifact `room` capability doesn't exist in local test runs, so multiplayer can't be tested here. Say so when reporting results.
+- The artifact `room` capability doesn't exist in local test runs. To test multiplayer logic, inject a fake `window.claude.use("room")` with Playwright `addInitScript` (implement `presence`, `peers`, `onPeers`, `onConnection` and `connected`, with a scripted fake friend). That still doesn't prove real two-device play, so say so when reporting results.
 
 ## Zettelkasten
 

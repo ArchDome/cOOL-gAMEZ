@@ -72,9 +72,21 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
 .runtime{font-family:var(--display);font-size:30px;line-height:1;text-align:right}
 .runtime.ahead{color:#7bd36a}.runtime.behind{color:#ff7a62}.runtime.done{color:var(--spark)}
 .runtime.ready{color:var(--muted)}
+.players{width:250px;display:grid;gap:4px;pointer-events:auto;font-variant-numeric:tabular-nums}
+.players .pl{display:grid;grid-template-columns:10px 1fr auto auto;gap:8px;align-items:center;font-size:13px;font-weight:600}
+.players .pl i{width:10px;height:10px;border-radius:50%}
+.players .pl small{color:var(--muted);font-weight:600}
+.players .pl.me span:first-of-type{color:var(--hook)}
+.field{display:grid;gap:6px}
+.field label{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.field input{font:600 16px var(--body);color:var(--ink);background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:10px;padding:10px 12px;-webkit-user-select:text;user-select:text}
+.field input:focus-visible{outline:2px solid var(--hook);outline-offset:1px}
+.net{font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center}
+.net i{width:8px;height:8px;border-radius:50%;background:#777;flex:none}
+.net.on i{background:#7bd36a}.net.off i{background:var(--danger)}
 .splits button{font:700 12px var(--body);color:var(--ink);background:rgba(255,255,255,.1);border:1px solid var(--line);border-radius:8px;padding:6px 8px;cursor:pointer}
 .splits button:focus-visible{outline:2px solid var(--hook);outline-offset:2px}
-@media (max-width:560px){ .hint{display:none} .stats{gap:12px} .splits{width:210px} .splits li{grid-template-columns:1fr 56px 56px;font-size:12px} .runtime{font-size:24px} }
+@media (max-width:560px){ .hint{display:none} .stats{gap:12px} .splits,.players{width:210px} .splits li{grid-template-columns:1fr 56px 56px;font-size:12px} .runtime{font-size:24px} }
 </style>
 
 <div id="app"></div>
@@ -94,6 +106,11 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
         <div class="runtime ready" id="timer">0:00.00</div>
         <div class="sp-foot"><span>Sum of best</span><b id="sob">–</b></div>
         <button type="button" id="resetBtn">Restart run (T)</button>
+      </div>
+      <div class="chip players" id="players" hidden>
+        <div class="sp-head"><span>On the island</span><span id="plCount"></span></div>
+        <div id="plList"></div>
+        <div class="splits" style="width:auto;padding:0;background:none;border:0"><button type="button" id="raceBtn">Start race (everyone restarts)</button></div>
       </div>
     </div>
   </div>
@@ -132,6 +149,8 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
       <dt>Glider</dt><dd>After a cyan pickup, hold Jump while falling to glide.</dd>
       <dt>Restart run</dt><dd>Resets the island. The timer starts on your first move.</dd>
     </dl>
+    <div class="field"><label for="nick">Your name</label><input id="nick" type="text" maxlength="16" autocomplete="off" placeholder="e.g. JakeyBoy"></div>
+    <div class="net" id="net"><i></i><span>Connecting to the island…</span></div>
     <button class="go" type="button" id="go">Play</button>
     <div class="best" id="best"></div>
     <div class="err" id="err" hidden></div>
@@ -500,14 +519,16 @@ const HOOK_RANGE=75, HOOK_SPEED=150;
 let hook=null; // {phase, tip, target(local or world), body, len}
 let aimHit=null;
 const tmpV=new THREE.Vector3(), tmpV2=new THREE.Vector3();
-function anchorWorld(h,out){ if(h.body){ const w=h.body.pointToWorldFrame(h.local,new CANNON.Vec3()); return out.set(w.x,w.y,w.z); } return out.copy(h.point); }
+function anchorWorld(h,out){
+  if (h.remote){ const a=avatars.get(h.remote); if (!a){ if (h.phase!=="retract") h.phase="retract"; return out.copy(h.point); } h.point.copy(a.disp); h.point.y+=.3; return out.copy(h.point); }
+  if(h.body){ const w=h.body.pointToWorldFrame(h.local,new CANNON.Vec3()); return out.set(w.x,w.y,w.z); } return out.copy(h.point); }
 function hookDown(){
-  if (!running) return; hookHeld=true; audioOn();
+  if (!running || raceCount>0) return; hookHeld=true; audioOn();
   if (hook) return;
   const dir=new THREE.Vector3(); camera.getWorldDirection(dir);
   if (aimHit){
     const body=aimHit.object.userData.body||null;
-    const h={phase:"fly",tip:hand.clone(),body,point:aimHit.point.clone(),miss:false};
+    const h={phase:"fly",tip:hand.clone(),body,point:aimHit.point.clone(),miss:false,remote:aimHit.object.userData.remote||null};
     if (body){ h.local=body.pointToLocalFrame(new CANNON.Vec3(aimHit.point.x,aimHit.point.y,aimHit.point.z)); }
     hook=h;
   } else {
@@ -537,7 +558,7 @@ function ropeStep(dt){
 function updateHook(dt){
   if (!hook) { rope.visible=hookTip.visible=false; return; }
   if (hook.phase==="fly"){
-    const target = hook.body ? anchorWorld(hook,tmpV2) : hook.point;
+    const target = (hook.body||hook.remote) ? anchorWorld(hook,tmpV2) : hook.point;
     const d=target.distanceTo(hook.tip), step=HOOK_SPEED*dt;
     if (d<=step){ hook.tip.copy(target);
       if (hook.miss){ hook.phase="retract"; }
@@ -563,6 +584,7 @@ let grounded=false, onGround=false, lastJump=-9, lastGround=-9, airJumps=1, simT
 // Hover controller: instead of letting the collision sphere scrape over terrain triangles (noisy),
 // measure the ground under the player each step and hold the body a few cm above it with a stiff spring.
 const RIDE=.62, PROBE=.55;
+let yanked=false;
 let standing=false;
 const rayFrom=new CANNON.Vec3(), rayTo=new CANNON.Vec3(), rayRes=new CANNON.RaycastResult();
 function groundBelow(p){
@@ -583,9 +605,17 @@ world.addEventListener("preStep",()=>{
   ropeStep(dt);
   inUpdraft=false;
   for (const u of updrafts){ const p=pBody.position; if (Math.hypot(p.x-u.x,p.z-u.z)<(gliding?4.5:2.8) && p.y<u.top+(gliding?25:0) && p.y>u.g-1){ inUpdraft=true; if(!gliding) pBody.velocity.y=Math.min(22,pBody.velocity.y+70*dt); } }
+  // a friend who has hooked you pulls you toward them (they get pulled toward you on their side)
+  yanked=false;
+  if (myPeer) for (const a of avatars.values()){
+    const h=a.pres && a.pres.h; if (!Array.isArray(h) || h[0]!==2 || h[5]!==myPeer) continue;
+    const L=Math.max(1.6,+h[4]||0), p=pBody.position, v=pBody.velocity;
+    const dx=a.disp.x-p.x, dy=a.disp.y+.3-p.y, dz=a.disp.z-p.z, d=Math.hypot(dx,dy,dz)||1;
+    if (d>L){ const nx=dx/d, ny=dy/d, nz=dz/d, rel=v.x*nx+v.y*ny+v.z*nz; const k=Math.max(0,-rel)*.5+(d-L)*10*dt; v.x+=nx*k; v.y+=ny*k; v.z+=nz*k; yanked=true; }
+  }
   standing=false;
   { const p=pBody.position, v=pBody.velocity, att=hook && hook.phase==="attached";
-    if (!att && !gliding && !inUpdraft && simTime-lastJump>.2 && v.y<6){
+    if (!att && !yanked && !gliding && !inUpdraft && simTime-lastJump>.2 && v.y<6){
       const [gy,ny]=groundBelow(p), h=p.y-gy;
       if (ny>.6 && h<RIDE+PROBE){ standing=true; groundNormalY=ny;
         const target=(gy+RIDE-p.y)*18;            // spring toward ride height
@@ -609,6 +639,7 @@ world.addEventListener("postStep",()=>{
 });
 const fwd=new THREE.Vector3(), right=new THREE.Vector3(), wish=new THREE.Vector3();
 function controls(dt){
+  if (raceCount>0){ pBody.velocity.x=0; pBody.velocity.z=0; jumpQueued=false; return; }
   let ix=touchMove.x, iy=touchMove.y;
   if (keys.has("w")||keys.has("arrowup")) iy+=1; if (keys.has("s")||keys.has("arrowdown")) iy-=1;
   if (keys.has("d")||keys.has("arrowright")) ix+=1; if (keys.has("a")||keys.has("arrowleft")) ix-=1;
@@ -620,7 +651,7 @@ function controls(dt){
   const sprint = keys.has("shift") && !attached;
   const speed = sprint ? 13 : 8.5;
   const v=pBody.velocity;
-  if (onGround && !attached){
+  if (onGround && !attached && !yanked){
     const k=1-Math.exp(-14*dt); v.x+=(wish.x*speed-v.x)*k; v.z+=(wish.z*speed-v.z)*k;
   } else if (wish.lengthSq()>0){
     const acc = attached ? 18 : 11, along=v.x*wish.x+v.z*wish.z, wl=wish.length();
@@ -815,6 +846,7 @@ function frame(){
     safeT+=dt; if (grounded && safeT>.5 && p.y>2){ safeT=0; lastSafe.copy(p); }
   }
   updateHook(dt);
+  updateRemotes(dt); sendPresence(); tickRace(dt);
   updateCamera();
   sun.position.set(p.x+SUN_DIR.x*120,p.y+SUN_DIR.y*120,p.z+SUN_DIR.z*120); sun.target.position.set(p.x,p.y,p.z);
   // glider pickups
@@ -840,7 +872,7 @@ function frame(){
   hudT+=dt;
   if (hudT>.1){ hudT=0;
     $("sparks").textContent=`${got}/${TOTAL}`; renderSplits(false); $("speed").textContent=Math.round(Math.hypot(v.x,v.y,v.z)); $("glider").textContent = gliderTime>0 ? Math.ceil(gliderTime)+"s" : "–";
-    $("where").textContent=placeName(p);
+    $("where").textContent=placeName(p); renderPlayers();
     if (!isTouch){ const h=$("hint");
       if (attached) swings++;
       const html = gliding ? "Gliding. Look down to dive and gain speed, up to float. Fly through updrafts to climb." :
@@ -853,10 +885,127 @@ function frame(){
   renderTimer();
   renderer.render(scene,camera);
 }
+// ---------------- multiplayer ----------------
+// Each player runs their own physics and shares a pose about 20 times a second through room presence.
+// Friends are drawn where they last reported, nudged forward by their velocity, and smoothed.
+let room=null, myPeer=null, presT=0, raceCount=0, raceId=0;
+const avatars=new Map(), raceSeen=new Map();
+const AV_COLORS=["#3a8ef2","#9b5cf0","#26b27a","#f2c230","#e8508a","#2fc4c4","#ff8a3d"];
+const cleanName=s=>String(s||"").replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f]/g,"").trim().slice(0,16)||"Player";
+const colorFor=peer=>{ let h=0; for (const ch of String(peer)) h=(h*31+ch.charCodeAt(0))|0; return AV_COLORS[Math.abs(h)%AV_COLORS.length]; };
+try{ $("nick").value=localStorage.getItem("skyhook.nick")||""; }catch(e){}
+const myName=()=>cleanName($("nick").value);
+$("nick").addEventListener("change",()=>{ try{ localStorage.setItem("skyhook.nick",$("nick").value); }catch(e){} });
+function setNet(state,text){ const n=$("net"); n.className="net "+state; n.querySelector("span").textContent=text; }
+if (window.claude && typeof window.claude.use==="function"){
+  window.claude.use("room").then(r=>{
+    room=r;
+    if (!r){ setNet("off","Online play isn't available in this view. You can still play solo."); return; }
+    r.onConnection(c=>setNet(c?"on":"", c?"Online. Anyone who opens this page joins your island.":"Reconnecting…"), e=>setNet("off","Couldn't connect to other players ("+(e&&e.code||"error")+"). Playing solo."));
+    r.onPeers(ch=>{ for (const p of ch.peers) if (p.sameTab) myPeer=p.peer; },()=>{});
+  }).catch(()=>setNet("off","Online play isn't available in this view. You can still play solo."));
+} else setNet("off","Online play isn't available here. You can still play solo.");
+
+const r2=x=>Math.round(x*100)/100;
+function sendPresence(){
+  if (!room) return; const now=performance.now();
+  if (now-presT < (running?50:1000)) return; presT=now;
+  const p=pBody.interpolatedPosition, v=pBody.velocity;
+  const h = hook ? [hook.phase==="fly"?1:hook.phase==="attached"?2:3, r2(hook.tip.x),r2(hook.tip.y),r2(hook.tip.z), r2(hook.len||0), hook.remote||""] : 0;
+  room.presence({n:myName(), p:[r2(p.x),r2(p.y),r2(p.z)], v:[r2(v.x),r2(v.y),r2(v.z)], yw:r2(hero.rotation.y), g:gliding?1:0, h, s:got, t:Math.round(elapsed*10)/10, rs:runState, ps:running?0:1}).catch(()=>{});
+}
+function nameSprite(text,color){
+  const c=document.createElement("canvas"); c.width=256; c.height=64; const x=c.getContext("2d");
+  x.font="700 30px 'Nunito Sans', system-ui, sans-serif"; const w=Math.min(250,x.measureText(text).width+28);
+  x.fillStyle="rgba(14,22,38,.72)"; x.beginPath(); x.roundRect ? x.roundRect(128-w/2,8,w,48,14) : x.rect(128-w/2,8,w,48); x.fill();
+  x.fillStyle=color; x.textAlign="center"; x.textBaseline="middle"; x.fillText(text,128,33);
+  const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false,transparent:true})); sp.scale.set(2.6,.65,1); sp.renderOrder=10; return sp;
+}
+function makeAvatar(peer){
+  const color=colorFor(peer), g=new THREE.Group(), body=heroBody.clone(true); g.add(body);
+  const torso=body.children[0]; torso.material=new THREE.MeshStandardMaterial({color,roughness:.6}); torso.userData.remote=peer;
+  const w=wing.clone(true); w.visible=false; g.add(w);
+  const r=new THREE.Mesh(rope.geometry,rope.material), tip=hookTip.clone(); r.visible=tip.visible=false;
+  scene.add(g,r,tip); grappleables.push(torso);
+  return {peer,color,g,body,wing:w,rope:r,tip,torso,label:null,labelText:"",pres:null,recv:0,disp:new THREE.Vector3(),np:new THREE.Vector3(),nv:new THREE.Vector3(),has:false,yaw:0,open:0,name:"Player"};
+}
+function dropAvatar(a){
+  scene.remove(a.g,a.rope,a.tip); const i=grappleables.indexOf(a.torso); if (i>=0) grappleables.splice(i,1);
+  if (a.label){ a.label.material.map.dispose(); a.label.material.dispose(); }
+  if (hook && hook.remote===a.peer) hook.phase="retract";
+}
+const vec3=a=>Array.isArray(a) && a.length===3 && a.every(n=>typeof n==="number" && isFinite(n) && Math.abs(n)<5000);
+const tmpH=new THREE.Vector3(), tmpT=new THREE.Vector3(), UP=new THREE.Vector3(0,1,0);
+function updateRemotes(dt){
+  if (!room) return;
+  const now=performance.now(), seen=new Set();
+  for (const pr of room.peers()){
+    if (pr.sameTab || pr.kind!=="viewer") continue;
+    const ps=pr.presence; if (!ps || !vec3(ps.p)) continue;
+    seen.add(pr.peer);
+    let a=avatars.get(pr.peer); if (!a){ a=makeAvatar(pr.peer); avatars.set(pr.peer,a); }
+    if (ps!==a.pres){
+      a.pres=ps; a.recv=now; a.np.fromArray(ps.p); if (vec3(ps.v)) a.nv.fromArray(ps.v); else a.nv.set(0,0,0);
+      if (!a.has){ a.disp.copy(a.np); a.has=true; }
+      a.name=cleanName(ps.n);
+      if (typeof ps.race==="number"){ if (!raceSeen.has(pr.peer)) raceSeen.set(pr.peer,ps.race); else if (ps.race>raceSeen.get(pr.peer)){ raceSeen.set(pr.peer,ps.race); if (ps.race!==raceId) beginRace(ps.race,a.name); } }
+    }
+    const age=Math.min(.25,(now-a.recv)/1000);
+    tmpT.copy(a.np).addScaledVector(a.nv,age);
+    if (a.disp.distanceTo(tmpT)>10) a.disp.copy(tmpT); else a.disp.lerp(tmpT,1-Math.exp(-14*dt));
+    a.g.position.copy(a.disp);
+    if (typeof ps.yw==="number" && isFinite(ps.yw)){ let d=ps.yw-a.yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); a.yaw+=d*Math.min(1,10*dt); a.g.rotation.y=a.yaw; }
+    a.open += ((ps.g?1:0)-a.open)*Math.min(1,10*dt); a.wing.visible=a.open>.02; a.wing.scale.set(a.open,1,.4+.6*a.open);
+    a.body.rotation.x = ps.g ? -1.1 : (Array.isArray(ps.h) && ps.h[0]===2 ? -.35 : 0);
+    const text = a.name + (ps.ps ? " (paused)" : "");
+    if (text!==a.labelText){ if (a.label){ a.g.remove(a.label); a.label.material.map.dispose(); a.label.material.dispose(); } a.label=nameSprite(text,a.color); a.label.position.y=1.55; a.g.add(a.label); a.labelText=text; }
+    // their rope
+    const h=ps.h;
+    if (Array.isArray(h) && h[0]>0 && [h[1],h[2],h[3]].every(n=>typeof n==="number" && isFinite(n))){
+      tmpH.set(0,.35,-.1).applyEuler(a.g.rotation).add(a.g.position);
+      if (h[5] && h[5]===myPeer) tmpT.set(pBody.interpolatedPosition.x,pBody.interpolatedPosition.y+.3,pBody.interpolatedPosition.z);
+      else if (h[5] && avatars.has(h[5])) tmpT.copy(avatars.get(h[5]).disp).add(new THREE.Vector3(0,.3,0));
+      else tmpT.set(h[1],h[2],h[3]);
+      const len=tmpH.distanceTo(tmpT);
+      if (len>.05 && len<200){ a.rope.visible=a.tip.visible=true; a.rope.position.copy(tmpH).add(tmpT).multiplyScalar(.5); a.rope.scale.set(1,len,1);
+        a.rope.quaternion.setFromUnitVectors(UP,tmpT.clone().sub(tmpH).normalize()); a.tip.position.copy(tmpT); a.tip.quaternion.copy(a.rope.quaternion); }
+      else a.rope.visible=a.tip.visible=false;
+    } else a.rope.visible=a.tip.visible=false;
+  }
+  for (const [k,a] of avatars) if (!seen.has(k)){ dropAvatar(a); avatars.delete(k); }
+}
+// races: whoever presses Start race bumps a number in their presence; everyone who sees it restarts with a countdown
+function beginRace(id,byName){
+  raceId=id; restartRun(); raceCount=3; tone(440,.15,"square",.05);
+  toast("3", byName ? byName+" started a race" : "Race starting for everyone on the island");
+}
+function tickRace(dt){
+  if (raceCount<=0) return;
+  const before=Math.ceil(raceCount); raceCount-=dt; const after=Math.ceil(raceCount);
+  if (raceCount<=0){ raceCount=0; runState="running"; elapsed=0; toast("GO!","Most sparks fastest wins."); tone(880,.25,"square",.06); }
+  else if (after!==before){ toast(String(after)); tone(440,.15,"square",.05); }
+}
+$("raceBtn").addEventListener("click",e=>{ e.currentTarget.blur(); if (!room){ toast("Online play isn't available here"); return; } const id=Date.now(); room.presence({race:id}).catch(()=>{}); beginRace(id,null); });
+let plKey="";
+function renderPlayers(){
+  const panel=$("players");
+  if (!room || !avatars.size){ panel.hidden=true; plKey=""; return; }
+  panel.hidden=false;
+  const rows=[{name:myName()+" (you)",color:"#7ce0ff",s:got,t:elapsed,rs:runState,me:1}];
+  for (const a of avatars.values()){ const ps=a.pres||{}; rows.push({name:a.name+(ps.ps?" · paused":""),color:a.color,s:Number(ps.s)||0,t:Number(ps.t)||0,rs:String(ps.rs||"")}); }
+  rows.sort((x,y)=>y.s-x.s || x.t-y.t);
+  const key=rows.map(r=>r.name+r.s+Math.floor(r.t)+r.rs).join("|"); if (key===plKey) return; plKey=key;
+  $("plCount").textContent=rows.length+" players";
+  $("plList").replaceChildren(...rows.map(r=>{ const d=document.createElement("div"); d.className="pl"+(r.me?" me":"");
+    const dot=document.createElement("i"); dot.style.background=r.color; const n=document.createElement("span"); n.textContent=r.name;
+    const sc=document.createElement("span"); sc.textContent=r.s+"/"+TOTAL; const tm=document.createElement("small"); tm.textContent = r.rs==="done" ? fmtT(r.t) : r.rs==="running" ? fmt(r.t) : "–";
+    d.append(dot,n,sc,tm); return d; }));
+}
 addEventListener("resize",()=>{ renderer.setSize(innerWidth,innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); });
 // interpolated poses start at the origin until the first physics step
 for (const b of world.bodies){ b.interpolatedPosition.copy(b.position); b.interpolatedQuaternion.copy(b.quaternion); }
 // small hook for automated testing; not used by the game itself
-window.__skyDebug={ keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded };
+window.__skyDebug={ avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded };
 frame();
 </script>

@@ -2,6 +2,8 @@
 
 A third-person 3D exploration game with a physics grapple. Swing between stone pillars and floating rocks on a generated island and collect all 15 sparks.
 
+**Play:** https://claude.ai/artifact/UyJ73agkVdwAh8vXyqM3wp
+
 Built with [Three.js](https://threejs.org) 0.160 for rendering and [cannon-es](https://github.com/pmndrs/cannon-es) 0.20 for physics, both loaded from jsDelivr. Open `index.html` in a browser to play.
 
 ## Controls
@@ -26,6 +28,16 @@ Built with [Three.js](https://threejs.org) 0.160 for rendering and [cannon-es](h
 - 5 glider pickups (cyan beams). Each gives 30 s of glider and respawns 15 s after you take it. While gliding, look down to dive and gain speed, look up to float, and fly through updrafts to climb. Firing the hook folds the wing.
 - Dynamic crates (including a stack at spawn) and a boulder you can knock or yank around.
 - 15 sparks. Each one shines a beam into the sky until you collect it. Your best time is saved.
+
+## Multiplayer
+
+Everyone who opens the artifact link lands on the same island. This uses the claude.ai artifact `room` capability, so it only works from the link. Opening `index.html` directly gives you solo play.
+
+- You see each other with name tags, plus each other's ropes and gliders.
+- **Grapple your friend:** aim at them and hold the hook. You get pulled toward them, and they feel the tug on their side.
+- **Start race** (in the *On the island* panel) gives everyone a 3-2-1 countdown, restarts all runs at once, and lists each player's sparks and time.
+
+**How it works:** each player runs their own physics and shares a small pose (position, velocity, facing, glider, hook) through room presence about 20 times a second. Friends are drawn at their last pose, nudged forward by their velocity and smoothed, so your own movement never waits on the network. The trade-off is that crates and the boulder are local to each player, not shared.
 
 ## Speedrun timer
 
