@@ -84,7 +84,7 @@ let embers=null; const EMBER_N=900;
 if (MAP.theme.embers || MAP.theme.snow){
   const pos=new Float32Array(EMBER_N*3); for (let i=0;i<EMBER_N;i++) pos.set([(Math.random()-.5)*RAIN_BOX,Math.random()*50,(Math.random()-.5)*RAIN_BOX],i*3);
   const g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.BufferAttribute(pos,3));
-  embers=new THREE.Points(g,new THREE.PointsMaterial({color:MAP.theme.snow?"#ffffff":"#ffae5a",size:MAP.theme.snow?.18:.22,transparent:true,opacity:.85,depthWrite:false,blending:MAP.theme.snow?THREE.NormalBlending:THREE.AdditiveBlending})); embers.frustumCulled=false; scene.add(embers);
+  embers=new THREE.Points(g,new THREE.PointsMaterial({color:MAP.theme.snow?"#ffffff":(MAP.theme.emberColor||"#ffae5a"),size:MAP.theme.snow?.18:.22,transparent:true,opacity:.85,depthWrite:false,blending:MAP.theme.snow?THREE.NormalBlending:THREE.AdditiveBlending})); embers.frustumCulled=false; scene.add(embers);
 }
 const hemiBase=MAP.theme.hemi[2];
 function updateWeather(dt,camPos){

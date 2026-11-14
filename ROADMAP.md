@@ -45,7 +45,7 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [ ] Synced multiplayer cups: the player who starts a cup broadcasts it, friends follow map switches, and the host's points table is authoritative.
 - [ ] Per-character training runs for the weakest racers (`npm run train-bots -- 10 8 40 kofi`, then pip), on a repo copy.
 - [x] Bots that use the glider (they can grab pickups but never glide).
-- [ ] A sixth map so Map Pack 2 doesn't reuse Neon Harbour.
+- [x] A sixth map so Map Pack 2 doesn't reuse Neon Harbour. (Jungle Ruins)
 
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
@@ -61,4 +61,4 @@ This file is the work queue for Claude sessions, including unattended and schedu
 
 - Leaderboard posting needs friends to be **Contributors** in the Share menu (viewers can read but not post). OK as is?
 - Cups are currently single-player: you vs the bots, with friends on the same map counted in the standings. Fully synced multiplayer cups, where the host picks and everyone switches maps together, are possible next. Want that?
-- Map Pack 2 reuses Neon Harbour as its third map. Want a sixth map instead?
+- ~~Map Pack 2 reuses Neon Harbour~~: added a sixth map, Jungle Ruins, instead.

@@ -30,7 +30,7 @@ const OUT = path.join(ROOT, 'docs', 'img');
   await page.screenshot({ path: path.join(OUT, 'skyhook-chat.png'), timeout: 120000 });
 
   // every other map: a street-level shot and a high overview
-  const VIEWS = { neon: [[-60, 70, 60, 2.36, .42]], volcano: [[-30, 70, -25, 3.9, .5]], glacier: [[40, 75, 50, .75, .48]], junkyard: [[-10, 75, 75, 0, .75]] };
+  const VIEWS = { neon: [[-60, 70, 60, 2.36, .42]], volcano: [[-30, 70, -25, 3.9, .5]], glacier: [[40, 75, 50, .75, .48]], junkyard: [[-10, 75, 75, 0, .75]], jungle: [[-45, 45, 50, -0.76, .3]] };
   for (const [key, views] of Object.entries(VIEWS)) {
     await page.goto(page.url().split('#')[0] + '#map-' + key); await page.reload();
     await page.waitForFunction(() => window.__skyDebug, null, { timeout: 30000 });

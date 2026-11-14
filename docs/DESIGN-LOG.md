@@ -4,6 +4,19 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14 (overnight): Sixth map, Jungle Ruins
+
+- **The island:** lush, cut by a river, with a stepped five-tier stone temple in the middle. The temple has a gold shrine on top and spark spots at every tier corner.
+- **Grapple targets:**
+  - 14 giant canopy trees, 20–34 m tall, whose leafy crowns are standing platforms
+  - 12 ruined columns, some toppled
+  - 50 small jungle trees
+- **Safety and lift:** moss stones float over the river and around the coast to catch falls, and mist geysers act as updrafts.
+- **Atmosphere:** yellow-green fireflies, soft haze, and clouds.
+- **Cup:** Map Pack 2 (Frontier Cup) is now Glacier Spires, Scrapyard Canyon and Jungle Ruins.
+
+![Jungle Ruins](img/jungle-overview.png)
+
 ## 2026-11-14 (overnight): Bots glide
 
 Bots now pick up glider pickups they touch. When one is falling with no rope out, its target spark is more than 15 m away and it's above the target, it opens the wing: the same lift as the player, a 3 m/s sink, and a push toward the target. Friends see the wing and the arm pose too.

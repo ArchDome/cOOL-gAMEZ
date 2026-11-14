@@ -39,6 +39,7 @@ Pick a map on the start screen:
 - **Ember Caldera:** a volcano in a lava sea.
 - **Glacier Spires:** an ice island where the ground is slippery.
 - **Scrapyard Canyon:** a junkyard on two mesas around a gorge.
+- **Jungle Ruins:** a stepped temple, giant canopy trees and a river.
 
 Each map is one file in `maps/`, listed in `maps/index.js`.
 
