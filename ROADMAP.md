@@ -12,7 +12,7 @@ This file is the work queue for Claude sessions, including unattended and schedu
 
 ## How an unattended session works
 
-1. `git pull` on the working branch. Read `CLAUDE.md`, this file, and the latest `docs/DESIGN-LOG.md` entry.
+1. `git pull` on the working branch. Read `CLAUDE.md`, `docs/DESIGN-PRINCIPLES.md`, this file, and the latest `docs/DESIGN-LOG.md` entry.
 2. Take the first unchecked item. Break it into small steps that can be tested.
 3. After each step, run `npm test`. Never publish or push with failing tests.
 4. When an item ships:
@@ -46,6 +46,24 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [ ] Per-character training runs for the weakest racers (`npm run train-bots -- 10 8 40 kofi`, then pip), on a repo copy.
 - [x] Bots that use the glider (they can grab pickups but never glide).
 - [x] A sixth map so Map Pack 2 doesn't reuse Neon Harbour. (Jungle Ruins)
+
+### Owner's batch, 2026-11-14 (see docs/DESIGN-PRINCIPLES.md)
+- [ ] Water splash on falling in, then a 10 s death cam to admire it (Space or tap to respawn now).
+- [ ] Ground punch: swing the bat or shove at the ground while falling to bounce back up. The bat bounces higher.
+- [ ] A scarier bat: much bigger knockback.
+- [ ] Breakable walls: let players smash through walls and buildings (bat at speed, bombs).
+- [ ] HUD standings: clear live ranking (who leads, who's close behind, gap in sparks).
+- [ ] Stats per player: sparks, kills, deaths, falls, bat hits, air time, top speed. Show them in results.
+- [ ] Custom awards at the end of a cup (Speed Demon, Menace, Survivor, Troll, Most Dramatic Death...).
+- [ ] Final spark: when someone has all normal sparks, a big spark spawns with dramatic music and a light beam. Bonus points. It spawns closer to whoever finished first.
+- [ ] Map traps players can trigger: junkyard magnet (sticks players for a while), volcano idol (grapple it, throw it in the crater, the volcano erupts), plus one per map, inspired by death-run traps.
+- [ ] Throwable props: grapple an item, pull it close, throw it at people.
+- [ ] Sumo deathmatch mode: knock players into the void. Points for knockoffs, item throws.
+- [ ] Sniper rifle item: charge it by spinning 360°, the gun glows while charged (limited time), and the shot has huge knockback.
+- [ ] Mobile: detect the input method and switch the UI (hide keyboard hints like "T to restart", a compact HUD on small screens).
+- [ ] Mobile aiming: sensitivity setting, gyroscope aim (toggle), aim assist that snaps the crosshair to nearby hook points (strength setting).
+- [ ] Simplified touch controls option: the camera follows behind the player, tap where to grapple and it reels automatically.
+- [ ] Settings panel: every option above is configurable and saved per device.
 
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.

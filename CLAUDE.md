@@ -18,6 +18,10 @@ When you change a game, republish to its existing artifact URL (pass the URL, or
 3. Publish it as an artifact and record the URL in both READMEs and here.
 4. Log the game and any new mechanics in the Zettelkasten vault (see below).
 
+## Design principles
+
+Read `docs/DESIGN-PRINCIPLES.md` before designing any mechanic: say yes to the player, high skill ceiling, reward every player type, maps are toys, everything customizable, fit the device. When the owner gives feedback, write it into `ROADMAP.md` (and new tenets into the principles doc) before building, so nothing is lost when context is summarized.
+
 ## Conventions
 
 - **File layout.** Small games are one `index.html`. `skyhook-isles` is split: `index.html` (page and HUD), `js/main.js` (engine), `js/lib.js`, and `js/bot-params.js` (trained bot settings), and `maps/*.js` (one per map, listed in `maps/index.js` along with the cups). Publish it with the Artifact tool's `files` option for every `js/` and `maps/` file. Otherwise, inline CSS and JS. External scripts only from the artifact CDN allowlist (cdnjs, cdn.jsdelivr.net/npm, unpkg), pinned to exact versions. Fonts only from Google Fonts.
