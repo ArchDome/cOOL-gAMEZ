@@ -32,6 +32,45 @@ const { openGame, checker } = require('./harness');
     await page.waitForFunction(() => { const d = window.__skyDebug, g = d.batPickups[0]; d.body.position.set(g.pos.x, g.pos.y, g.pos.z); d.body.velocity.set(0, 0, 0); return d.bat() > 0; }, null, { timeout: 15000, polling: 100 }).catch(() => {});
     c.check('bat pickup grants time', (await page.evaluate(() => window.__skyDebug.bat())) > 25);
 
+    // Input-aware UI: touching switches to the touch layout, keyboard play switches back
+    const inp = await page.evaluate(() => { const d = window.__skyDebug, r = {};
+      d.setInput(true); r.touch = document.body.classList.contains('in-touch') && !document.getElementById('keysTouch').hidden && getComputedStyle(document.querySelector('#resetBtn .kb')).display === 'none';
+      d.setInput(false); r.kbm = document.body.classList.contains('kbm') && !document.getElementById('keysDesk').hidden;
+      return r; });
+    c.check('the layout follows the input method (touch hides keyboard hints)', inp.touch && inp.kbm, JSON.stringify(inp));
+
+    // Aim assist: a direction that just misses a floating rock still finds it; simple controls hook where you tap
+    const aim = await page.evaluate(() => {
+      const d = window.__skyDebug, T = d.camTarget.clone(), cam = d.camera, THREE_V = T.constructor;
+      const rock = d.rocks.map(r => ({ r, dist: Math.hypot(r.x - T.x, r.y - T.y, r.z - T.z) })).filter(o => o.dist > 8 && o.dist < 55).sort((a, b) => a.dist - b.dist)[0];
+      if (!rock) return { skip: 'no rock in range' };
+      cam.position.copy(T); cam.updateMatrixWorld();
+      const dir = new THREE_V(rock.r.x - T.x, rock.r.y - T.y, rock.r.z - T.z).normalize();
+      const direct = !!d.castAim(dir);
+      const right = new THREE_V().crossVectors(dir, new THREE_V(0, 1, 0)).normalize(), up = new THREE_V().crossVectors(right, dir).normalize();
+      let missDir = null;
+      for (let a = 1; a <= 5 && !missDir; a += .5) for (let k = 0; k < 16; k++) { const th = k / 16 * Math.PI * 2, t = Math.tan(a * Math.PI / 180); const m = dir.clone().addScaledVector(right, Math.cos(th) * t).addScaledVector(up, Math.sin(th) * t).normalize(); if (!d.castAim(m)) { missDir = m; break; } }
+      const assisted = missDir ? !!d.assistAim(missDir, 2) : null;
+      // tap to hook, aimed through the screen centre at the rock
+      d.settings.controls = 'simple'; cam.lookAt(rock.r.x, rock.r.y, rock.r.z); cam.updateMatrixWorld();
+      d.tapHook(innerWidth / 2, innerHeight / 2); const tapped = d.hook(); d.hookUp(); d.settings.controls = 'classic';
+      return { direct, missFound: !!missDir, assisted, tapped };
+    });
+    c.check('aim assist catches a near miss, and tap-to-hook fires', aim.skip || (aim.direct && aim.assisted !== false && aim.tapped === 'fly'), JSON.stringify(aim));
+
+    // Ground punch: swinging at the ground while falling bounces you up; the bat bounces higher
+    const punch = await page.evaluate(() => {
+      const d = window.__skyDebug, b = d.body, out = {};
+      for (const bat of [false, true]) {
+        const x = b.position.x, z = b.position.z, g = d.probe({ x, y: b.position.y + 3, z })[0];
+        b.position.set(x, g + 2.2, z); b.velocity.set(0, -12, 0); d.setOnGround(false);
+        out[bat ? 'bat' : 'shove'] = d.groundPunch(bat) ? b.velocity.y : null;
+      }
+      b.velocity.set(0, 0, 0);
+      return out;
+    });
+    c.check('ground punch bounces you, and the bat bounces higher', punch.shove > 8 && punch.bat > punch.shove, JSON.stringify(punch));
+
     // Bots (solo: this game runs them)
     await page.evaluate(() => { const el = document.getElementById('optBots'); el.value = '2'; el.dispatchEvent(new Event('change')); });
     await page.waitForFunction(() => window.__skyDebug.bots().length === 2 && window.__skyDebug.intro().seen.length >= 2, null, { timeout: 30000 }).catch(() => {});
@@ -118,6 +157,10 @@ const { openGame, checker } = require('./harness');
     await page.waitForFunction(() => { const sp = window.__fake.mine().sp; return sp && sp.n >= 1; }, null, { timeout: 20000 }).catch(() => {});
     const sp = await page.evaluate(() => window.__fake.mine().sp);
     c.check('splash is broadcast with who knocked me in', sp && sp.by === 'fr1end00peer0000', JSON.stringify(sp));
+    const dc = await page.evaluate(() => ({ ...window.__skyDebug.death(), drops: window.__skyDebug.drops(), card: !document.getElementById('death').hidden, y: window.__skyDebug.body.position.y }));
+    c.check('falling in starts the death cam with a splash', dc.deadT > 5 && dc.card && dc.drops > 10 && dc.y < -1.5, JSON.stringify(dc));
+    await page.evaluate(() => window.__skyDebug.respawnNow());
+    c.check('respawning early leaves the death cam', await page.evaluate(() => window.__skyDebug.death().deadT === 0 && document.getElementById('death').hidden && window.__skyDebug.body.position.y > 0));
 
     // Friend splashes because of me -> my dunk count goes up
     const dunks0 = await page.evaluate(() => window.__skyDebug.presence().dunks);

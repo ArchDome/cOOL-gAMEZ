@@ -55,6 +55,13 @@ const { openGame, checker } = require('./harness');
   c.check('race results award cup points', res.visible && Object.keys(res.cup.points).length >= 1 && /Next race: Neon Harbour/.test(res.next), JSON.stringify(res));
   await page.click('#resNext'); await page.waitForFunction(() => location.hash === '#map-neon' && window.__skyDebug, null, { timeout: 30000 });
   c.check('next race loads the next map in the cup', await page.evaluate(() => JSON.parse(localStorage.getItem('skyhook.cup.v1')).idx === 1));
+  const aw = await page.evaluate(() => {
+    const d = window.__skyDebug, cup = d.cup(), saved = Object.keys(cup.stats || {}).length;
+    cup.stats = { Ace: { s: 20, k: 0, d: 0, hits: 1, homers: 0, punches: 0, items: 0, air: 30, top: 40 }, Brute: { s: 9, k: 4, d: 3, hits: 7, homers: 3, punches: 2, items: 1, air: 12, top: 30 } };
+    d.showCupFinal();
+    return { saved, titles: [...document.querySelectorAll('#awards b')].map(b => b.textContent), shown: !document.getElementById('awards').hidden };
+  });
+  c.check('cups track stats and hand out awards', aw.saved >= 1 && aw.shown && aw.titles.includes('Menace') && aw.titles.includes('Bone Dry'), JSON.stringify(aw));
   await page.evaluate(() => localStorage.removeItem('skyhook.cup.v1'));
   const failed = c.report(); await browser.close(); process.exit(failed ? 1 : 0);
 })();

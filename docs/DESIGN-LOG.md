@@ -4,6 +4,32 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14: Death cam, ground punch, live standings, touch overhaul
+
+The owner's new batch of ideas, along with the design principles behind them, is in `docs/DESIGN-PRINCIPLES.md` and in the roadmap. This entry covers the first part.
+
+- **Splash and death cam.** Falling in throws up droplets, two spreading rings and a white column (orange on the lava map). You sink while the camera slowly orbits the splash for 10 s so you can admire the death. Space, R, Jump, or tapping the card respawns right away. The length (10/5/3 s or off) is a setting. Friends and bots get splashes too: anyone crossing the surface makes one.
+- **Ground punch.** Shove or swing at the ground (or the water) within about 3 m while falling, and you bounce back up. The faster you were falling, the bigger the bounce, and it refunds your air jump. With the bat, the bounce is higher and the slam knocks back anyone standing nearby. Timing it saves a fall: that's skill-ceiling stuff.
+- **A scary bat.** Knockback went from 24 to 40, launch from 12 to 16 m/s, 1.3 s with no ground control, and the victim tumbles. Props fly almost twice as far.
+- **Live standings.** A strip at the top shows the leader, the player just ahead of you, and you, with spark gaps. A big Mario Kart style position badge (1st/2nd/3rd colors) sits by the face and says how far ahead or behind you are.
+- **Stats and awards.** Each race tracks deaths, dunks, hits, home runs, ground punches, items, air time and top speed, shared with friends in presence. Results show K/D. Cups add everything up and hand out awards at the end: Spark Hoarder, Menace, Home Run Derby, Hands On, Most Dramatic Exits, Pogo Stick, Frequent Flyer, Speed Demon, Item Gremlin, Bone Dry.
+- **Input-aware UI.** The game switches between the touch and keyboard/mouse layouts based on what you last used: touch buttons, help text, and keyboard hints like "(T)" and "(G)" are hidden on touch.
+- **Bug fix:** the page body had the class `touch`, which also matched the overlay rule `.touch{pointer-events:none}`, so taps on some panels could fall through on touch devices. The body class is now `in-touch`.
+- **Settings panel** with Controls, Display and Audio groups:
+  - **Touch scheme:** Classic, or Simple, where you tap where you want to go: the hook fires there, reels you in automatically, and the camera swings behind you as you move. Tap again or press Jump to let go.
+  - **Aim assist** (off/low/high): if the crosshair misses, it searches widening rings (4.5° or 9°) for something to hook and shows a ring marker on it. Low is the default on touch.
+  - **Look sensitivity** slider. Touch look is 1.5× faster by default.
+  - **Gyro aim:** turning the tablet turns the camera, mapped for the screen orientation, with an invert option. iOS asks for motion permission.
+  - **HUD: Full or Compact.** Compact is the default on touch: no title chip, splits collapse to the timer, the player list folds into the standings strip, and the face, stats and intro card are smaller.
+- **Bots:** per-character training for Valentina (7.00 → 8.67) and Dylan (3.67 → 4.67). On the 60 s benchmark the total went from 121 to 129 sparks (Valentina 13 → 22, Dylan 15 → 14 with no falls).
+
+![Death cam](img/skyhook-deathcam.png)
+![Standings](img/skyhook-standings.png)
+![iPad compact HUD](img/skyhook-ipad-compact.png)
+![Settings](img/skyhook-settings.png)
+
+---
+
 ## 2026-11-14 (overnight): Ambient occlusion at High graphics
 
 - **GTAO** (three.js ground-truth ambient occlusion) now runs at High graphics only, between the render and bloom passes. It darkens creases and contact points: under box stacks, at tree trunks, and where rocks meet the grass. That makes objects look grounded instead of floating.
