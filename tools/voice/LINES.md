@@ -22,6 +22,10 @@ Record each line as its own file and name it with the key (e.g. `homerun.m4a`). 
 | `gust` | Someone sounds the storm horn | "Hold on to your hats!" |
 | `surge` | Someone overloads the transformer | "Power surge!" |
 | `boulder` | A boulder or snowball is let loose | "Look out below!" |
+| `missile` | A cruise missile crate drops | "A cruise missile has dropped!" |
+| `missileaway` | You fire the missile | "Missile away!" |
+| `lock` | A missile is locked on you | "Missile lock!" |
+| `sniped` | You get sniped | "Sniped!" |
 | `trickshot` | A spin-sniper hit | "TRICKSHOT!" |
 | `finalgot` | Someone grabs the final spark | "What a finish!" |
 

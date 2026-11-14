@@ -4,6 +4,25 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14: Two-rope swinging on touch, medals, live standings, cruise missile, big blasts
+
+- **Swing scheme for touch** (now the default on touch, with a one-time switch for existing settings):
+  - Tap anywhere to fire a hook there. A second tap adds a second rope, and a third replaces the older one. A hooked player always takes the main rope.
+  - Swipe down to reel both ropes in, swipe up to let go (with a little hop), swipe sideways to turn.
+  - The camera stays behind you even while swinging.
+  - Both ropes share the same rope physics and drawing (`ropeConstraint`, `stepHook`), and anything attached counts for the hover controller, jumping and ground punches. Friends see the main rope only.
+- **Medals** (gold, silver, bronze sprites with the place number) float above the top three, including you, whenever anyone has scored. Ties share a medal.
+- **Live standings:** hold Tab, or tap Board on touch, for a mid-game table: place (with medal), player, sparks or KOs, K/D. It only re-renders when something changes.
+- **Mega power-up: the cruise missile.** Every 2.5 min of play (the first at 1 min), a crate drops on a pillar or rock: a 300 m red beam, spinning warning lamps, a red light, a two-tone siren, the announcer and a toast. Whoever runs the bots decides when and where, and it's a numbered presence event, so everyone sees the same crate. Grabbing it is shared too.
+- **Firing the missile:** it locks onto whoever is nearest the crosshair (within 30°, up to 220 m), or flies straight. It homes at 44 m/s with a smoke trail, and detonates on the target, a wall or the ground in a 14 m blast at 2.2× power. The target gets a "MISSILE LOCK!" warning. Firing kicks you back.
+- **Bigger explosions:** 16 additive fire sprites billow into 10 smoke puffs, with 18 embers, a shockwave ring on the ground and a 50 m flash of light. Knockback is up from 26 to 38 sideways and from 10 to 15 up, and anyone caught goes into a 1.6 s ragdoll tumble with no control (arms flailing, body spinning). Bots get the same launch.
+- Tests: two ropes, reel and release; Tab standings; the missile spawning, being grabbed and firing; the explosion ragdoll and effect; and Sumo medals. The bot benchmark is still 129.
+
+![Medals and standings](img/skyhook-medals-board.png)
+![Explosion](img/skyhook-explosion.png)
+
+---
+
 ## 2026-11-14: Bot skill levels, sniper KO, mobile pause, city cranes
 
 - **Bot skill** (start screen, next to Bots): Easy, Normal, Hard, Brutal. Each level scales the bots' running speed (0.78× / 1× / 1.1× / 1.22×), time between swings (1.9× / 1× / 0.7× / 0.5×), dodge chance (0.3× to 1.8×, capped at 85%) and knockback (0.8× to 1.25×). Easy bots also dither, pausing for 1–2 s every few seconds 40% of the time, so a new player gets a chance. Normal is the benchmarked default (still 129). In multiplayer the setting of whoever runs the bots applies.

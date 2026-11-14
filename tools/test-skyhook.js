@@ -132,6 +132,35 @@ const { openGame, checker } = require('./harness');
     await page.evaluate(() => { document.getElementById('go').click(); });
     await page.waitForFunction(() => window.__skyDebug.isRunning(), null, { timeout: 20000 }).catch(() => {});
 
+    // Swing scheme: tap two rocks for two ropes, swipe down to reel in, swipe up to let go
+    const sw0 = await page.evaluate(() => {
+      const d = window.__skyDebug, T = d.camTarget.clone(), cam = d.camera; d.calm(); d.settings.controls = 'simple';
+      const rs = d.rocks.map(r => ({ r, dist: Math.hypot(r.x - T.x, r.y - T.y, r.z - T.z) })).filter(o => o.dist > 8 && o.dist < 55).sort((a, b) => a.dist - b.dist).slice(0, 2);
+      if (rs.length < 2) return { skip: 'need two rocks in range' };
+      for (const o of rs) { cam.position.copy(T); cam.lookAt(o.r.x, o.r.y, o.r.z); cam.updateMatrixWorld(); d.tapHook(innerWidth / 2, innerHeight / 2); }
+      return { hooks: d.hooks() }; });
+    let swing = { skip: sw0.skip };
+    if (!sw0.skip) {
+      await page.waitForFunction(() => { const h = window.__skyDebug.hooks(); return h[0] === 'attached' && h[1] === 'attached'; }, null, { timeout: 20000 }).catch(() => {});
+      swing = await page.evaluate(() => { const d = window.__skyDebug, h0 = d.hooks(); d.swipe(0, 40); const h1 = d.hooks(); d.swipe(0, -90); const h2 = d.hooks(); d.endSwipe(); d.settings.controls = 'classic'; return { h0, h1, h2 }; });
+    }
+    c.check('swing scheme: two ropes from two taps, swipe down reels in, swipe up lets go', swing.skip || (swing.h0[0] === 'attached' && swing.h0[1] === 'attached' && swing.h1[2] < swing.h0[2] && swing.h1[3] < swing.h0[3] && swing.h2[0] === 'retract' && swing.h2[1] === 'retract'), JSON.stringify([sw0, swing]));
+
+    // Live leaderboard: hold Tab to see it
+    await page.keyboard.down('Tab');
+    const lb1 = await page.waitForFunction(() => !document.getElementById('liveBoard').hidden && document.querySelectorAll('#lbTable div').length >= 2, null, { timeout: 20000 }).then(() => true, () => false);
+    await page.keyboard.up('Tab');
+    const lb2 = await page.waitForFunction(() => document.getElementById('liveBoard').hidden, null, { timeout: 20000 }).then(() => true, () => false);
+    c.check('hold Tab to see the standings mid-game', lb1 && lb2);
+
+    // Mega power-up: a cruise missile crate drops, you grab it, and fire it
+    const mg = await page.evaluate(() => { const d = window.__skyDebug; d.spawnMega(0); const r = { active: d.mega.active }; d.takeMega(); r.held = d.item().heldItem; d.useItem(); r.flying = d.projectiles.some(p => p.kind === 'missile'); r.after = d.item().heldItem; return r; });
+    c.check('cruise missile: drops, can be grabbed, and fires', mg.active && mg.held === 'missile' && mg.flying && mg.after === null, JSON.stringify(mg));
+
+    // Explosions: a big effect, and a ragdoll launch
+    const bx = await page.evaluate(() => { const d = window.__skyDebug, p = d.body.position; d.calm(); const v0 = Math.hypot(d.body.velocity.x, d.body.velocity.z); d.explodeAt(p.x + 2, p.y, p.z); return { rag: d.ragdoll(), fx: d.boomFx(), dv: +(Math.hypot(d.body.velocity.x, d.body.velocity.z) - v0).toFixed(1) }; });
+    c.check('explosions throw you into a ragdoll tumble with a big blast effect', bx.rag && bx.fx > 20 && bx.dv > 8, JSON.stringify(bx));
+
     // Ground punch: swinging at the ground while falling bounces you up; the bat bounces higher
     const punch = await page.evaluate(() => {
       const d = window.__skyDebug, b = d.body, out = {};

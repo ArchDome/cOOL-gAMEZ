@@ -154,6 +154,8 @@ body.in-touch .face{left:50%;transform:translateX(-50%);transform-origin:bottom 
 body.in-touch.hud-compact .face{transform:translateX(-50%) scale(.72)}
 body.in-touch .rank{left:calc(50% + 62px);bottom:calc(env(safe-area-inset-bottom,0px) + 20px)}
 body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-inset-bottom,0px) + 14px)}
+.liveboard{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 56px);transform:translateX(-50%);width:min(440px,92vw);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px;z-index:6;pointer-events:none;display:grid;gap:8px;backdrop-filter:blur(8px)}
+.standings.lb div{grid-template-columns:3ch 1fr 6ch 5ch}
 .toast small{display:block;font-family:var(--body);font-weight:700;font-size:15px;color:var(--ink);margin-top:6px}
 .overlay{position:fixed;inset:0;display:grid;place-items:center;overflow:auto;background:radial-gradient(ellipse at 50% 35%,rgba(20,32,56,.35),rgba(12,18,32,.82));
   padding-block:calc(env(safe-area-inset-top,0px) + 16px) calc(env(safe-area-inset-bottom,0px) + 16px);
@@ -242,6 +244,7 @@ body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-
 </div>
 <div class="ribbon" id="ribbon" hidden></div>
 <div class="rank" id="rank" hidden><b id="rankPos">1st</b><span id="rankOf">of 3</span></div>
+<div class="liveboard" id="liveBoard" hidden><div class="sp-head"><span id="lbTitle">Standings</span><span class="kb">hold Tab</span></div><div class="standings lb" id="lbTable"></div></div>
 <div class="toast" id="toast" hidden></div>
 <div class="death" id="death" hidden><b id="deathTitle">SPLASH!</b><span id="deathSub"></span><button type="button" id="deathGo"><span id="deathCount"></span></button></div>
 <div class="face" id="faceBox" hidden><canvas id="face" width="42" height="42"></canvas><span id="faceName"></span></div>
@@ -257,7 +260,7 @@ body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-
 </div></div>
 <div class="chatlog" id="chatlog" aria-live="polite"></div>
 <div class="chatbar" id="chatbar" hidden><input id="chatIn" type="text" maxlength="140" autocomplete="off" placeholder="Say something… (Enter to send, Esc to cancel)"><button type="button" id="chatMic" title="Voice to text">Mic</button><button type="button" id="chatSend">Send</button></div>
-<div class="chatbtns" id="chatBtns" hidden><button type="button" id="tPause" aria-label="Pause">❚❚</button><button type="button" id="tChat">Chat</button><button type="button" id="tMic">Mic</button></div>
+<div class="chatbtns" id="chatBtns" hidden><button type="button" id="tPause" aria-label="Pause">❚❚</button><button type="button" id="tBoard">Board</button><button type="button" id="tChat">Chat</button><button type="button" id="tMic">Mic</button></div>
 <div class="intro" id="intro" hidden><i class="stripe"></i><small id="introFrom"></small><b id="introName"></b><span id="introTrait"></span><q id="introLine"></q></div>
 <div class="touch" id="touch" hidden>
   <div class="joy" id="joy" hidden><i id="joyKnob"></i></div>
@@ -284,7 +287,7 @@ body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-
     </div>
     <details class="settings"><summary>Settings</summary>
       <div class="sgrp"><b>Controls</b>
-        <span class="opt"><label for="optControls">Touch scheme</label><select id="optControls"><option value="classic">Classic</option><option value="simple">Simple: tap to hook</option></select></span>
+        <span class="opt"><label for="optControls">Touch scheme</label><select id="optControls"><option value="classic">Classic</option><option value="simple">Swing: tap to hook, swipe to reel</option></select></span>
         <span class="opt"><label for="optAssist">Aim assist</label><select id="optAssist"><option value="0">Off</option><option value="1">Low</option><option value="2">High</option></select></span>
         <span class="opt rng"><label for="optSens">Look sensitivity</label><input type="range" id="optSens" min="0.3" max="3" step="0.1"><small id="sensVal">1.0×</small></span>
         <label class="chk"><input type="checkbox" id="optGyro"> Gyro aim (tilt to look)</label>
@@ -329,6 +332,7 @@ body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-
         <dt>WASD</dt><dd>Move. Hold Shift to sprint.</dd>
         <dt>Mouse</dt><dd>Look. Hold the left or right button (or E) to grapple where you aim.</dd>
         <dt>Shift</dt><dd>While hooked, reel in. Hook a crate and reel to yank it.</dd>
+        <dt>Tab</dt><dd>Hold to see the standings.</dd>
         <dt>C</dt><dd>While hooked, pull what you hooked (a crate, the idol, a friend, a bot) toward you. Then F to throw or bat it.</dd>
         <dt>Space</dt><dd>Jump and double jump. While hooked, let go with a boost.</dd>
         <dt>Wheel · R</dt><dd>Zoom the camera · respawn.</dd>
@@ -340,6 +344,8 @@ body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-
         <dt>Esc</dt><dd>Pause. Click the game to capture the mouse again.</dd>
       </dl>
       <dl class="keys" id="keysTouch" hidden>
+        <dt>Tap</dt><dd>(Swing scheme) Fire a hook where you tap. Tap again for a second rope.</dd>
+        <dt>Swipe ↓ / ↑</dt><dd>While hooked: swipe down to pull yourself in, up to let go. Sideways turns the camera.</dd>
         <dt>Pull</dt><dd>While hooked onto something loose or someone, drag it toward you.</dd>
         <dt>Left thumb</dt><dd>Drag to move.</dd>
         <dt>Right thumb</dt><dd>Drag to look around.</dd>
