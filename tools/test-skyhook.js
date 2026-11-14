@@ -103,6 +103,12 @@ const { openGame, checker } = require('./harness');
     const chat = await page.evaluate(() => window.__skyDebug.chat());
     c.check('chat message is sent', chat.lastChat && chat.lastChat.t === 'hey Lars you are going down', JSON.stringify(chat.lastChat));
     c.check('named bot replies in character', chat.lastBchat && chat.lastBchat.who === 'Lars' && chat.log.some(l => l.startsWith('Lars')), JSON.stringify(chat.lastBchat));
+    await page.waitForTimeout(2000); // replies are rate-limited to one every 2.5 s
+    await page.evaluate(() => window.__skyDebug.sendChatText('you wish, big guy'));
+    await page.waitForTimeout(1000);
+    const chat2 = await page.evaluate(() => window.__skyDebug.chat());
+    c.check('a follow-up goes to whoever just spoke', chat2.lastBchat && chat2.lastBchat.n === 2 && chat2.lastBchat.who === 'Lars', JSON.stringify(chat2.lastBchat));
+    c.check('chat history is saved for next time', await page.evaluate(() => (JSON.parse(localStorage.getItem('skyhook.chat.v1') || '[]')).length >= 4));
     await friendAt({ chat: { n: 1, t: 'first' } }); await page.waitForTimeout(1000);
     await friendAt({ chat: { n: 2, t: 'nice swing' } }); await page.waitForTimeout(1000);
     c.check('friend chat shows up', (await page.evaluate(() => window.__skyDebug.chat().log)).some(l => l.includes('nice swing')));

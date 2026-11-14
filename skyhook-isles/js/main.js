@@ -755,7 +755,7 @@ function updateRemotes(dt){
       if (ch && typeof ch.n==="number" && typeof ch.t==="string"){ if (!lastChatSeen.has(pr.peer)) lastChatSeen.set(pr.peer,ch.n); else if (ch.n>lastChatSeen.get(pr.peer)){ lastChatSeen.set(pr.peer,ch.n); addChat(a.name,cleanChat(ch.t),a.color); blip(); } }
       const bc=ps.bchat;
       if (bc && typeof bc.n==="number" && typeof bc.t==="string"){ if (!lastBchatSeen.has(pr.peer)) lastBchatSeen.set(pr.peer,bc.n); else if (bc.n>lastBchatSeen.get(pr.peer)){ lastBchatSeen.set(pr.peer,bc.n);
-        const C=CHARACTERS.find(c=>c.name===cleanName(bc.who)); if (C){ addChat(C.name,cleanChat(bc.t),"#ffb86b"); botSay(C,cleanChat(bc.t),true); } } }
+        const C=CHARACTERS.find(c=>c.name===cleanName(bc.who)); if (C) botSay(C,cleanChat(bc.t),true); } }
       const bsp=ps.bsp;
       if (bsp && typeof bsp.n==="number"){ if (!lastBspSeen.has(pr.peer)) lastBspSeen.set(pr.peer,bsp.n); else if (bsp.n>lastBspSeen.get(pr.peer)){ lastBspSeen.set(pr.peer,bsp.n);
         if (myPeer && bsp.by===myPeer){ const nm=cleanName(bsp.name); dunks++; announce("dunk","Dunked! "+nm+" is swimming."); toast("Dunked "+nm+"!","Bots can't swim."); } } }
@@ -905,7 +905,12 @@ function spawnBot(i){
     bat:0,swingN:0,knockUntil:-9,jumpT:-9,lastHitBy:null,stuck:0,standing:false,dunks:0,wander:null,wanderT:0,pickup:null});
 }
 function removeBot(b){ world.removeBody(b.body); }
-function botSay(C,text,priority){ for (const a of botAvatars.values()) if (a.C===C){ a.sayText=text; a.sayT=2.8; } announce("bot",C.name+": "+text,priority,C.voice,text); }
+// characters talk in text only: a speech bubble over their head and a line in the chat log
+function botSay(C,text,priority,log=true){
+  for (const a of botAvatars.values()) if (a.C===C){ a.sayText=text; a.sayT=2.8; }
+  const now=performance.now();
+  if (log && (priority || now-(C._lastLog||0)>4000)){ C._lastLog=now; addChat(C.name,text,"#ffb86b"); remember(C,"them",text); lastSpeaker={C,t:now}; }
+}
 function hitBot(key,dir,bat,fromPeer,fromName){
   const b=bots.find(x=>"bot:"+x.id===key); if (!b) return;
   if (Math.random()<b.C.dodge){ const v=b.body.velocity; v.x+=-dir[1]*9; v.z+=dir[0]*9; v.y=Math.max(v.y,4); b.jumpT=simTime; toast(b.name+" dodged!",b.C.taunt); botSay(b.C,b.C.taunt); return; }
@@ -1080,7 +1085,7 @@ function tickIntro(dt){
     introCh=ch; introLeft=2.4;
     for (const a of botAvatars.values()) if (a.ch===ch) a.introT=1.8;
     for (const b of bots) if (b.ch===ch) b.introT=1.8;
-    botSay(C,C.intro,true);
+    botSay(C,C.intro,true,false);
   }
 }
 
@@ -1103,19 +1108,30 @@ if (window.claude && typeof window.claude.use==="function"){
 }
 $("chatMic").hidden=true; $("tMic").hidden=true;
 if (isTouch) $("chatBtns").hidden=false;
+// chat history: the last 60 lines, kept across reloads, scrollable; sticks to the newest unless you've scrolled up
+const CHAT_KEY="skyhook.chat.v1"; let chatHist=[];
+function chatRow(m){ const row=document.createElement("div"), b=document.createElement("b"); b.textContent=m.who; b.style.color=m.color||"#7ce0ff"; row.append(b,document.createTextNode(m.text)); return row; }
 function addChat(who,text,color){
   if (!text) return;
-  const log=$("chatlog"), row=document.createElement("div"), b=document.createElement("b");
-  b.textContent=who; b.style.color=color||"#7ce0ff"; row.append(b,document.createTextNode(text)); log.append(row);
-  while (log.children.length>6) log.firstChild.remove();
-  setTimeout(()=>row.classList.add("old"),14000); setTimeout(()=>row.remove(),15000);
+  const log=$("chatlog"), atBottom=log.scrollHeight-log.scrollTop-log.clientHeight<30;
+  const m={who:String(who).slice(0,24),text:String(text).slice(0,160),color,ts:Date.now()};
+  chatHist.push(m); while (chatHist.length>60) chatHist.shift();
+  log.append(chatRow(m)); while (log.children.length>61) log.firstChild.remove();
+  if (atBottom) log.scrollTop=log.scrollHeight;
+  try{ localStorage.setItem(CHAT_KEY,JSON.stringify(chatHist)); }catch(e){}
 }
+try{ const saved=JSON.parse(localStorage.getItem(CHAT_KEY)||"[]"); if (Array.isArray(saved) && saved.length){
+  chatHist=saved.filter(m=>m && typeof m.who==="string" && typeof m.text==="string").slice(-60).map(m=>({who:m.who.slice(0,24),text:m.text.slice(0,160),color:/^#[0-9a-f]{6}$/i.test(m.color)?m.color:"#7ce0ff",ts:+m.ts||0}));
+  const log=$("chatlog"); log.append(...chatHist.map(chatRow)); const sep=document.createElement("div"); sep.className="sep"; sep.textContent="Earlier messages above"; log.append(sep); log.scrollTop=log.scrollHeight; } }catch(e){}
+// short memory per character, so a conversation can go back and forth
+const convo=new Map(); let lastSpeaker=null;
+function remember(C,who,text){ const a=convo.get(C.key)||[]; a.push((who==="them"?C.name:who)+": "+text); while (a.length>8) a.shift(); convo.set(C.key,a); }
 function openChat(){
-  $("chatbar").hidden=false; const inp=$("chatIn"); inp.value=""; voiceText="";
+  $("chatbar").hidden=false; $("chatlog").classList.add("active"); const inp=$("chatIn"); inp.value=""; voiceText="";
   if (document.pointerLockElement) document.exitPointerLock();
   setTimeout(()=>inp.focus(),0);
 }
-function closeChat(){ $("chatbar").hidden=true; $("chatIn").blur(); if (running && !isTouch) captureMouse(); }
+function closeChat(){ $("chatbar").hidden=true; $("chatlog").classList.remove("active"); $("chatIn").blur(); if (running && !isTouch) captureMouse(); }
 function sendChat(){
   const t=cleanChat($("chatIn").value); closeChat(); if (!t) return;
   chatN++; lastChat={n:chatN,t}; addChat(myName()+" (you)",t,"#7ce0ff"); blip();
@@ -1143,14 +1159,17 @@ function botReply(text){
   const present=[...botAvatars.values()].map(a=>a.C).filter(Boolean); if (!present.length) return;
   const low=text.toLowerCase();
   let C=present.find(c=>low.includes(c.name.toLowerCase()));
+  if (!C && lastSpeaker && performance.now()-lastSpeaker.t<25000 && present.includes(lastSpeaker.C)) C=lastSpeaker.C;
   if (!C){ if (Math.random()>.6) return; C=present[(Math.random()*present.length)|0]; }
+  remember(C,myName(),text);
+  const history=(convo.get(C.key)||[]).slice(0,-1).join("\n");
   const now=performance.now(); if (now-lastBotReply<2500) return; lastBotReply=now;
   const prompt=`You are ${C.full}, a cartoon character from ${C.from} in a silly multiplayer grappling-hook party game where players race for glowing sparks, swing on ropes, and knock each other into the sea with shoves and baseball bats. Your personality: ${C.trait}. Your catchphrase is "${C.taunt}".
-A player named ${myName()} just said in the game chat: "${text}"
+${history ? "Recent chat between you and the player:\n"+history+"\n" : ""}A player named ${myName()} just said in the game chat: "${text}"
 Reply in character with ONE short line of playful trash talk or banter, at most 14 words. Keep it PG-13: no slurs, nothing hateful, nothing explicit. Output only the line, with no quotes or name.`;
   sampleFn(prompt,{modelTier:"quick",cache:false}).then(r=>{
     const line=cleanChat(r && r.text).replace(/^["“]|["”]$/g,""); if (!line) return;
-    addChat(C.name,line,"#ffb86b"); botSay(C,line,true);
+    botSay(C,line,true);
     bchatN++; lastBchat={n:bchatN,who:C.name,t:line};
   }).catch(()=>{});
 }

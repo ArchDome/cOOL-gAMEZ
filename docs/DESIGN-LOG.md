@@ -4,6 +4,12 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14: Chat polish, text-only characters
+
+- **Text only:** characters no longer speak aloud (feedback: the synthetic voices didn't sound good). Their lines appear as speech bubbles and in the chat log. The match announcer stays, with its own toggle.
+- **Chat history:** the chat panel keeps the last 60 messages, scrolls, and is saved across reloads.
+- **Conversations:** a message without a name goes to whichever character spoke to you in the last 25 s, and each character remembers the last few lines, so back-and-forth chats stay coherent.
+
 ## 2026-11-14: Skyhook Isles, map system, chat, outer islets
 
 **Restructure.** The game was one 1,500-line HTML file. It's now split:

@@ -37,10 +37,13 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
 .intro q{font-size:15px;font-style:italic;color:#e8edf6;margin-top:4px}
 @keyframes introIn{from{transform:translateX(-30px);opacity:0}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion:reduce){.intro{animation:none}}
-.chatlog{position:fixed;left:max(16px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 86px);width:min(360px,60vw);display:grid;gap:4px;pointer-events:none}
-.chatlog div{background:rgba(14,22,38,.62);border-radius:9px;padding:5px 10px;font-size:13px;font-weight:600;line-height:1.35;overflow-wrap:anywhere;transition:opacity .6s}
+.chatlog{position:fixed;left:max(16px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 86px);width:min(360px,60vw);max-height:min(32vh,260px);overflow-y:auto;overscroll-behavior:contain;
+  display:flex;flex-direction:column;gap:4px;pointer-events:auto;padding:6px;border-radius:12px;background:rgba(14,22,38,.28);opacity:.72;transition:opacity .3s;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.25) transparent}
+.chatlog:hover,.chatlog.active{opacity:1;background:rgba(14,22,38,.55)}
+.chatlog:empty{display:none}
+.chatlog div{flex:none;background:rgba(14,22,38,.62);border-radius:9px;padding:5px 10px;font-size:13px;font-weight:600;line-height:1.35;overflow-wrap:anywhere}
 .chatlog div b{font-weight:800;margin-right:6px}
-.chatlog div.old{opacity:0}
+.chatlog .sep{background:none;color:var(--muted);font-size:11px;letter-spacing:.08em;text-transform:uppercase;text-align:center;padding:2px}
 .chatbar{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 130px);transform:translateX(-50%);width:min(560px,calc(100vw - 32px));display:flex;gap:8px;pointer-events:auto}
 .chatbar input{flex:1;min-width:0;font:600 16px var(--body);color:var(--ink);background:rgba(10,16,28,.92);border:1px solid var(--hook);border-radius:12px;padding:10px 12px;-webkit-user-select:text;user-select:text}
 .chatbar button,.chatbtns button{font:800 13px var(--body);color:var(--ink);background:rgba(14,22,38,.85);border:1px solid var(--line);border-radius:12px;padding:0 14px;cursor:pointer}
@@ -169,7 +172,7 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
       <dt>Wheel · R</dt><dd>Zoom the camera · respawn.</dd>
       <dt>F</dt><dd>Shove whoever is right in front of you. With a red bat pickup it becomes a home-run swing.</dd>
       <dt>Glider</dt><dd>Grab a cyan glider pickup, then hold Space while falling. Look down to dive, up to float.</dd>
-      <dt>Enter · V</dt><dd>Type in chat, or hold V and talk to send voice as text. The bots answer back.</dd>
+      <dt>Enter · V</dt><dd>Type in chat, or hold V and talk to send voice as text. Characters answer back in text. Scroll the chat panel to see earlier messages.</dd>
       <dt>T</dt><dd>Restart the speedrun. The timer starts on your first move.</dd>
       <dt>Esc</dt><dd>Pause. Click the game to capture the mouse again.</dd>
     </dl>
