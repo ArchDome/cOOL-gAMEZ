@@ -144,8 +144,8 @@ const { openGame, checker } = require('./harness');
     c.check('a follow-up goes to whoever just spoke', chat2.lastBchat && chat2.lastBchat.n === 2 && chat2.lastBchat.who === 'Lars', JSON.stringify(chat2.lastBchat));
     c.check('chat history is saved for next time', await page.evaluate(() => (JSON.parse(localStorage.getItem('skyhook.chat.v1') || '[]')).length >= 4));
     await friendAt({ chat: { n: 1, t: 'first' } }); await page.waitForTimeout(1000);
-    await friendAt({ chat: { n: 2, t: 'nice swing' } }); await page.waitForTimeout(1000);
-    c.check('friend chat shows up', (await page.evaluate(() => window.__skyDebug.chat().log)).some(l => l.includes('nice swing')));
+    await friendAt({ chat: { n: 2, t: 'nice swing' } });
+    c.check('friend chat shows up', await page.waitForFunction(() => window.__skyDebug.chat().log.some(l => l.includes('nice swing')), null, { timeout: 30000 }).then(() => true, () => false));
     c.check('the surfer joined the cast', await page.evaluate(() => window.__skyDebug.CHARACTERS.some(c => c.key === 'dylan' && c.from.includes('California'))));
 
     // Synced cups: a friend hosting a cup on another map pulls us into it

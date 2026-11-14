@@ -37,7 +37,7 @@ const { openGame, checker } = require('./harness');
     await hi.page.waitForFunction(() => window.__skyDebug.gfx().composer, null, { timeout: 30000 }).catch(() => {});
     const g = await hi.page.evaluate(() => window.__skyDebug.gfx());
     await hi.page.waitForTimeout(1500);
-    c.check('bloom loads at High graphics', g.GFX === 'high' && g.composer && hi.errors.length === 0, JSON.stringify(g) + ' ' + hi.errors.join(' | '));
+    c.check('bloom and ambient occlusion load at High graphics', g.GFX === 'high' && g.composer && g.ao && hi.errors.length === 0, JSON.stringify(g) + ' ' + hi.errors.join(' | '));
     await hi.browser.close();
   }
   // cup: starting a cup goes to its first map and auto-starts a race there

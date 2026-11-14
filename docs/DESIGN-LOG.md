@@ -4,6 +4,17 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14 (overnight): Ambient occlusion at High graphics
+
+- **GTAO** (three.js ground-truth ambient occlusion) now runs at High graphics only, between the render and bloom passes. It darkens creases and contact points: under box stacks, at tree trunks, and where rocks meet the grass. That makes objects look grounded instead of floating.
+- It loads with a dynamic import, so if the add-on fails to load, the game falls back to bloom only. Medium and Low (the iPad default is Medium) skip it, because it's the most expensive pass.
+- Tuning: radius 1.6, 12 samples, blend 0.85. That's subtle on purpose, so it doesn't muddy the low-poly look.
+- The test `bloom and ambient occlusion load at High graphics` checks it.
+
+![Ambient occlusion at High](img/skyhook-ao.png)
+
+---
+
 ## 2026-11-14 (overnight): Synced multiplayer cups
 
 - **Host:** whoever presses Start cup hosts it, and their presence carries the cup (`cupS`: id, pack, race number, points table, done).

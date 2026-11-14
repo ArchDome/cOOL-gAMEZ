@@ -52,7 +52,8 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.
 - [x] Bots use items too (grab boxes, throw bombs at nearby players, fire comets when behind).
 - [x] Graphics push: bloom, better water, rain, and a quality setting tuned for iPad.
-- [ ] More graphics: volumetric-looking light shafts, soft clouds, screen-space ambient occlusion at High, better character models.
+- [x] Screen-space ambient occlusion at High (GTAO).
+- [ ] More graphics: volumetric-looking light shafts, softer clouds, better character models.
 - [ ] Owner's recorded announcer clips (`npm run voice`), when the owner sends them.
 
 ## Questions for the owner
