@@ -34,7 +34,7 @@ const { openGame, checker } = require('./harness');
 
     // Bots (solo: this game runs them)
     await page.evaluate(() => { const el = document.getElementById('optBots'); el.value = '2'; el.dispatchEvent(new Event('change')); });
-    await page.waitForTimeout(600);
+    await page.waitForFunction(() => window.__skyDebug.bots().length === 2 && window.__skyDebug.intro().seen.length >= 2, null, { timeout: 30000 }).catch(() => {});
     const bots0 = await page.evaluate(() => { const d = window.__skyDebug; return { n: d.bots().length, ctrl: d.ctrl(), names: d.bots().map(b => b.name), avatars: d.botAvatars.size }; });
     c.check('bots spawn as characters', bots0.n === 2 && bots0.ctrl && bots0.avatars === 2 && bots0.names.join() === 'Matteo,Yuki', JSON.stringify(bots0));
     const intro = await page.evaluate(() => window.__skyDebug.intro());
@@ -104,13 +104,13 @@ const { openGame, checker } = require('./harness');
     await page.waitForTimeout(1000);
     const vx0 = await page.evaluate(() => window.__skyDebug.body.velocity.x);
     await friendAt({ hit: { n: 2, to: 'me000000peer0000', d: [1, 0], f: 1 } });
-    await page.waitForTimeout(1000);
+    await page.waitForFunction((vx0) => window.__skyDebug.body.velocity.x - vx0 > 5, vx0, { timeout: 20000, polling: 50 }).catch(() => {});
     const vx1 = await page.evaluate(() => window.__skyDebug.body.velocity.x);
     c.check('being hit by a bat knocks me back', vx1 - vx0 > 5, `vx ${vx0.toFixed(1)} -> ${vx1.toFixed(1)}`);
 
     // Falling in the sea after being hit credits the friend
     await page.evaluate(() => { const b = window.__skyDebug.body; b.position.set(0, -4, -116); b.velocity.set(0, 0, 0); }); // out over the sea
-    await page.waitForTimeout(1000);
+    await page.waitForFunction(() => { const sp = window.__fake.mine().sp; return sp && sp.n >= 1; }, null, { timeout: 20000 }).catch(() => {});
     const sp = await page.evaluate(() => window.__fake.mine().sp);
     c.check('splash is broadcast with who knocked me in', sp && sp.by === 'fr1end00peer0000', JSON.stringify(sp));
 

@@ -4,6 +4,27 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14 (overnight): Exactly reproducible training, and personality in how bots race
+
+**Reproducibility, fixed for real.** The same parameters were scoring 2.11 on one run and 3.61 on another. Four leaks, each found by tracing:
+1. **The real-time loop ran between reload and evaluation.** How much simulation happened depended on CPU speed. There's now a headless start: only `tick()` advances the simulation, and entrances are skipped.
+2. **Pickup and item-box timers counted down in wall-clock time.** They now advance only with simulation steps, and item boxes reset on restart.
+3. **Stale bot state leaked into episodes.** Physics runs before the brain each tick, so the first step used the walking direction left over from setup. Every per-bot field is now reset per episode.
+4. **Page reloads timed out under load.** They now retry with longer timeouts.
+
+Result: identical scores run after run, including under heavy CPU load. Training also runs on a copy of the repo, so game work can continue in parallel.
+
+**Newly trained default technique:** training fitness went from 2.56 to 3.61 in one generation. Across all 7 characters, 68 sparks (from 62) and falls halved (8 from 15).
+
+**Personality on top of skill** (per-character overrides in `js/bot-params.js`, each measured against the same character with the overrides off):
+
+| Character | Style | Score without, then with |
+| --- | --- | --- |
+| Yuki | Barely minds climbing: goes for high sparks, long risky swings | 3.00 → 3.67 |
+| Lars | Dislikes climbing: prefers low sparks | 2.83 → 3.50 |
+| Dylan | Rides longer, looser ropes | 3.00 → 3.50 |
+| Pip | Avoids sparks within 22 m of other players | (behavioral) |
+
 ## 2026-11-14 (overnight): Bots use items, in character
 
 - **Pickups:** bots grab ? boxes they touch. Leaders draw shields, magnets, boosts and bombs; bots behind draw bombs, comets and boosts.

@@ -29,7 +29,7 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] (Done as an anchor list with stepping-anchor choice, not a full graph; revisit with A* if bots plateau.) Navigation graph of grapple anchors (pillar tops, rocks, trees, islets) built at map load. Each edge is "can swing from A to B", verified by simulated swings.
 - [x] Swing executor: fire at the next anchor, reel to a target length, release at the right phase for momentum, then chain to the next.
 - [x] Bots race for sparks. Each bot has its own spark set, plans a route with A*, and shows its spark count in the players panel.
-- [ ] Personality on top of skill (partly done: fighting, fleeing and grudges already override racing): Yuki takes risky high routes, Lars takes slow ground routes, Matteo abandons the race to fight, Pip avoids players.
+- [x] Personality on top of skill (partly done: fighting, fleeing and grudges already override racing): Yuki takes risky high routes, Lars takes slow ground routes, Matteo abandons the race to fight, Pip avoids players.
 - [x] Training loop: `npm run train-bots` runs headless episodes through `__skyDebug.tick`, evolves the swing parameters per character (fitness: sparks per minute, minus falls), and writes `skyhook-isles/js/bot-params.js`. Re-runnable.
 
 ### Maps and cups

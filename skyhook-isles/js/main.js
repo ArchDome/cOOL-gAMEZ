@@ -1151,7 +1151,12 @@ function buildAnchors(){
 const botParams=C=>Object.assign({},BOT_PARAMS.default,BOT_PARAMS[C.key]||{});
 function pickSpark(b,P){
   const p=b.body.position; let best=null, bc=1e9;
-  sparks.forEach((s,i)=>{ if (b.got.has(i) || (b.skip && b.skip.get(i)>simTime)) return; const c=Math.hypot(s.pos.x-p.x,s.pos.z-p.z)+Math.max(0,s.pos.y-p.y)*P.heightCost; if (c<bc){ bc=c; best=i; } });
+  // timid characters avoid sparks near other players
+  const others = b.C.fear>.5 ? [ ...(running?[pBody.position]:[]), ...[...avatars.values()].map(a=>a.disp) ] : [];
+  sparks.forEach((s,i)=>{ if (b.got.has(i) || (b.skip && b.skip.get(i)>simTime)) return;
+    let c=Math.hypot(s.pos.x-p.x,s.pos.z-p.z)+Math.max(0,s.pos.y-p.y)*P.heightCost;
+    for (const o of others) if (Math.hypot(o.x-s.pos.x,o.z-s.pos.z)<22) c+=45;
+    if (c<bc){ bc=c; best=i; } });
   return best;
 }
 // what a spark sits on: a pillar, a floating rock or a tree (radius of its top), or nothing
