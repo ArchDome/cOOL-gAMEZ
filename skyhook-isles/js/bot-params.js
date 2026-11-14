@@ -1,6 +1,5 @@
 // Swing-technique parameters for bots, per character key (falls back to "default").
-// Written by tools/train-bots.js on 2026-11-14: 8 generations x 8, 45s episodes,
-// fitness 4.25 (sparks minus half the falls, per character per episode).
+// From tools/train-bots.js on 2026-11-14 (fitness 3.61: sparks minus half the falls, per episode; seeded, 3 starts x yuki/lars/dylan).
 export const BOT_PARAMS = {
-  default: {fireDist: 66.4, aimDrop: 1.54, lenFactor: 0.99, reel: 9.62, releaseDist: 3.5, boostUp: 8.63, boostFwd: 9.21, cooldown: 0.32, heightCost: 0.99, stepMin: 10.22, stepMax: 67.06},
+  default: {fireDist:  59.25,  aimDrop:  2.94,  lenFactor:  0.81,  reel:  8,  releaseDist:  6.18,  boostUp:  14,  boostFwd:  11.93,  cooldown:  0.2,  heightCost:  1.74,  stepMin:  11.33,  stepMax:  69.55},
 };
