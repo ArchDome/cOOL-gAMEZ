@@ -77,6 +77,13 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] Mobile: a pause button, and the face HUD at the bottom middle.
 - [x] Neon Harbour: tower cranes to swing on.
 
+### Owner's batch 4, 2026-11-14
+- [ ] Mobile swinging: tap to hook, up to two hooks at once, swipe down to pull yourself in, swipe up to let go; the camera stays behind you. Default touch scheme.
+- [ ] Leaderboard you can open mid-game (key and touch button).
+- [ ] Medals (gold, silver, bronze) above the top 3 players' heads.
+- [ ] Mega power-up: a cruise missile that spawns every few minutes and makes a fuss (beam, siren, announcer).
+- [ ] Bigger explosions: a real blast effect, and ragdoll tumbling that launches you farther.
+
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.
