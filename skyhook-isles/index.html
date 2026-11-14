@@ -26,6 +26,7 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
 .stat b{display:block;font-family:var(--display);font-size:20px;line-height:1}
 .stat span{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .stat.sp b{color:var(--spark)}
+.stat.gl b{color:var(--hook)}
 .hint{font-size:13px;font-weight:600;max-width:60ch}
 .hint kbd{font:700 11px var(--body);background:rgba(255,255,255,.12);border:1px solid var(--line);border-radius:5px;padding:1px 6px;margin:0 2px}
 .cross{position:fixed;left:50%;top:50%;width:26px;height:26px;transform:translate(-50%,-50%);pointer-events:none}
@@ -85,6 +86,7 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
       <div class="chip stats">
         <div class="stat sp"><b id="sparks">0/15</b><span>Sparks</span></div>
         <div class="stat"><b id="speed">0</b><span>m/s</span></div>
+        <div class="stat gl"><b id="glider">–</b><span>Glider</span></div>
       </div>
       <div class="chip splits" id="splits" aria-label="Speedrun splits">
         <div class="sp-head"><span>Splits</span><span id="pbLbl">No PB yet</span></div>
@@ -118,6 +120,7 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
       <dt>Shift</dt><dd>While hooked, reel in. Hook a crate and reel to yank it.</dd>
       <dt>Space</dt><dd>Jump and double jump. While hooked, let go with a boost.</dd>
       <dt>Wheel · R</dt><dd>Zoom the camera · respawn.</dd>
+      <dt>Glider</dt><dd>Grab a cyan glider pickup, then hold Space while falling. Look down to dive, up to float.</dd>
       <dt>T</dt><dd>Restart the speedrun. The timer starts on your first move.</dd>
       <dt>Esc</dt><dd>Pause. Click the game to capture the mouse again.</dd>
     </dl>
@@ -126,6 +129,7 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
       <dt>Right thumb</dt><dd>Drag to look around.</dd>
       <dt>Hook</dt><dd>Hold to grapple at the crosshair, release to let go.</dd>
       <dt>Reel · Jump</dt><dd>Reel in while hooked. Jump while hooked to launch off.</dd>
+      <dt>Glider</dt><dd>After a cyan pickup, hold Jump while falling to glide.</dd>
       <dt>Restart run</dt><dd>Resets the island. The timer starts on your first move.</dd>
     </dl>
     <button class="go" type="button" id="go">Play</button>
@@ -356,6 +360,24 @@ function addSpark(x,y,z){
   const tall=[...trees].sort((a,b)=>b.top-a.top)[0]; if(tall) addSpark(tall.x,tall.top+1.2,tall.z);
   for (const s of spots){ if (sparks.length>=15) break; addSpark(...s); } }
 const TOTAL=sparks.length;
+// glider pickups: one at spawn to learn it, one on the peak, the rest on pillars without a spark
+const gliderPickups=[];
+{
+  const icon=new THREE.BufferGeometry();
+  icon.setAttribute("position",new THREE.Float32BufferAttribute([0,0,-.7, -1,0,.45, 0,.12,.25,  0,0,-.7, 0,.12,.25, 1,0,.45],3)); icon.computeVertexNormals();
+  const iconMat=new THREE.MeshStandardMaterial({color:"#7ce0ff",emissive:"#2aa7d0",emissiveIntensity:1.2,side:THREE.DoubleSide});
+  const ringMat=new THREE.MeshBasicMaterial({color:"#bff1ff",transparent:true,opacity:.7});
+  const beamC=new THREE.MeshBasicMaterial({color:"#7ce0ff",transparent:true,opacity:.18,depthWrite:false,blending:THREE.AdditiveBlending});
+  const add=(x,y,z)=>{ const grp=new THREE.Group(); grp.position.set(x,y,z); scene.add(grp);
+    const m=new THREE.Mesh(icon,iconMat); m.scale.setScalar(1.1); grp.add(m);
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(1.1,.05,4,28),ringMat); ring.rotation.x=Math.PI/2; grp.add(ring);
+    const beam=new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,70,6,1,true),beamC); beam.position.set(x,y+35,z); scene.add(beam);
+    gliderPickups.push({pos:new THREE.Vector3(x,y,z),grp,beam,cd:0}); };
+  const sx=SPAWN.x-6, sz=SPAWN.z+6; add(sx,H(sx,sz)+1.4,sz);
+  add(PEAK.x+3,H(PEAK.x+3,PEAK.z+3)+2,PEAK.z+3);
+  const taken=p=>sparks.some(s=>Math.hypot(s.pos.x-p.x,s.pos.z-p.z)<2);
+  for (const p of [...pillars].sort((a,b)=>b.top-a.top)){ if (gliderPickups.length>=5) break; if (!taken(p)) add(p.x,p.top+1.8,p.z); }
+}
 $("sparks").textContent="0/"+TOTAL;
 
 // ---------------- player ----------------
@@ -378,6 +400,18 @@ const heroBody=new THREE.Group(); hero.add(heroBody);
   heroBody.traverse(o=>{ if(o.isMesh){ o.castShadow=true; } });
 }
 const hand=new THREE.Vector3();
+const wing=new THREE.Group(); hero.add(wing); wing.position.set(0,1.25,0); wing.visible=false;
+{
+  const g=new THREE.BufferGeometry();
+  g.setAttribute("position",new THREE.Float32BufferAttribute([0,0,-1.2, -1.8,-.05,.75, 0,.18,.45,  0,0,-1.2, 0,.18,.45, 1.8,-.05,.75],3));
+  g.setAttribute("color",new THREE.Float32BufferAttribute([1,.55,.25, 1,.55,.25, .49,.88,1,  1,.55,.25, .49,.88,1, 1,.55,.25],3));
+  g.computeVertexNormals();
+  const sail=new THREE.Mesh(g,new THREE.MeshStandardMaterial({vertexColors:true,side:THREE.DoubleSide,roughness:.7})); sail.castShadow=true; wing.add(sail);
+  const barMat=new THREE.MeshStandardMaterial({color:"#c9d3df",metalness:.6,roughness:.35});
+  const bar=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,1.1,6),barMat); bar.rotation.z=Math.PI/2; bar.position.set(0,-.55,-.05); wing.add(bar);
+  for (const sx of [-1,1]){ const st=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.62,6),barMat); st.position.set(sx*.28,-.27,.05); st.rotation.z=sx*.5; wing.add(st); }
+}
+let wingOpen=0, lastYaw=0;
 
 // rope + hook visuals
 const rope=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,1,6),new THREE.MeshStandardMaterial({color:"#e6eef7",roughness:.6})); rope.visible=false; scene.add(rope);
@@ -386,6 +420,8 @@ const hookTip=new THREE.Mesh(new THREE.ConeGeometry(.16,.4,6),new THREE.MeshStan
 // ---------------- input ----------------
 const keys=new Set();
 let yaw=Math.PI*.75, pitch=.28, camDist=7.5;
+let gliderTime=0, gliding=false, glideSink=-3, inUpdraft=false, jumpHeldTouch=false;
+const GLIDE_TIME=30, GLIDER_RESPAWN=15;
 let jumpQueued=false, hookHeld=false, reelHeld=false, running=false, locked=false, triedLock=false;
 const isTouch = matchMedia("(pointer: coarse)").matches || ("ontouchstart" in window && navigator.maxTouchPoints>0);
 const touchMove={x:0,y:0};
@@ -394,7 +430,7 @@ addEventListener("keydown",e=>{
   if (e.key==="Escape"){ pauseGame(); return; }
   if (!running) return;
   const k=e.key.toLowerCase(); keys.add(k);
-  if (k===" "){ jumpQueued=true; e.preventDefault(); }
+  if (k===" "){ if (!e.repeat) jumpQueued=true; e.preventDefault(); }
   if (k==="e" && !e.repeat) hookDown();
   if (k==="r") respawn("Respawned");
   if (k==="t" && !e.repeat) restartRun();
@@ -451,7 +487,7 @@ function touchUp(e){ if (joy && e.pointerId===joy.id){ joy=null; touchMove.x=tou
 const holdBtn=(id,down,up)=>{ const b=$(id); b.addEventListener("pointerdown",e=>{ e.preventDefault(); b.classList.add("on"); down(); }); const u=()=>{ b.classList.remove("on"); up&&up(); }; b.addEventListener("pointerup",u); b.addEventListener("pointercancel",u); b.addEventListener("pointerleave",u); };
 holdBtn("tHook",()=>hookDown(),()=>hookUp());
 holdBtn("tReel",()=>{reelHeld=true;},()=>{reelHeld=false;});
-holdBtn("tJump",()=>{jumpQueued=true;});
+holdBtn("tJump",()=>{jumpQueued=true; jumpHeldTouch=true;},()=>{jumpHeldTouch=false;});
 
 // ---------------- audio ----------------
 let ac=null;
@@ -527,7 +563,13 @@ let grounded=false, onGround=false, lastJump=-9, lastGround=-9, airJumps=1, simT
 world.addEventListener("preStep",()=>{
   const dt=world.dt||1/60;
   ropeStep(dt);
-  for (const u of updrafts){ const p=pBody.position; if (Math.hypot(p.x-u.x,p.z-u.z)<2.8 && p.y<u.top && p.y>u.g-1){ pBody.velocity.y=Math.min(22,pBody.velocity.y+70*dt); } }
+  inUpdraft=false;
+  for (const u of updrafts){ const p=pBody.position; if (Math.hypot(p.x-u.x,p.z-u.z)<(gliding?4.5:2.8) && p.y<u.top+(gliding?25:0) && p.y>u.g-1){ inUpdraft=true; if(!gliding) pBody.velocity.y=Math.min(22,pBody.velocity.y+70*dt); } }
+  if (gliding){
+    // the wing cancels most of gravity and settles you at a sink rate; updrafts become lift
+    const v=pBody.velocity, target = inUpdraft ? 9 : glideSink;
+    v.y += 26*dt; v.y += (target - v.y)*(1-Math.exp(-4*dt));
+  }
 });
 world.addEventListener("postStep",()=>{
   let g=false, best=0;
@@ -564,6 +606,19 @@ function controls(dt){
     if (attached){ hook.phase="retract"; v.y=Math.max(v.y,0)+8; const hs=Math.hypot(v.x,v.z); if(hs>1){ v.x*=1.12; v.z*=1.12; } tone(600,.15,"triangle",.06,1.8); }
     else if (grounded || simTime-lastGround<.12){ v.y=11; lastGround=-9; lastJump=simTime; tone(420,.1,"triangle",.05,1.6); }
     else if (airJumps>0){ airJumps--; v.y=Math.max(v.y,9.5); tone(560,.12,"triangle",.05,1.6); puff(pBody.position); }
+  }
+  const wantGlide = gliderTime>0 && !onGround && !attached && (keys.has(" ")||jumpHeldTouch) && (v.y<0 || gliding);
+  if (wantGlide && !gliding){ tone(300,.35,"sawtooth",.035,2.2); }
+  gliding = wantGlide;
+  if (gliding){
+    const dive=Math.min(1,Math.max(0,(pitch-.15)/.9));
+    glideSink = -(2.2+dive*9);
+    const tgt=15+dive*16, hsp=Math.hypot(v.x,v.z)||.001;
+    const spd = hsp>tgt ? hsp-3*dt : hsp+(tgt-hsp)*(1-Math.exp(-1.3*dt));
+    const dx=fwd.x+right.x*ix*.7, dz=fwd.z+right.z*ix*.7, dl=Math.hypot(dx,dz)||1;
+    const k=1-Math.exp(-2.4*dt);
+    let nx=v.x/hsp+(dx/dl-v.x/hsp)*k, nz=v.z/hsp+(dz/dl-v.z/hsp)*k; const nl=Math.hypot(nx,nz)||1;
+    v.x=nx/nl*spd; v.z=nz/nl*spd;
   }
   const hs=Math.hypot(v.x,v.z); if (hs>45){ v.x*=45/hs; v.z*=45/hs; }
 }
@@ -614,7 +669,7 @@ let toastT=0;
 function toast(big,small){ const t=$("toast"); t.replaceChildren(document.createTextNode(big)); if(small){ const s=document.createElement("small"); s.textContent=small; t.append(s); } t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,2200); }
 let lastSafe=spawnPos.clone(), safeT=0;
 function respawn(msg){
-  pBody.position.copy(lastSafe); pBody.position.y+=1.5; pBody.velocity.set(0,0,0); pBody.interpolatedPosition.copy(pBody.position); hook=null; camSmooth=null;
+  pBody.position.copy(lastSafe); pBody.position.y+=1.5; pBody.velocity.set(0,0,0); pBody.interpolatedPosition.copy(pBody.position); hook=null; camSmooth=null; gliding=false;
   if (msg) toast(msg); tone(220,.3,"sine",.07,.5);
 }
 
@@ -653,6 +708,7 @@ function restartRun(){
   for (const sp of sparks){ sp.got=false; sp.mesh.visible=true; sp.beam.visible=true; }
   for (const d of dynamics){ d.body.position.copy(d.p0); d.body.quaternion.copy(d.q0); d.body.velocity.set(0,0,0); d.body.angularVelocity.set(0,0,0); d.body.interpolatedPosition.copy(d.p0); d.body.interpolatedQuaternion.copy(d.q0); d.body.wakeUp(); }
   lastSafe.copy(spawnPos); respawn(null); hook=null;
+  gliderTime=0; gliding=false; for (const g of gliderPickups){ g.cd=0; g.grp.visible=g.beam.visible=true; }
   toast("Run reset","The timer starts on your first move.");
   renderSplits(true);
 }
@@ -722,7 +778,10 @@ function frame(){
   let dy=faceYaw-hero.rotation.y; dy=Math.atan2(Math.sin(dy),Math.cos(dy)); hero.rotation.y+=dy*Math.min(1,10*dt);
   const bob = onGround && hs>1 ? Math.abs(Math.sin(t*hs*1.4))*.08 : 0;
   heroBody.position.y=bob-.08;
-  heroBody.rotation.x = onGround ? -Math.min(.25,hs*.02) : (attached? -.35 : Math.max(-.5,Math.min(.5,-v.y*.02)));
+  wingOpen += ((gliding?1:0)-wingOpen)*Math.min(1,10*dt);
+  wing.visible = wingOpen>.02; wing.scale.set(wingOpen,1,.4+.6*wingOpen);
+  { let turn=hero.rotation.y-lastYaw; turn=Math.atan2(Math.sin(turn),Math.cos(turn)); lastYaw=hero.rotation.y; wing.rotation.z += (Math.max(-.5,Math.min(.5,-turn/Math.max(dt,1e-3)*.12))-wing.rotation.z)*Math.min(1,6*dt); }
+  heroBody.rotation.x = gliding ? -1.1 : onGround ? -Math.min(.25,hs*.02) : (attached? -.35 : Math.max(-.5,Math.min(.5,-v.y*.02)));
   hand.set(0,.35,-.1).applyEuler(hero.rotation).add(hero.position);
   if (running){
     if (p.y < -1.8){ respawn("Splash! Back to dry land"); }
@@ -731,6 +790,14 @@ function frame(){
   updateHook(dt);
   updateCamera();
   sun.position.set(p.x+SUN_DIR.x*120,p.y+SUN_DIR.y*120,p.z+SUN_DIR.z*120); sun.target.position.set(p.x,p.y,p.z);
+  // glider pickups
+  if (running && gliderTime>0){ gliderTime=Math.max(0,gliderTime-dt); if (!gliderTime){ gliding=false; toast("Glider folded","Find another cyan pickup."); } }
+  for (const g of gliderPickups){
+    if (g.cd>0){ g.cd-=dt; g.grp.visible=g.beam.visible=g.cd<=0; continue; }
+    g.grp.rotation.y+=dt*1.5; g.grp.position.y=g.pos.y+Math.sin(t*2.3+g.pos.z)*.25;
+    if (running && g.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<2.2){ g.cd=GLIDER_RESPAWN; g.grp.visible=g.beam.visible=false; gliderTime=GLIDE_TIME;
+      [523,784,1046].forEach((f,i)=>tone(f,.16,"sine",.07,1,i*.06)); toast("Glider!", isTouch?"Hold Jump while falling to glide · 30 s":"Hold Space while falling to glide · 30 s"); }
+  }
   // sparks
   for (const s of sparks){ if (s.got) continue; s.mesh.rotation.y+=dt*2; s.mesh.position.y=s.pos.y+Math.sin(t*2+s.pos.x)*.2;
     if (running && s.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<1.9){ s.got=true; s.mesh.visible=false; s.beam.visible=false; got++;
@@ -745,11 +812,13 @@ function frame(){
   for (let i=puffs.length-1;i>=0;i--){ const m=puffs[i]; m.userData.t+=dt; m.position.addScaledVector(m.userData.v,dt); m.material.opacity=.6*(1-m.userData.t/.5); if(m.userData.t>.5){ scene.remove(m); m.geometry.dispose(); m.material.dispose(); puffs.splice(i,1); } }
   hudT+=dt;
   if (hudT>.1){ hudT=0;
-    $("sparks").textContent=`${got}/${TOTAL}`; renderSplits(false); $("speed").textContent=Math.round(Math.hypot(v.x,v.y,v.z));
+    $("sparks").textContent=`${got}/${TOTAL}`; renderSplits(false); $("speed").textContent=Math.round(Math.hypot(v.x,v.y,v.z)); $("glider").textContent = gliderTime>0 ? Math.ceil(gliderTime)+"s" : "–";
     $("where").textContent=placeName(p);
     if (!isTouch){ const h=$("hint");
       if (attached) swings++;
-      const html = attached ? "Swinging. Hold <kbd>Shift</kbd> to reel in, <kbd>Space</kbd> to launch off, let go to fly." :
+      const html = gliding ? "Gliding. Look down to dive and gain speed, up to float. Fly through updrafts to climb." :
+        attached ? "Swinging. Hold <kbd>Shift</kbd> to reel in, <kbd>Space</kbd> to launch off, let go to fly." :
+        gliderTime>0 ? "Glider ready. In the air, hold <kbd>Space</kbd> while falling to open it." :
         "Aim at anything solid. When the crosshair turns blue, hold <kbd>Mouse</kbd> or <kbd>E</kbd> to grapple.";
       h.hidden = elapsed>45 && swings>20;
       if (h.dataset.v!==html){ h.dataset.v=html; h.innerHTML=html; } }
@@ -761,6 +830,6 @@ addEventListener("resize",()=>{ renderer.setSize(innerWidth,innerHeight); camera
 // interpolated poses start at the origin until the first physics step
 for (const b of world.bodies){ b.interpolatedPosition.copy(b.position); b.interpolatedQuaternion.copy(b.quaternion); }
 // small hook for automated testing; not used by the game itself
-window.__skyDebug={ body:pBody, pillars, rocks, sparks, view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded };
+window.__skyDebug={ body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded };
 frame();
 </script>

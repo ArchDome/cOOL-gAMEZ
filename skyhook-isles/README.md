@@ -13,6 +13,7 @@ Built with [Three.js](https://threejs.org) 0.160 for rendering and [cannon-es](h
 | Hold mouse button or E | Hold Hook | Grapple where the crosshair points |
 | Shift while hooked | Hold Reel | Reel in. Hook a crate to yank it toward you |
 | Space | Jump | Jump and double jump. While hooked, let go with a boost |
+| Hold Space while falling | Hold Jump while falling | Glide (after grabbing a glider pickup) |
 | Wheel, R | | Zoom the camera, respawn |
 | T | Restart run | Restart the speedrun (resets sparks, crates and the boulder) |
 | Esc | | Pause. Click the game to capture the mouse again |
@@ -22,6 +23,7 @@ Built with [Three.js](https://threejs.org) 0.160 for rendering and [cannon-es](h
 - A heightfield island with a snowy peak, beaches and the sea all around (fall in and you respawn).
 - 13 stone pillars, floating rocks and a chain of stepping stones up to the peak.
 - Updrafts that launch you into the sky.
+- 5 glider pickups (cyan beams). Each gives 30 s of glider and respawns 15 s after you take it. While gliding, look down to dive and gain speed, look up to float, and fly through updrafts to climb. Firing the hook folds the wing.
 - Dynamic crates (including a stack at spawn) and a boulder you can knock or yank around.
 - 15 sparks. Each one shines a beam into the sky until you collect it. Your best time is saved.
 
