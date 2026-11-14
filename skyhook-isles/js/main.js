@@ -850,7 +850,7 @@ function sendPresence(){
   if (now-presT < (running?50:1000)) return; presT=now;
   const p=pBody.interpolatedPosition, v=pBody.velocity;
   const h = hook ? [hook.phase==="fly"?1:hook.phase==="attached"?2:3, r2(hook.tip.x),r2(hook.tip.y),r2(hook.tip.z), r2(hook.len||0), hook.remote||""] : 0;
-  room.presence({n:myName(), p:[r2(p.x),r2(p.y),r2(p.z)], v:[r2(v.x),r2(v.y),r2(v.z)], yw:r2(hero.rotation.y), g:gliding?1:0, h, s:got, t:Math.round(elapsed*10)/10, rs:runState, ps:running?0:1, mp:MAP.key, pc:myCharKey, sw:swingN, bt:batTime>0?1:0, hit:lastHit, sp:lastSplash, dk:dunks, bots:botsPayload(), bsp:lastBsp, chat:lastChat, bchat:lastBchat, boom:lastBoom}).catch(()=>{});
+  room.presence({n:myName(), p:[r2(p.x),r2(p.y),r2(p.z)], v:[r2(v.x),r2(v.y),r2(v.z)], yw:r2(hero.rotation.y), g:gliding?1:0, h, s:got, t:Math.round(elapsed*10)/10, rs:runState, ps:running?0:1, mp:MAP.key, pc:myCharKey, sw:swingN, bt:batTime>0?1:0, hit:lastHit, sp:lastSplash, dk:dunks, bots:botsPayload(), bsp:lastBsp, chat:lastChat, bchat:lastBchat, boom:lastBoom, cupS:cupPresence()}).catch(()=>{});
 }
 function nameSprite(text,color){
   const c=document.createElement("canvas"); let x=c.getContext("2d"); const font="700 30px 'Nunito Sans', system-ui, sans-serif";
@@ -883,6 +883,7 @@ function updateRemotes(dt){
   for (const pr of room.peers()){
     if (pr.sameTab || pr.kind!=="viewer") continue;
     const ps=pr.presence; if (!ps || !vec3(ps.p)) continue;
+    followCup(pr,ps);
     if (ps.mp && ps.mp!==MAP.key) continue;   // they're playing a different map
     seen.add(pr.peer);
     let a=avatars.get(pr.peer); if (!a){ a=makeAvatar(pr.peer); avatars.set(pr.peer,a); }
@@ -1505,11 +1506,14 @@ function renderCupState(){
 renderCupState();
 $("startCup").addEventListener("click",()=>{
   if (cupDef()){ cup=null; saveCup(); renderCupState(); return; }
-  const d=CUPS.find(c=>c.key===$("optCup").value); cup={key:d.key,idx:0,points:{},races:[]}; saveCup();
+  const d=CUPS.find(c=>c.key===$("optCup").value); cup={key:d.key,idx:0,points:{},races:[],id:Date.now(),host:true}; saveCup();
   if (d.maps[0]!==MAP.key){ location.hash="map-"+d.maps[0]; location.reload(); } else renderCupState();
 });
 // a cup race starts automatically when you press Play on the cup's current map
-function cupAutoStart(){ const d=cupDef(); if (d && d.maps[cup.idx]===MAP.key && !raceLive && raceCount<=0) beginRace(Date.now(),null); }
+function cupAutoStart(){
+  const d=cupDef(); if (!d || d.maps[cup.idx]!==MAP.key || raceLive || raceCount>0 || cup.follow) return;
+  const id=Date.now(); if (room) room.presence({race:id}).catch(()=>{}); beginRace(id,null);
+}
 // who is racing and how they're doing
 function standings(){
   const rows=[{name:myName(),me:true,s:got,t:runState==="done"?elapsed:null}];
@@ -1527,7 +1531,7 @@ function checkRaceEnd(){
 function endRace(rows){
   raceOver=true; raceLive=false;
   const d=cupDef(), inCup = d && d.maps[cup.idx]===MAP.key;
-  if (inCup){ rows.forEach((r,i)=>{ cup.points[r.name]=(cup.points[r.name]||0)+(POINTS[i]||0); }); cup.races.push(MAP.key); saveCup(); }
+  if (inCup && !cup.follow){ rows.forEach((r,i)=>{ cup.points[r.name]=(cup.points[r.name]||0)+(POINTS[i]||0); }); cup.races.push(MAP.key); saveCup(); }
   showResults(rows,inCup,d);
 }
 function standingsTable(rows,withPoints){
@@ -1553,6 +1557,25 @@ function showResults(rows,inCup,d){
     cup.idx++; saveCup(); location.hash="map-"+d.maps[cup.idx]; location.reload(); };
   $("results").hidden=false; running=false;
 }
+// ---- synced cups: friends follow the host's cup (map switches, points table, final standings) ----
+function cupPresence(){
+  if (!cup || !cup.host) return 0;
+  const pts={}; for (const [k,v] of Object.entries(cup.points).slice(0,12)) pts[String(k).slice(0,16)]=v|0;
+  return {id:cup.id,key:cup.key,idx:cup.idx,pts,done:cup.done?1:0};
+}
+function followCup(pr,ps){
+  const cs=ps.cupS; if (!cs || typeof cs.id!=="number" || !CUPS.some(c=>c.key===cs.key)) return;
+  if (cup && cup.host) return;                                   // we're running our own cup
+  const d=CUPS.find(c=>c.key===cs.key), idx=Math.max(0,Math.min(d.maps.length-1,cs.idx|0));
+  const pts={}; if (cs.pts && typeof cs.pts==="object") for (const [k,v] of Object.entries(cs.pts).slice(0,12)) if (Number.isFinite(v)) pts[cleanName(k)]=v;
+  if (!cup || cup.id!==cs.id){
+    if (cs.done) return;
+    cup={key:cs.key,idx,points:pts,races:[],id:cs.id,follow:true,hostPeer:pr.peer}; saveCup(); renderCupState();
+    toast(`Joining ${cleanName(ps.n)}'s cup`,d.name);
+  } else { cup.points=pts; if (cs.done && !cup.doneShown){ cup.doneShown=true; saveCup(); showCupFinal(d); return; } }
+  if (idx!==cup.idx || d.maps[idx]!==MAP.key){ cup.idx=idx; saveCup(); if (d.maps[idx]!==MAP.key){ location.hash="map-"+d.maps[idx]; location.reload(); } }
+  saveCup();
+}
 function showCupFinal(d){
   const rows=Object.entries(cup.points).map(([name,pts])=>({name,pts,me:name===myName(),s:"",t:null})).sort((a,b)=>b.pts-a.pts);
   $("resKicker").textContent=d.name+" · final standings";
@@ -1564,7 +1587,8 @@ function showCupFinal(d){
   $("resInitials").hidden=!(db && mine); pendingPost = mine ? {kind:"cup",key:d.key,pts:mine.pts} : null;
   $("resNote").textContent="";
   $("resNext").textContent="Back to the island";
-  $("resNext").onclick=()=>{ $("results").hidden=true; cup=null; saveCup(); renderCupState(); showStart(false); };
+  if (cup && cup.host){ cup.done=true; saveCup(); }
+  $("resNext").onclick=()=>{ $("results").hidden=true; setTimeout(()=>{ cup=null; saveCup(); renderCupState(); },3000); showStart(false); };
   $("results").hidden=false;
 }
 // leaderboards

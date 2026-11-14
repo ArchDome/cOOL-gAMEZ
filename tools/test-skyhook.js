@@ -148,6 +148,20 @@ const { openGame, checker } = require('./harness');
     c.check('friend chat shows up', (await page.evaluate(() => window.__skyDebug.chat().log)).some(l => l.includes('nice swing')));
     c.check('the surfer joined the cast', await page.evaluate(() => window.__skyDebug.CHARACTERS.some(c => c.key === 'dylan' && c.from.includes('California'))));
 
+    // Synced cups: a friend hosting a cup on another map pulls us into it
+    await page.evaluate(() => localStorage.removeItem('skyhook.cup.v1'));
+    const nav = page.waitForNavigation({ timeout: 30000 }).catch(() => null);
+    await friendAt({ cupS: { id: 777, key: 'pack1', idx: 1, pts: { Friend: 10, Tester: 8 }, done: 0 } });
+    await nav;
+    await page.waitForFunction(() => window.__skyDebug, null, { timeout: 60000 });
+    const followed = await page.evaluate(() => ({ hash: location.hash, cup: JSON.parse(localStorage.getItem('skyhook.cup.v1') || 'null') }));
+    c.check('a friend\'s cup pulls you onto its map', followed.hash === '#map-neon' && followed.cup && followed.cup.follow && followed.cup.idx === 1 && followed.cup.points.Friend === 10, JSON.stringify(followed));
+    await page.evaluate(() => { localStorage.removeItem('skyhook.cup.v1'); location.hash = ''; });
+    await page.goto(page.url().split('#')[0]); await page.waitForFunction(() => window.__skyDebug, null, { timeout: 60000 });
+    await page.evaluate(() => { const el = document.getElementById('optBots'); el.value = '0'; el.dispatchEvent(new Event('change')); document.getElementById('go').click(); });
+    await page.waitForTimeout(800);
+    await friendAt({ race: 1 }); await page.waitForTimeout(1000);
+
     // Race
     await friendAt({ race: 2 }); await page.waitForTimeout(1000);
     const race = await page.evaluate(() => window.__skyDebug.race());

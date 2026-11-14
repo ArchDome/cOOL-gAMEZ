@@ -42,7 +42,7 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] Leaderboards with arcade-style initials per map and per cup, using the artifact `db` capability so friends see the same board.
 
 ### Next ideas (unattended sessions may pick these up)
-- [ ] Synced multiplayer cups: the player who starts a cup broadcasts it, friends follow map switches, and the host's points table is authoritative.
+- [x] Synced multiplayer cups: the player who starts a cup broadcasts it, friends follow map switches, and the host's points table is authoritative.
 - [ ] Per-character training runs for the weakest racers (`npm run train-bots -- 10 8 40 kofi`, then pip), on a repo copy.
 - [x] Bots that use the glider (they can grab pickups but never glide).
 - [x] A sixth map so Map Pack 2 doesn't reuse Neon Harbour. (Jungle Ruins)
@@ -60,5 +60,5 @@ This file is the work queue for Claude sessions, including unattended and schedu
 (Unattended sessions add questions here instead of stopping.)
 
 - Leaderboard posting needs friends to be **Contributors** in the Share menu (viewers can read but not post). OK as is?
-- Cups are currently single-player: you vs the bots, with friends on the same map counted in the standings. Fully synced multiplayer cups, where the host picks and everyone switches maps together, are possible next. Want that?
+- Cups are now synced: whoever starts a cup hosts it and friends follow. If you'd rather keep cups solo, it's a one-line change.
 - ~~Map Pack 2 reuses Neon Harbour~~: added a sixth map, Jungle Ruins, instead.

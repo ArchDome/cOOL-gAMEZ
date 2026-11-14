@@ -4,6 +4,15 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14 (overnight): Synced multiplayer cups
+
+- **Host:** whoever presses Start cup hosts it, and their presence carries the cup (`cupS`: id, pack, race number, points table, done).
+- **Friends follow automatically,** even from another map: they adopt the cup, get a "Joining X's cup" toast, and switch to the cup's current map.
+- **Races:** the host's Play starts each race for everyone, using the existing shared race countdown.
+- **Points:** the host's points table is authoritative. Followers see the same totals and the final standings when the host finishes.
+
+Tested with the scripted friend (a friend hosting race 2 of Map Pack 1 pulls you onto Neon Harbour with their points). Real two-device play is still untested.
+
 ## 2026-11-14 (overnight): Second training run, with the bots at their best
 
 The first fully reproducible training run: 8 generations × 8 candidates, 40 s episodes, Yuki, Lars and Dylan from 3 starts each, run on a copy of the repo while other work continued. Fitness went from 2.83 to 4.44 (+57%). The winner fires from a little farther, reels slower, keeps a shorter rope, releases earlier, and boosts harder up and forward on release.
