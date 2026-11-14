@@ -20,7 +20,7 @@ When you change a game, republish to its existing artifact URL (pass the URL, or
 
 ## Conventions
 
-- **File layout.** Small games are one `index.html`. `skyhook-isles` is split: `index.html` (page and HUD), `js/main.js` (engine), `js/lib.js`, and `maps/*.js` (one per map, listed in `maps/index.js`). Publish it with the Artifact tool's `files` option for every `js/` and `maps/` file. Otherwise, inline CSS and JS. External scripts only from the artifact CDN allowlist (cdnjs, cdn.jsdelivr.net/npm, unpkg), pinned to exact versions. Fonts only from Google Fonts.
+- **File layout.** Small games are one `index.html`. `skyhook-isles` is split: `index.html` (page and HUD), `js/main.js` (engine), `js/lib.js`, and `js/bot-params.js` (trained bot settings), and `maps/*.js` (one per map, listed in `maps/index.js` along with the cups). Publish it with the Artifact tool's `files` option for every `js/` and `maps/` file. Otherwise, inline CSS and JS. External scripts only from the artifact CDN allowlist (cdnjs, cdn.jsdelivr.net/npm, unpkg), pinned to exact versions. Fonts only from Google Fonts.
 - **Artifact page rules.** No `<html>`, `<head>` or `<body>` tags: the page starts with `<title>`, then `<style>`. Include `[hidden]{display:none!important}` yourself, because local test runs don't get the artifact skeleton's reset.
 - **Phones and tablets.** The owner plays on an iPad, so every game needs touch controls (on-screen buttons, thumb drag) alongside keyboard and mouse.
 - **Physics timing.** Run physics at a fixed step. Render from interpolated poses (`body.interpolatedPosition` in cannon-es), not the raw ones, or motion jitters on high-refresh screens.
@@ -31,7 +31,7 @@ When you change a game, republish to its existing artifact URL (pass the URL, or
 
 ## Testing
 
-**Run `npm test` after every change to a game, and fix failures before publishing.** The harness lives in `tools/` (see `tools/README.md`). New games should get their own `tools/test-<game>.js` built on `tools/harness.js`.
+**Run `npm test` after every change to a game, and fix failures before publishing.** It runs `test-skyhook.js` and `test-maps.js` (every map plus the cup flow). For bot AI changes, also run `npm run bench-bots` (reproducible per-character spark counts) and keep or improve the total. `npm run train-bots [gens] [pop] [seconds]` re-tunes `js/bot-params.js`. Don't edit the engine while it runs, because every evaluation reloads the page. The harness lives in `tools/` (see `tools/README.md`). New games should get their own `tools/test-<game>.js` built on `tools/harness.js`.
 
 
 - Check scripts parse: extract the `<script>` body and run `node --check`, or for module scripts write it to a `.mjs` file first.

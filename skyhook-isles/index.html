@@ -50,6 +50,26 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
 .chatbar button.rec,.chatbtns button.rec{background:#b3261e;border-color:#ff7a62}
 .chatbtns{position:fixed;left:max(16px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 86px);display:flex;gap:6px;pointer-events:auto;transform:translateY(-44px)}
 .chatbtns button{height:34px}
+.boards{display:grid;gap:6px}
+.board-list{display:grid;gap:3px;font-variant-numeric:tabular-nums;font-size:14px}
+.board-list div{display:grid;grid-template-columns:2ch 5ch 1fr auto;gap:10px;padding:3px 8px;border-radius:7px;background:rgba(255,255,255,.04)}
+.board-list div.me{background:rgba(124,224,255,.16)}
+.board-list b{font-family:var(--display);font-weight:400;letter-spacing:.1em}
+.board-list small{color:var(--muted)}
+.cupbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.cupbar select,.cupbar button{font:700 14px var(--body);color:var(--ink);background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:9px;padding:8px 10px}
+.cupbar button.primary{background:var(--spark);color:#2a1d00;border-color:transparent;cursor:pointer}
+.modal{position:fixed;inset:0;display:grid;place-items:center;background:rgba(8,12,22,.72);z-index:5;overflow:auto;
+  padding-block:calc(env(safe-area-inset-top,0px) + 16px) calc(env(safe-area-inset-bottom,0px) + 16px);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.modal .card h2{margin:0;font-family:var(--display);font-weight:400;font-size:clamp(26px,6vw,38px)}
+.standings{display:grid;gap:4px;font-variant-numeric:tabular-nums}
+.standings div{display:grid;grid-template-columns:2.2ch 1fr 5ch 5ch 4ch;gap:10px;align-items:center;padding:6px 10px;border-radius:9px;background:rgba(255,255,255,.05);font-weight:700}
+.standings div.hd{background:none;color:var(--muted);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding-block:0}
+.standings div.me{background:rgba(124,224,255,.18)}
+.standings div:nth-child(2) span:first-child{color:#ffd25a}
+.initials{display:flex;gap:10px;align-items:center}
+.initials input{width:5ch;text-transform:uppercase;font:400 30px var(--display);letter-spacing:.2em;text-align:center;color:var(--ink);background:rgba(0,0,0,.35);border:1px solid var(--spark);border-radius:10px;padding:6px 4px;-webkit-user-select:text;user-select:text}
 .opts{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;font-size:14px;font-weight:700}
 .opts select{font:700 14px var(--body);color:var(--ink);background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
 .opts .chk{display:flex;gap:6px;align-items:center;cursor:pointer}
@@ -120,7 +140,7 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
 <div class="cross" id="cross"><i></i></div>
 <div class="hud">
   <div class="row">
-    <div class="chip brand">Skyhook Isles<small id="where">The meadow</small></div>
+    <div class="chip brand">Skyhook<small id="where">Skyhook Isles · The meadow</small></div>
     <div class="rightcol">
       <div class="chip stats">
         <div class="stat sp"><b id="sparks">0/15</b><span>Sparks</span></div>
@@ -147,6 +167,14 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
   </div>
 </div>
 <div class="toast" id="toast" hidden></div>
+<div class="modal" id="results" hidden><div class="card">
+  <small id="resKicker" style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)"></small>
+  <h2 id="resTitle"></h2>
+  <div class="standings" id="resTable"></div>
+  <div class="initials" id="resInitials" hidden><label for="initialsIn" style="font-weight:800">Your initials</label><input id="initialsIn" maxlength="3" autocomplete="off" placeholder="AAA"><button type="button" class="go" id="initialsSave" style="padding:10px 16px">Post score</button></div>
+  <div style="font-size:13px;color:var(--muted)" id="resNote"></div>
+  <button class="go" type="button" id="resNext">Next race</button>
+</div></div>
 <div class="chatlog" id="chatlog" aria-live="polite"></div>
 <div class="chatbar" id="chatbar" hidden><input id="chatIn" type="text" maxlength="140" autocomplete="off" placeholder="Say something… (Enter to send, Esc to cancel)"><button type="button" id="chatMic" title="Voice to text">Mic</button><button type="button" id="chatSend">Send</button></div>
 <div class="chatbtns" id="chatBtns" hidden><button type="button" id="tChat">Chat</button><button type="button" id="tMic">Mic</button></div>
@@ -186,6 +214,8 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
       <dt>Restart run</dt><dd>Resets the island. The timer starts on your first move.</dd>
     </dl>
     <div class="opts">
+      <label for="optMap">Map</label>
+      <select id="optMap"></select>
       <label for="optMusic">Music</label>
       <select id="optMusic"><option value="always">Always</option><option value="races">Races only</option><option value="off">Off</option></select>
       <label class="chk"><input type="checkbox" id="optSfx" checked> Sound effects</label>
@@ -195,7 +225,10 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
     </div>
     <div class="field"><label for="nick">Your name</label><input id="nick" type="text" maxlength="16" autocomplete="off" placeholder="e.g. JakeyBoy"></div>
     <div class="net" id="net"><i></i><span>Connecting to the island…</span></div>
+    <div class="cupbar" id="cupBar"><label for="optCup" class="sect" style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Cup</label>
+      <select id="optCup"></select><button type="button" class="primary" id="startCup">Start cup</button><span id="cupState" style="font-size:13px;color:var(--muted)"></span></div>
     <button class="go" type="button" id="go">Play</button>
+    <div class="boards" id="boards" hidden><span style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)" id="boardTitle">Best times</span><div class="board-list" id="boardList"></div></div>
     <div class="best" id="best"></div>
     <div class="err" id="err" hidden></div>
   </div>

@@ -30,6 +30,19 @@ Built with [Three.js](https://threejs.org) 0.160 for rendering and [cannon-es](h
 - Dynamic crates (including a stack at spawn) and a boulder you can knock or yank around.
 - 15 sparks. Each one shines a beam into the sky until you collect it. Your best time is saved.
 
+## Maps and cups
+
+Pick a map on the start screen:
+- **Skyhook Isles:** the original island, with outer islets and catch-rocks.
+- **Neon Harbour:** a rainy neon city.
+- **Ember Caldera:** a volcano in a lava sea.
+- **Glacier Spires:** an ice island where the ground is slippery.
+- **Scrapyard Canyon:** a junkyard on two mesas around a gorge.
+
+Each map is one file in `maps/`, listed in `maps/index.js`.
+
+**Cups** chain three maps. Races end when someone collects all 15 sparks, or after 4 minutes. Points go 10, 8, 6, 5, 4, 3, 2, 1, and the best total wins. **Leaderboards** keep the best full-clear time per map, with initials, in the artifact's shared database. Friends need Contributor access to post.
+
 ## Multiplayer
 
 Everyone who opens the artifact link lands on the same island. This uses the claude.ai artifact `room` capability, so it only works from the link. Opening `index.html` directly gives you solo play.

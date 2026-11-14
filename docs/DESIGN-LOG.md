@@ -4,6 +4,56 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14 (overnight): Smart bots, four new maps, cups, leaderboards
+
+**Bots race for sparks.** Each bot has its own spark set and a new brain (`botRace` in `js/main.js`):
+- It picks the cheapest spark (distance plus climb cost).
+- For a spark on a structure, it hooks the structure's near rim, reels in, and pops over the edge.
+- For a far spark, it picks stepping anchors and swings between them.
+- It brakes in the air to land, catches itself when falling toward the sea, backs off when stuck under a rock, and skips sparks it can't reach for a while.
+
+Personality still decides when they break off to fight or flee.
+
+Bugs found by tracing bots second by second:
+- **Rocket loop:** "release when above the anchor" plus an upward boost on every release made bots climb to 180 m.
+- **Underside hooking:** aiming under floating rocks got bots reeled into them and flung by the physics.
+- **Speed pile-up:** a rope pulling a bot against a wall piled up speed to 1,700 m/s. There's now a hard 45 m/s cap, and bots let go of ropes that aren't pulling them closer.
+- **Sleeping bots:** the physics engine put idle bots to sleep, which froze them.
+
+Result: about 1 spark per minute per bot at the start of the night, about 4 per minute now (`npm run bench-bots`).
+
+**Training loop.**
+- `npm run train-bots` evolves the 11 swing-technique numbers by simulation and writes `js/bot-params.js`.
+- The first version was fooled by noise. Now every evaluation reloads the page for a fresh physics world and seeds the randomness, so the same parameters always score the same.
+- Score: sparks minus half the falls, over 3 characters × 3 start points.
+
+**Four new maps** (`maps/*.js`), picked from the start screen:
+- **Neon Harbour:** a rainy night city inspired by Hong Kong. Towers with lit windows, neon signs, wet streets, steam-vent updrafts, the harbour around it, rain and lightning with thunder.
+- **Ember Caldera:** a volcano in a lava sea. Hexagonal basalt columns, obsidian rocks, ash geysers, rising embers.
+- **Glacier Spires:** glowing ice spires, ice floes, slippery ground that keeps your momentum, snow, and northern lights.
+- **Scrapyard Canyon:** two mesas split by a gorge. Cranes, stacked wrecks, loose cars to shove, and hanging magnets over the gorge to catch falls.
+
+Each map keeps its own personal bests, and friends on a different map aren't drawn into yours.
+
+![Neon Harbour](img/neon-overview.png) ![Ember Caldera](img/volcano-overview.png)
+![Glacier Spires](img/glacier-overview.png) ![Scrapyard Canyon](img/junkyard-overview.png)
+
+**Cups (Mario Kart style).**
+- Pick a map pack and press Start cup. Each race starts automatically with a countdown.
+- A race ends when someone collects all 15 sparks, or after 4 minutes.
+- Standings rank sparks, then time. Points go 10, 8, 6, 5, 4, 3, 2, 1. Then you go on to the next map.
+- After the last map, a final standings screen.
+- Map Pack 1 (Sky Cup) is Isles, Neon Harbour and Ember Caldera. Map Pack 2 (Frontier Cup) is Glacier Spires, Scrapyard Canyon and Neon Harbour.
+- Cup progress survives the reload between maps.
+- Races outside a cup now end with a results screen too.
+
+**Leaderboards.**
+- Best full-clear times per map, with 3-letter arcade initials, are stored in the artifact's shared database.
+- The board shows on the start screen. Anyone the game is shared with can read it, and Contributors can post.
+- Cup point totals post to a cup board.
+
+**Tests.** `npm test` now runs `tools/test-skyhook.js` (26 checks) plus `tools/test-maps.js` (29 checks): every map loads, has 15 sparks and grapple targets, spawns you on dry ground, walks smoothly and spawns moving bots, plus the cup flow end to end.
+
 ## 2026-11-14: Chat polish, text-only characters
 
 - **Text only:** characters no longer speak aloud (feedback: the synthetic voices didn't sound good). Their lines appear as speech bubbles and in the chat log. The match announcer stays, with its own toggle.

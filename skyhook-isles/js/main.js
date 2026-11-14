@@ -1,7 +1,8 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 import * as CANNON from "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js";
 import { rng, vnoise, smooth, lerp } from "./lib.js";
-import { MAPS } from "../maps/index.js";
+import { MAPS, CUPS } from "../maps/index.js";
+import { BOT_PARAMS } from "./bot-params.js";
 window.__skyhookBooted = true;
 const $ = id => document.getElementById(id);
 
@@ -43,13 +44,48 @@ const sky=new THREE.Mesh(new THREE.SphereGeometry(900,32,16),new THREE.ShaderMat
   vertexShader:"varying vec3 vP; void main(){ vec4 w=modelMatrix*vec4(position,1.); vP=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }",
   fragmentShader:"uniform vec3 top; uniform vec3 mid; uniform vec3 bot; varying vec3 vP; void main(){ float h=normalize(vP-cameraPosition).y; vec3 c = h>0. ? mix(mid,top,smoothstep(0.,.55,h)) : mix(mid,bot,smoothstep(0.,-.25,h)); gl_FragColor=vec4(c,1.);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}"}));
 scene.add(sky);
-scene.add(new THREE.HemisphereLight(...MAP.theme.hemi));
+const hemi=new THREE.HemisphereLight(...MAP.theme.hemi); scene.add(hemi);
 const sun=new THREE.DirectionalLight(...MAP.theme.sun);
 sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
 Object.assign(sun.shadow.camera,{left:-55,right:55,top:55,bottom:-55,near:1,far:300});
 sun.shadow.bias=-.0004; sun.shadow.normalBias=.05;
 scene.add(sun,sun.target);
 const SUN_DIR=new THREE.Vector3(...MAP.theme.sunDir).normalize();
+// weather: rain streaks that follow the camera, and lightning flashes
+let rain=null, rainPos=null, flashT=0, nextFlash=6+Math.random()*10;
+const RAIN_N=3500, RAIN_BOX=70;
+if (MAP.theme.rain){
+  rainPos=new Float32Array(RAIN_N*6);
+  for (let i=0;i<RAIN_N;i++){ const x=(Math.random()-.5)*RAIN_BOX, y=Math.random()*60, z=(Math.random()-.5)*RAIN_BOX; rainPos.set([x,y,z,x+.05,y-1.1,z],i*6); }
+  const g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.BufferAttribute(rainPos,3));
+  rain=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:"#a9c0e8",transparent:true,opacity:.42,depthWrite:false})); rain.frustumCulled=false; scene.add(rain);
+}
+let embers=null; const EMBER_N=900;
+if (MAP.theme.embers || MAP.theme.snow){
+  const pos=new Float32Array(EMBER_N*3); for (let i=0;i<EMBER_N;i++) pos.set([(Math.random()-.5)*RAIN_BOX,Math.random()*50,(Math.random()-.5)*RAIN_BOX],i*3);
+  const g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.BufferAttribute(pos,3));
+  embers=new THREE.Points(g,new THREE.PointsMaterial({color:MAP.theme.snow?"#ffffff":"#ffae5a",size:MAP.theme.snow?.18:.22,transparent:true,opacity:.85,depthWrite:false,blending:MAP.theme.snow?THREE.NormalBlending:THREE.AdditiveBlending})); embers.frustumCulled=false; scene.add(embers);
+}
+const hemiBase=MAP.theme.hemi[2];
+function updateWeather(dt,camPos){
+  if (rain){
+    rain.position.set(camPos.x,camPos.y-30,camPos.z);
+    const a=rain.geometry.attributes.position.array, fall=42*dt;
+    for (let i=0;i<RAIN_N;i++){ const o=i*6; a[o+1]-=fall; a[o+4]-=fall; if (a[o+4]<0){ a[o+1]+=60; a[o+4]+=60; } }
+    rain.geometry.attributes.position.needsUpdate=true;
+  }
+  if (embers){
+    embers.position.set(camPos.x,camPos.y-20,camPos.z);
+    const a=embers.geometry.attributes.position.array, t=performance.now()/1000;
+    const dir=MAP.theme.snow?-1:1; for (let i=0;i<EMBER_N;i++){ const o=i*3; a[o+1]+=dir*(2.2+(i%5)*.4)*dt; a[o]+=Math.sin(t+i)*.4*dt; if (a[o+1]>50) a[o+1]-=50; if (a[o+1]<0) a[o+1]+=50; }
+    embers.geometry.attributes.position.needsUpdate=true;
+  }
+  if (MAP.theme.lightning){
+    nextFlash-=dt;
+    if (nextFlash<=0){ flashT=.35; nextFlash=8+Math.random()*16; if (ac) setTimeout(()=>{ noise(1.8,{type:"lowpass",f:260,f2:60,vol:.5}); },600+Math.random()*900); }
+    if (flashT>0){ flashT-=dt; hemi.intensity=hemiBase+(Math.sin(flashT*60)>0?3.2:1.2)*Math.max(0,flashT/.35); } else hemi.intensity=hemiBase;
+  }
+}
 
 // ---------------- physics world ----------------
 const world=new CANNON.World({gravity:new CANNON.Vec3(0,-26,0)});
@@ -83,7 +119,7 @@ const dynamics=[];       // {mesh, body}
 }
 // sea
 {
-  const m=new THREE.Mesh(new THREE.PlaneGeometry(3000,3000),new THREE.MeshStandardMaterial({color:MAP.theme.water,roughness:.25,metalness:.1,transparent:true,opacity:.88}));
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(3000,3000),(MAP.theme.waterGlow ? new THREE.MeshStandardMaterial({color:MAP.theme.water,emissive:MAP.theme.water,emissiveIntensity:.85,roughness:.6}) : new THREE.MeshStandardMaterial({color:MAP.theme.water,roughness:.25,metalness:.1,transparent:true,opacity:.88})));
   m.rotation.x=-Math.PI/2; m.position.y=0; m.receiveShadow=true; scene.add(m);
 }
 
@@ -141,7 +177,7 @@ const batPickups=[];
   const bx=SPAWN.x+7, bz=SPAWN.z+7; add(bx,H(bx,bz)+1.3,bz);
   const busy=(x,z)=>sparks.some(s=>Math.hypot(s.pos.x-x,s.pos.z-z)<3)||gliderPickups.some(g=>Math.hypot(g.pos.x-x,g.pos.z-z)<3);
   for (const r of rocks){ if (batPickups.length>=3) break; if (!busy(r.x,r.z)) add(r.x,r.top+1.6,r.z); }
-  for (let k=0;k<60 && batPickups.length<5;k++){ const x=(R()-.5)*S*.5, z=(R()-.5)*S*.5, g=H(x,z); if (g>3 && slopeAt(x,z)<.4 && !busy(x,z)) add(x,g+1.3,z); }
+  for (let k=0;k<60 && batPickups.length<5;k++){ const x=(R()-.5)*S*.5, z=(R()-.5)*S*.5, g=H(x,z); if (g>1 && slopeAt(x,z)<.4 && !busy(x,z)) add(x,g+1.3,z); }
 }
 $("sparks").textContent="0/"+TOTAL;
 
@@ -436,7 +472,7 @@ function controls(dt){
   const speed = sprint ? 13 : 8.5;
   const v=pBody.velocity;
   if (onGround && !attached && !yanked && simTime>knockUntil){
-    const k=1-Math.exp(-14*dt); v.x+=(wish.x*speed-v.x)*k; v.z+=(wish.z*speed-v.z)*k;
+    const k=1-Math.exp(-(MAP.theme.ice?2.6:14)*dt); v.x+=(wish.x*speed-v.x)*k; v.z+=(wish.z*speed-v.z)*k;   // ice: you keep your momentum
   } else if (wish.lengthSq()>0){
     const acc = attached ? 18 : 11, along=v.x*wish.x+v.z*wish.z, wl=wish.length();
     if (along < speed*wl || attached){ v.x+=wish.x*acc*dt; v.z+=wish.z*acc*dt; }
@@ -518,7 +554,7 @@ function respawn(msg){
 let got=0, elapsed=0, finished=false;
 // speedrun: runState is "ready" (waiting for first input), "running" or "done"
 let runState="ready", splits=[], pb=null, gold=[];
-const SPLIT_KEY="skyhook.splits.v1";
+const SPLIT_KEY= MAP.key==="isles" ? "skyhook.splits.v1" : "skyhook.splits.v1."+MAP.key;
 try{ const raw=JSON.parse(localStorage.getItem(SPLIT_KEY)||"null"); if(raw){ if(Array.isArray(raw.pb)&&raw.pb.length) pb=raw.pb.map(Number); if(Array.isArray(raw.gold)) gold=raw.gold.map(Number); } }catch(e){}
 const saveSplits=()=>{ try{ localStorage.setItem(SPLIT_KEY,JSON.stringify({pb,gold})); }catch(e){} };
 const fmt=s=>`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,"0")}`;
@@ -542,7 +578,7 @@ function finishRun(){
   const newPb = prev==null || final<prev;
   if (newPb){ pb=splits.slice(); saveSplits(); }
   $("best").textContent="Personal best for all sparks: "+fmtT(pb[TOTAL-1]);
-  raceLive=false; announce(newPb?"pb":"finish", newPb?"New personal best!":"Race complete!",true);
+  announce(newPb?"pb":"finish", newPb?"New personal best!":"Race complete!",true);
   return {final,prev,newPb};
 }
 function restartRun(){
@@ -590,7 +626,7 @@ function showStart(paused){
   $("go").textContent = paused ? "Resume" : "Play";
 }
 $("go").addEventListener("click",()=>{
-  audioOn(); $("start").hidden=true; running=true; clock.getDelta();
+  audioOn(); $("start").hidden=true; running=true; clock.getDelta(); setTimeout(cupAutoStart,300);
   if (isTouch){ $("touch").hidden=false; return; }
   captureMouse();
 });
@@ -628,8 +664,9 @@ function frame(){
     safeT+=dt; if (grounded && safeT>.5 && p.y>2){ safeT=0; lastSafe.copy(p); }
   }
   updateHook(dt);
-  updateRemotes(dt); updateBots(dt); sendPresence(); tickRace(dt);
+  updateRemotes(dt); updateBots(dt); sendPresence(); tickRace(dt); checkRaceEnd();
   updateCamera();
+  updateWeather(dt,camera.position);
   sun.position.set(p.x+SUN_DIR.x*120,p.y+SUN_DIR.y*120,p.z+SUN_DIR.z*120); sun.target.position.set(p.x,p.y,p.z);
   // glider pickups
   if (running && gliderTime>0){ gliderTime=Math.max(0,gliderTime-dt); if (!gliderTime){ gliding=false; toast("Glider folded","Find another cyan pickup."); } }
@@ -662,7 +699,7 @@ function frame(){
   hudT+=dt;
   if (hudT>.1){ hudT=0;
     $("sparks").textContent=`${got}/${TOTAL}`; renderSplits(false); $("speed").textContent=Math.round(Math.hypot(v.x,v.y,v.z)); $("glider").textContent = gliderTime>0 ? Math.ceil(gliderTime)+"s" : "–"; $("bat").textContent = batTime>0 ? Math.ceil(batTime)+"s" : "–"; updateMusic();
-    $("where").textContent=placeName(p); renderPlayers();
+    $("where").textContent=MAP.name+" · "+placeName(p); renderPlayers();
     if (!isTouch){ const h=$("hint");
       if (attached) swings++;
       const html = gliding ? "Gliding. Look down to dive and gain speed, up to float. Fly through updrafts to climb." :
@@ -703,7 +740,7 @@ function sendPresence(){
   if (now-presT < (running?50:1000)) return; presT=now;
   const p=pBody.interpolatedPosition, v=pBody.velocity;
   const h = hook ? [hook.phase==="fly"?1:hook.phase==="attached"?2:3, r2(hook.tip.x),r2(hook.tip.y),r2(hook.tip.z), r2(hook.len||0), hook.remote||""] : 0;
-  room.presence({n:myName(), p:[r2(p.x),r2(p.y),r2(p.z)], v:[r2(v.x),r2(v.y),r2(v.z)], yw:r2(hero.rotation.y), g:gliding?1:0, h, s:got, t:Math.round(elapsed*10)/10, rs:runState, ps:running?0:1, sw:swingN, bt:batTime>0?1:0, hit:lastHit, sp:lastSplash, dk:dunks, bots:botsPayload(), bsp:lastBsp, chat:lastChat, bchat:lastBchat}).catch(()=>{});
+  room.presence({n:myName(), p:[r2(p.x),r2(p.y),r2(p.z)], v:[r2(v.x),r2(v.y),r2(v.z)], yw:r2(hero.rotation.y), g:gliding?1:0, h, s:got, t:Math.round(elapsed*10)/10, rs:runState, ps:running?0:1, mp:MAP.key, sw:swingN, bt:batTime>0?1:0, hit:lastHit, sp:lastSplash, dk:dunks, bots:botsPayload(), bsp:lastBsp, chat:lastChat, bchat:lastBchat}).catch(()=>{});
 }
 function nameSprite(text,color){
   const c=document.createElement("canvas"); let x=c.getContext("2d"); const font="700 30px 'Nunito Sans', system-ui, sans-serif";
@@ -735,6 +772,7 @@ function updateRemotes(dt){
   for (const pr of room.peers()){
     if (pr.sameTab || pr.kind!=="viewer") continue;
     const ps=pr.presence; if (!ps || !vec3(ps.p)) continue;
+    if (ps.mp && ps.mp!==MAP.key) continue;   // they're playing a different map
     seen.add(pr.peer);
     let a=avatars.get(pr.peer); if (!a){ a=makeAvatar(pr.peer); avatars.set(pr.peer,a); }
     if (ps!==a.pres){
@@ -894,15 +932,16 @@ function isBotController(){
 }
 function landNear(c){
   for (let k=0;k<40;k++){ const a=Math.random()*Math.PI*2, d=14+Math.random()*22, x=c.x+Math.cos(a)*d, z=c.z+Math.sin(a)*d;
-    if (Math.abs(x)>HALF*.85 || Math.abs(z)>HALF*.85) continue; const g=H(x,z); if (g>2.5 && slopeAt(x,z)<.5) return [x,g+2,z]; }
+    if (Math.abs(x)>HALF*.85 || Math.abs(z)>HALF*.85) continue; const g=H(x,z); if (g>1 && slopeAt(x,z)<.5) return [x,g+2,z]; }
   return [spawnPos.x+4,spawnPos.y,spawnPos.z+4];
 }
 function spawnBot(i){
   const body=new CANNON.Body({mass:5,shape:new CANNON.Sphere(.5),fixedRotation:true,linearDamping:.01,material:playerMat,collisionFilterGroup:8,collisionFilterMask:1|4});
+  body.allowSleep=false;   // a sleeping body ignores the velocity the AI sets, so bots never sleep
   body.position.set(...landNear(pBody.position)); body.interpolatedPosition.copy(body.position); world.addBody(body);
   const ch=i%CHARACTERS.length, C=CHARACTERS[ch];
   bots.push({id:botSerial++,ch,C,name:C.name,grudge:null,introT:0,lastSay:0,body,yaw:0,hook:null,cd:1.5+Math.random(),grappleCd:2+Math.random()*2,wish:new THREE.Vector3(),speed:7.5,
-    bat:0,swingN:0,knockUntil:-9,jumpT:-9,lastHitBy:null,stuck:0,standing:false,dunks:0,wander:null,wanderT:0,pickup:null});
+    bat:0,swingN:0,knockUntil:-9,jumpT:-9,lastHitBy:null,stuck:0,standing:false,dunks:0,wander:null,wanderT:0,pickup:null,got:new Set(),sparkCount:0,target:null,reel:16});
 }
 function removeBot(b){ world.removeBody(b.body); }
 // characters talk in text only: a speech bubble over their head and a line in the chat log
@@ -921,6 +960,7 @@ function hitBot(key,dir,bat,fromPeer,fromName){
 }
 function creditBot(key){ const b=bots.find(x=>"bot:"+x.id===key); if (b) b.dunks++; }
 function botSplash(b){
+  b.falls=(b.falls||0)+1;
   const by=b.lastHitBy && simTime-b.lastHitBy.t<8 ? b.lastHitBy : null;
   b.body.position.set(...landNear(pBody.position)); b.body.velocity.set(0,0,0); b.body.interpolatedPosition.copy(b.body.position); b.hook=null; b.lastHitBy=null;
   if (!by) return;
@@ -952,10 +992,9 @@ function botThink(b,dt){
   if (b.introT>0){ b.introT-=dt; b.wish.set(0,0,0); return; }
   // grudge: hunt whoever hit us last
   if (b.grudge && simTime<b.grudge.until){ const g=cands.find(c=>c.peer===b.grudge.peer); if (g){ best=g; bd=Math.hypot(g.pos.x-p.x,g.pos.y-p.y,g.pos.z-p.z); } } else b.grudge=null;
-  const chaseRange=40+C.aggr*100;
-  let goal=best && bd<chaseRange ? best.pos : null;
-  // timid characters head for high ground instead of picking fights
-  if (C.aggr<.4 && !b.grudge){ if (!b.perch || b.perchT<=0){ const q=pillars[(Math.random()*pillars.length)|0]; b.perch=new THREE.Vector3(q.x,q.top+1,q.z); b.perchT=12; } b.perchT-=dt; if (!best || bd>6) goal=b.perch; }
+  // aggressive characters break off the race to fight anyone who comes close; grudges always win
+  const fightRange = b.grudge ? 120 : (C.aggr>.4 ? 6+C.aggr*22 : 0);
+  let goal = best && bd<fightRange ? best.pos : null;
   // fear: run from anyone close, especially if they carry a bat
   let fleeing=false;
   if (best && bd<12){ const armed = best.me ? batTime>0 : !!(avatars.get(best.peer)&&avatars.get(best.peer).pres&&avatars.get(best.peer).pres.bt);
@@ -967,6 +1006,7 @@ function botThink(b,dt){
   b.pickup=null;
   if (b.bat<=0) for (const g of batPickups){ if (g.cd>0) continue; const d=g.pos.distanceTo(tmpV.set(p.x,p.y,p.z)); if (d<35 && d<bd*.8){ goal=g.pos; b.pickup=g; break; } }
   if (b.pickup && b.pickup.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<2.2){ b.bat=BAT_TIME; b.pickup.cd=BAT_RESPAWN; b.pickup.grp.visible=b.pickup.beam.visible=false; toast(b.name+" grabbed a bat"); announce("enemybat",b.name+" has the bat. Run!"); b.pickup=null; }
+  if (!goal && !b.pickup){ if (botRace(b,dt)){ botHop(b,dt); return; } }
   if (!goal){ b.wanderT-=dt; if (!b.wander || b.wanderT<=0){ b.wander=new THREE.Vector3(...landNear(p)); b.wanderT=6; } goal=b.wander; }
   const gx=goal.x-p.x, gz=goal.z-p.z, gd=Math.hypot(gx,gz);
   if (gd>1.2) b.wish.set(gx/gd,0,gz/gd); else b.wish.set(0,0,0);
@@ -983,17 +1023,126 @@ function botThink(b,dt){
     const hit=bRay.intersectObjects(grappleables,false).find(h=>!h.object.userData.remote && !h.object.userData.body);
     if (hit && hit.distance>6) b.hook={point:hit.point.clone(),len:hit.distance*.95,t:0};
   }
-  // hop when stuck against something
-  const hs=Math.hypot(v.x,v.z);
+  botHop(b,dt);
+}
+// hop when stuck against something; face the way we're moving
+function botHop(b,dt){
+  const v=b.body.velocity, hs=Math.hypot(v.x,v.z);
   if (b.standing && b.wish.lengthSq()>0 && hs<2){ b.stuck+=dt; if (b.stuck>.5){ v.y=11; b.jumpT=simTime; b.stuck=0; } } else b.stuck=0;
   if (hs>1) b.yaw=Math.atan2(-v.x,-v.z);
+}
+// ---------- spark racing ----------
+// Anchors are places a bot can swing to: pillar tops, floating rocks and tree tops.
+let ANCHORS=null;
+function buildAnchors(){
+  ANCHORS=[...pillars.map(q=>({x:q.x,y:q.top-.6,z:q.z,stand:true})), ...rocks.map(r=>({x:r.x,y:r.y,z:r.z,stand:true})), ...trees.map(t=>({x:t.x,y:t.top-1.5,z:t.z,stand:false}))];
+}
+const botParams=C=>Object.assign({},BOT_PARAMS.default,BOT_PARAMS[C.key]||{});
+function pickSpark(b,P){
+  const p=b.body.position; let best=null, bc=1e9;
+  sparks.forEach((s,i)=>{ if (b.got.has(i) || (b.skip && b.skip.get(i)>simTime)) return; const c=Math.hypot(s.pos.x-p.x,s.pos.z-p.z)+Math.max(0,s.pos.y-p.y)*P.heightCost; if (c<bc){ bc=c; best=i; } });
+  return best;
+}
+// what a spark sits on: a pillar, a floating rock or a tree (radius of its top), or nothing
+function supportOf(T){
+  for (const q of pillars) if (Math.hypot(q.x-T.x,q.z-T.z)<1.5 && Math.abs(q.top-T.y)<3) return {r:q.w/2+.2};
+  for (const r of rocks) if (Math.hypot(r.x-T.x,r.z-T.z)<1.5 && Math.abs(r.top-T.y)<3) return {r:r.r*.85};
+  for (const t of trees) if (Math.hypot(t.x-T.x,t.z-T.z)<1.5) return {r:1.4};
+  return null;
+}
+// aim at the near rim of the support, just below the top surface
+function rimAim(p,T,P){
+  const sup=supportOf(T), dx=p.x-T.x, dz=p.z-T.z, d=Math.hypot(dx,dz)||1, r=sup?sup.r*.9:0;
+  return {x:T.x+dx/d*r, y:T.y-P.aimDrop, z:T.z+dz/d*r};
+}
+// is there sea between here and there? (walking would drown us)
+function waterBetween(p,T){ for (let k=1;k<=8;k++){ const t=k/9, x=p.x+(T.x-p.x)*t, z=p.z+(T.z-p.z)*t; if (H(x,z)<-.3) return true; } return false; }
+// a stepping anchor that gets us closer to T, preferring height
+function stepAnchor(p,T,P){
+  const d0=Math.hypot(T.x-p.x,T.z-p.z); let best=null, bs=-1e9;
+  for (const A of ANCHORS){
+    const da=Math.hypot(A.x-p.x,A.z-p.z), dAT=Math.hypot(T.x-A.x,T.z-A.z), dy=A.y-p.y;
+    if (da<P.stepMin || da>P.stepMax || dy<-4 || A.y<5) continue;
+    const progress=d0-dAT; if (progress<6) continue;
+    const sc=progress+Math.min(dy,25)*.3-(A.stand?0:6);
+    if (sc>bs){ bs=sc; best=A; }
+  }
+  return best;
+}
+function fireBotHook(b,aim,P){
+  const p=b.body.position; if (aim.y < p.y-2) return false;   // only hook things level with or above us
+  const from=new THREE.Vector3(p.x,p.y+1,p.z), dir=new THREE.Vector3(aim.x,aim.y,aim.z).sub(from), dl=dir.length(); if (dl<4) return false;
+  dir.divideScalar(dl); bRay.set(from,dir); bRay.far=Math.min(78,dl+6);
+  const hit=bRay.intersectObjects(grappleables,false).find(h=>!h.object.userData.remote && !h.object.userData.body);
+  if (!hit || hit.distance<5) return false;
+  b.hook={point:hit.point.clone(),len:hit.distance*P.lenFactor,t:0}; b.reel=P.reel; return true;
+}
+function botRace(b,dt){
+  const C=b.C, P=botParams(C), p=b.body.position, v=b.body.velocity;
+  if (!ANCHORS) buildAnchors();
+  if (b.target==null || b.got.has(b.target)){ b.target=pickSpark(b,P); b.targetT=0; }
+  if (b.target==null){ if (b.skip && b.skip.size){ b.skip.clear(); b.target=pickSpark(b,P); b.targetT=0; } if (b.target==null) return false; }
+  // give up on a spark we can't reach for now, and come back to it later
+  b.targetT=(b.targetT||0)+dt;
+  if (b.targetT>14){ (b.skip||(b.skip=new Map())).set(b.target,simTime+40); b.target=null; b.hook=null; return true; }
+  const T=sparks[b.target].pos;
+  if (Math.hypot(T.x-p.x,T.y-p.y,T.z-p.z)<2.3){
+    b.got.add(b.target); b.sparkCount++; b.target=null; if (b.sparkCount>=TOTAL) b.doneT=simTime-raceStartSim;
+    if (b.sparkCount===TOTAL){ toast(b.name+" collected every spark!"); botSay(C,C.taunt,true); }
+    return true;
+  }
+  const dx=T.x-p.x, dz=T.z-p.z, hd=Math.hypot(dx,dz)||1, ux=dx/hd, uz=dz/hd;
+  b.wish.set(ux,0,uz); b.speed=11*C.speed;
+  // stuck right under the thing the spark sits on: back off sideways so the hook has an angle
+  if (!b.hook && hd<6 && T.y-p.y>3.5){ b.backoff=(b.backoff||0)+dt; } else if (hd>12) b.backoff=0;
+  if (b.backoff>.6 && b.backoff<2.4){ const sx=-ux*.8+uz*.6, sz=-uz*.8-ux*.6; b.wish.set(sx,0,sz); return true; }
+  if (b.backoff>=2.4) b.backoff=0;
+  if (b.hook){
+    b.hook.t+=dt;
+    const A=b.hook.point, ad=Math.hypot(A.x-p.x,A.y-p.y,A.z-p.z);
+    const overTarget = p.y>T.y+1 && hd<6;
+    const atRim = hd<4.5 && p.y>T.y-2.5;
+    if (ad<P.releaseDist || p.y>A.y-.5 || overTarget || atRim || b.hook.t>4.5){
+      // let go: boost up only if the target is above us, forward only if it's still far
+      const up = T.y>p.y+1 ? P.boostUp : 0;
+      v.y = up ? Math.max(v.y,0)+up : Math.min(v.y,4);
+      if (hd>8){ v.x+=ux*P.boostFwd; v.z+=uz*P.boostFwd; }
+      b.hook=null; b.jumpT=simTime; b.grappleCd=P.cooldown;
+    }
+    return true;
+  }
+  // in the air: steer hard toward the target, and brake to drop onto it from above
+  if (!b.standing){
+    b.airAcc=16;
+    if (hd<5 && p.y>T.y-1){ const k=Math.exp(-4*dt); v.x*=k; v.z*=k; }
+    const hs=Math.hypot(v.x,v.z); if (hs>30){ v.x*=30/hs; v.z*=30/hs; }
+  } else b.airAcc=9;
+  // falling toward the sea: grab the nearest anchor above us, like a player catching themselves
+  if (!b.standing && v.y<-4 && H(p.x,p.z)<0 && p.y<30){
+    let rescue=null, rd=1e9;
+    for (const A of ANCHORS){ const d=Math.hypot(A.x-p.x,A.y-p.y,A.z-p.z); if (A.y>p.y-1 && d<60 && d<rd){ rd=d; rescue=A; } }
+    if (rescue && fireBotHook(b,rescue,P)){ b.hook.rescue=true; return true; }
+  }
+  const high = T.y-Math.max(H(T.x,T.z),0) > 3;          // the spark sits on something
+  const wet = waterBetween(p,T);
+  if (b.grappleCd<=0 && (high||wet||hd>60)){
+    b.grappleCd=.35;
+    let ok=false;
+    if (high && hd<P.fireDist && !wet) ok=fireBotHook(b,rimAim(p,T,P),P);
+    if (!ok){ const A=stepAnchor(p,T,P); if (A) ok=fireBotHook(b,A,P); }
+    if (!ok && high && hd<P.fireDist+15) ok=fireBotHook(b,rimAim(p,T,P),P);
+  }
+  // don't walk into the sea: wait at the shore for a grapple
+  if (b.standing && H(p.x+ux*3,p.z+uz*3)<-.2) b.wish.set(0,0,0);
+  if (b.standing && hd<3 && T.y-p.y>1.5 && T.y-p.y<3.5) { v.y=11; b.jumpT=simTime; }
+  return true;
 }
 // per physics step: rope, hover over the ground, walking
 function botsPreStep(dt){
   if (!amController) return;
   for (const b of bots){
     const p=b.body.position, v=b.body.velocity;
-    if (b.hook){ b.hook.len=Math.max(3,b.hook.len-14*dt); const A=b.hook.point, dx=A.x-p.x, dy=A.y-p.y, dz=A.z-p.z, d=Math.hypot(dx,dy,dz)||1;
+    if (b.hook){ b.hook.len=Math.max(3,b.hook.len-(b.reel||14)*dt); const A=b.hook.point, dx=A.x-p.x, dy=A.y-p.y, dz=A.z-p.z, d=Math.hypot(dx,dy,dz)||1;
       if (d>b.hook.len){ const nx=dx/d, ny=dy/d, nz=dz/d, rel=v.x*nx+v.y*ny+v.z*nz, k=Math.max(0,-rel)+(d-b.hook.len)*30*dt; v.x+=nx*k; v.y+=ny*k; v.z+=nz*k; } }
     b.standing=false;
     if (!b.hook && simTime>b.knockUntil && simTime-b.jumpT>.2 && v.y<6){
@@ -1001,13 +1150,19 @@ function botsPreStep(dt){
       if (ny>.6 && h<RIDE+PROBE){ b.standing=true; v.y=Math.max(-20,Math.min(10,(gy+RIDE-p.y)*18))+26*dt; }
     }
     if (b.standing && simTime>b.knockUntil){ const k=1-Math.exp(-10*dt); v.x+=(b.wish.x*b.speed-v.x)*k; v.z+=(b.wish.z*b.speed-v.z)*k; }
-    else if (b.wish.lengthSq()>0){ v.x+=b.wish.x*9*dt; v.z+=b.wish.z*9*dt; }
+    else if (b.wish.lengthSq()>0){ const aa=b.airAcc||9; v.x+=b.wish.x*aa*dt; v.z+=b.wish.z*aa*dt; }
+    if (!b.hook && v.y>22) v.y=22;
+    // hard speed cap: a rope pulling a bot against a wall must never pile up speed
+    const sp=Math.hypot(v.x,v.y,v.z); if (sp>45){ const k=45/sp; v.x*=k; v.y*=k; v.z*=k; }
+    // a rope that isn't bringing us closer is useless: let go
+    if (b.hook){ const A=b.hook.point, d=Math.hypot(A.x-p.x,A.y-p.y,A.z-p.z);
+      if (b.hook.best==null || d<b.hook.best-.5){ b.hook.best=d; b.hook.bestT=simTime; } else if (simTime-b.hook.bestT>1.2){ b.hook=null; b.grappleCd=.8; } }
   }
 }
 function botsPayload(){
   if (!amController || !bots.length) return 0;
   return bots.map(b=>{ const q=b.body.interpolatedPosition, v=b.body.velocity;
-    return [b.id,b.name,r2(q.x),r2(q.y),r2(q.z),r2(v.x),r2(v.y),r2(v.z),r2(b.yaw),b.bat>0?1:0,b.swingN,b.hook?[r2(b.hook.point.x),r2(b.hook.point.y),r2(b.hook.point.z)]:0,b.dunks,b.ch]; });
+    return [b.id,b.name,r2(q.x),r2(q.y),r2(q.z),r2(v.x),r2(v.y),r2(v.z),r2(b.yaw),b.bat>0?1:0,b.swingN,b.hook?[r2(b.hook.point.x),r2(b.hook.point.y),r2(b.hook.point.z)]:0,b.dunks,b.ch,b.sparkCount]; });
 }
 function updateBots(dt){
   const ctrl=isBotController();
@@ -1019,13 +1174,13 @@ function updateBots(dt){
   }
   // gather poses: our own bots, or the ones another player is running
   const now=performance.now(), seen=new Set();
-  const show=(key,name,pos,vel,yaw,bat,swingN,tip,dk,raw,local,ch)=>{
+  const show=(key,name,pos,vel,yaw,bat,swingN,tip,dk,raw,local,ch,sc=0)=>{
     seen.add(key);
     let a=botAvatars.get(key);
     if (!a){ a=makeAvatar(key); const C=CHARACTERS[ch]||CHARACTERS[0]; a.ch=ch; a.C=C;
       a.torso.material.color.set(C.suit); const hat=a.body.children[2]; hat.material=new THREE.MeshStandardMaterial({color:C.hat,roughness:.7});
       a.g.scale.setScalar(C.scale); a.color="#"+new THREE.Color(C.stripes[0]==="#f4f5f0"?C.stripes[1]:C.stripes[0]).lerp(new THREE.Color("#ffffff"),.45).getHexString(); botAvatars.set(key,a); queueIntro(ch,false); }
-    a.name=name; a.dunks=dk;
+    a.name=name; a.dunks=dk; a.sparks=sc;
     if (local){ a.disp.copy(pos); }
     else {
       if (raw!==a.raw){ a.raw=raw; a.recv=now; a.np.copy(pos); a.nv.copy(vel); if (!a.has){ a.disp.copy(a.np); a.has=true; } }
@@ -1058,14 +1213,14 @@ function updateBots(dt){
     else a.rope.visible=a.tip.visible=false;
   };
   if (amController){
-    for (const b of bots) show("bot:"+b.id,b.name,b.body.interpolatedPosition,b.body.velocity,b.yaw,b.bat>0,b.swingN,b.hook?b.hook.point:null,b.dunks,null,true,b.ch);
+    for (const b of bots) show("bot:"+b.id,b.name,b.body.interpolatedPosition,b.body.velocity,b.yaw,b.bat>0,b.swingN,b.hook?b.hook.point:null,b.dunks,null,true,b.ch,b.sparkCount);
   } else {
     for (const a of avatars.values()){
       const list=a.pres && a.pres.bots; if (!Array.isArray(list)) continue;
       for (const e of list.slice(0,8)){
         if (!Array.isArray(e) || e.length<13 || ![e[2],e[3],e[4],e[5],e[6],e[7],e[8]].every(n=>typeof n==="number" && isFinite(n) && Math.abs(n)<5000)) continue;
         const tip=Array.isArray(e[11]) && e[11].length===3 && e[11].every(Number.isFinite) ? new THREE.Vector3(...e[11]) : null;
-        show("bot:"+(e[0]|0),cleanName(e[1]),new THREE.Vector3(e[2],e[3],e[4]),new THREE.Vector3(e[5],e[6],e[7]),e[8],!!e[9],e[10]|0,tip,Math.max(0,e[12]|0),e,false,Math.max(0,Math.min(CHARACTERS.length-1,e[13]|0)));
+        show("bot:"+(e[0]|0),cleanName(e[1]),new THREE.Vector3(e[2],e[3],e[4]),new THREE.Vector3(e[5],e[6],e[7]),e[8],!!e[9],e[10]|0,tip,Math.max(0,e[12]|0),e,false,Math.max(0,Math.min(CHARACTERS.length-1,e[13]|0)),Math.max(0,Math.min(99,e[14]|0)));
       }
     }
   }
@@ -1174,6 +1329,120 @@ Reply in character with ONE short line of playful trash talk or banter, at most 
   }).catch(()=>{});
 }
 
+// ---------------- races, cups and leaderboards ----------------
+// A race ends when someone collects every spark, or after ROUND_TIME. Standings rank sparks, then time.
+// Cups chain several maps (stored in localStorage across the reload between maps) and award points per race.
+// Best times and cup totals are posted with arcade initials to the artifact's shared database.
+const ROUND_TIME=240, POINTS=[10,8,6,5,4,3,2,1];
+const CUP_KEY="skyhook.cup.v1";
+let cup=null, raceStartSim=0, raceOver=false, db=null, boardUnsub=null;
+try{ cup=JSON.parse(localStorage.getItem(CUP_KEY)||"null"); if (cup && !CUPS.some(c=>c.key===cup.key)) cup=null; }catch(e){ cup=null; }
+const saveCup=()=>{ try{ cup ? localStorage.setItem(CUP_KEY,JSON.stringify(cup)) : localStorage.removeItem(CUP_KEY); }catch(e){} };
+const cupDef=()=>cup && CUPS.find(c=>c.key===cup.key);
+{ const sel=$("optCup"); for (const c of CUPS){ const o=document.createElement("option"); o.value=c.key; o.textContent=c.name+" ("+c.maps.map(k=>MAPS[k].name).join(", ")+")"; sel.append(o); } }
+function renderCupState(){
+  const d=cupDef();
+  $("cupState").textContent = d ? `In progress: race ${cup.idx+1} of ${d.maps.length} (${MAPS[d.maps[cup.idx]].name})` : "";
+  $("startCup").textContent = d ? "Quit cup" : "Start cup";
+}
+renderCupState();
+$("startCup").addEventListener("click",()=>{
+  if (cupDef()){ cup=null; saveCup(); renderCupState(); return; }
+  const d=CUPS.find(c=>c.key===$("optCup").value); cup={key:d.key,idx:0,points:{},races:[]}; saveCup();
+  if (d.maps[0]!==MAP.key){ location.hash="map-"+d.maps[0]; location.reload(); } else renderCupState();
+});
+// a cup race starts automatically when you press Play on the cup's current map
+function cupAutoStart(){ const d=cupDef(); if (d && d.maps[cup.idx]===MAP.key && !raceLive && raceCount<=0) beginRace(Date.now(),null); }
+// who is racing and how they're doing
+function standings(){
+  const rows=[{name:myName(),me:true,s:got,t:runState==="done"?elapsed:null}];
+  for (const b of bots) rows.push({name:b.name,bot:true,s:b.sparkCount,t:b.sparkCount>=TOTAL?b.doneT:null});
+  if (!amController) for (const a of botAvatars.values()) rows.push({name:a.name,bot:true,s:a.sparks||0,t:null});
+  for (const a of avatars.values()){ const ps=a.pres||{}; rows.push({name:a.name,s:Number(ps.s)||0,t:ps.rs==="done"?Number(ps.t)||null:null}); }
+  rows.sort((x,y)=>y.s-x.s || (x.t??1e9)-(y.t??1e9));
+  return rows;
+}
+function checkRaceEnd(){
+  if (!raceLive || raceOver || raceCount>0) return;
+  const t=simTime-raceStartSim, rows=standings();
+  if (rows.some(r=>r.s>=TOTAL) || t>=ROUND_TIME) endRace(rows,t);
+}
+function endRace(rows){
+  raceOver=true; raceLive=false;
+  const d=cupDef(), inCup = d && d.maps[cup.idx]===MAP.key;
+  if (inCup){ rows.forEach((r,i)=>{ cup.points[r.name]=(cup.points[r.name]||0)+(POINTS[i]||0); }); cup.races.push(MAP.key); saveCup(); }
+  showResults(rows,inCup,d);
+}
+function standingsTable(rows,withPoints){
+  const tb=$("resTable"); tb.replaceChildren();
+  const hd=document.createElement("div"); hd.className="hd"; for (const t of ["#","Racer","Sparks","Time",withPoints?"Pts":""]){ const s=document.createElement("span"); s.textContent=t; hd.append(s); } tb.append(hd);
+  rows.forEach((r,i)=>{ const row=document.createElement("div"); if (r.me) row.className="me";
+    const cells=[String(i+1), r.name+(r.me?" (you)":r.bot?" · bot":""), r.s+"/"+TOTAL, r.t!=null?fmt(r.t):"–", withPoints?String(r.pts??POINTS[i]??0):""];
+    for (const c of cells){ const s=document.createElement("span"); s.textContent=c; row.append(s); } tb.append(row); });
+}
+function showResults(rows,inCup,d){
+  if (document.pointerLockElement) document.exitPointerLock();
+  const last = inCup && cup.idx>=d.maps.length-1;
+  $("resKicker").textContent = inCup ? `${d.name} · race ${cup.idx+1} of ${d.maps.length}` : MAP.name;
+  $("resTitle").textContent = rows[0].me ? "You win the race!" : rows[0].name+" wins the race";
+  standingsTable(rows,inCup);
+  $("resNote").textContent = inCup ? "Cup points so far: "+Object.entries(cup.points).sort((a,b)=>b[1]-a[1]).map(([n,p])=>`${n} ${p}`).join(" · ") : "";
+  $("resInitials").hidden = !(db && rows.find(r=>r.me) && rows.find(r=>r.me).t!=null);
+  pendingPost = $("resInitials").hidden ? null : {kind:"map",key:MAP.key,t:rows.find(r=>r.me).t};
+  $("resNext").textContent = inCup ? (last ? "See cup results" : "Next race: "+MAPS[d.maps[cup.idx+1]].name) : "Keep playing";
+  $("resNext").onclick = ()=>{ $("results").hidden=true;
+    if (!inCup){ raceOver=false; return; }
+    if (last){ showCupFinal(d); return; }
+    cup.idx++; saveCup(); location.hash="map-"+d.maps[cup.idx]; location.reload(); };
+  $("results").hidden=false; running=false;
+}
+function showCupFinal(d){
+  const rows=Object.entries(cup.points).map(([name,pts])=>({name,pts,me:name===myName(),s:"",t:null})).sort((a,b)=>b.pts-a.pts);
+  $("resKicker").textContent=d.name+" · final standings";
+  $("resTitle").textContent = rows[0] && rows[0].me ? "You won the cup!" : (rows[0]?rows[0].name:"Nobody")+" wins the cup";
+  const tb=$("resTable"); tb.replaceChildren();
+  const hd=document.createElement("div"); hd.className="hd"; for (const t of ["#","Racer","","","Pts"]){ const s=document.createElement("span"); s.textContent=t; hd.append(s); } tb.append(hd);
+  rows.forEach((r,i)=>{ const row=document.createElement("div"); if (r.me) row.className="me"; for (const c of [String(i+1),r.name,"","",String(r.pts)]){ const s=document.createElement("span"); s.textContent=c; row.append(s); } tb.append(row); });
+  const mine=rows.find(r=>r.me);
+  $("resInitials").hidden=!(db && mine); pendingPost = mine ? {kind:"cup",key:d.key,pts:mine.pts} : null;
+  $("resNote").textContent="";
+  $("resNext").textContent="Back to the island";
+  $("resNext").onclick=()=>{ $("results").hidden=true; cup=null; saveCup(); renderCupState(); showStart(false); };
+  $("results").hidden=false;
+}
+// leaderboards
+let pendingPost=null;
+$("initialsIn").addEventListener("input",e=>{ e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,3); });
+$("initialsIn").addEventListener("keydown",e=>e.stopPropagation());
+$("initialsSave").addEventListener("click",async()=>{
+  const ini=$("initialsIn").value; if (!db || !pendingPost || ini.length<1){ toast("Type up to 3 letters"); return; }
+  try{
+    const docData = pendingPost.kind==="map" ? {i:ini,t:Math.round(pendingPost.t*100)/100,ts:Date.now()} : {i:ini,p:pendingPost.pts,ts:Date.now()};
+    await db.collection(pendingPost.kind==="map" ? `boards/${pendingPost.key}/runs` : `cups/${pendingPost.key}/results`).add(docData);
+    try{ localStorage.setItem("skyhook.initials",ini); }catch(e){}
+    $("resInitials").hidden=true; pendingPost=null; toast("Score posted","Friends will see it on the board.");
+  }catch(e){ toast("Couldn't post the score", e && e.code==="permission_denied" ? "Ask the owner to make you a Contributor." : "Try again in a moment."); }
+});
+try{ const ini=localStorage.getItem("skyhook.initials"); if (ini) $("initialsIn").value=ini; }catch(e){}
+function watchBoard(){
+  if (!db) return;
+  if (boardUnsub) boardUnsub();
+  $("boards").hidden=false; $("boardTitle").textContent=`Best full-clear times · ${MAP.name}`;
+  let myIni=""; try{ myIni=localStorage.getItem("skyhook.initials")||""; }catch(e){}
+  const done=setTimeout(()=>{ if (!$("boardList").childElementCount) { const e=document.createElement("div"); e.textContent="No times yet. Collect all 15 sparks to post one."; $("boardList").replaceChildren(e); } },10000);
+  boardUnsub=db.collection(`boards/${MAP.key}/runs`).orderBy("t","asc").limit(10).onSnapshot(snap=>{
+    clearTimeout(done);
+    const list=$("boardList"); list.replaceChildren();
+    if (!snap.docs.length){ const e=document.createElement("div"); e.textContent="No times yet. Collect all 15 sparks to post one."; list.append(e); return; }
+    snap.docs.forEach((doc,i)=>{ const v=doc.data()||{}; const row=document.createElement("div"); const ini=String(v.i||"???").replace(/[^A-Z0-9]/g,"").slice(0,3);
+      if (ini===myIni) row.className="me";
+      const a=document.createElement("span"); a.textContent=String(i+1); const b=document.createElement("b"); b.textContent=ini;
+      const c=document.createElement("span"); c.textContent=Number.isFinite(v.t)?fmtT(v.t):"–"; const dd=document.createElement("small"); dd.textContent=v.ts?new Date(v.ts).toLocaleDateString():"";
+      row.append(a,b,c,dd); list.append(row); });
+  },()=>{ $("boards").hidden=true; });
+}
+if (window.claude && typeof window.claude.use==="function") window.claude.use("db").then(x=>{ db=x; watchBoard(); }).catch(()=>{});
+
 // ---------------- announcer ----------------
 // Uses Claude's voice where the viewer offers it, otherwise the browser's own speech voice.
 // Each line has a key so recorded clips can replace the synthetic voice later.
@@ -1249,13 +1518,15 @@ function updateMusic(){
   else if (!want && musicOn){ musicOn=false; musicBus.gain.setTargetAtTime(0,ac.currentTime,.3); const tm=mTimer; setTimeout(()=>{ if(!musicOn) clearInterval(tm); },1200); }
 }
 // settings
+{ const sel=$("optMap"); for (const k of Object.keys(MAPS)){ const o=document.createElement("option"); o.value=k; o.textContent=MAPS[k].name; sel.append(o); } sel.value=MAP.key;
+  sel.addEventListener("change",()=>{ if (sel.value!==MAP.key){ location.hash="map-"+sel.value; location.reload(); } }); }
 $("optMusic").value=audioOpts.music; $("optSfx").checked=audioOpts.sfx; $("optVoice").checked=audioOpts.voice;
 function saveAudio(){ audioOpts.music=$("optMusic").value; audioOpts.sfx=$("optSfx").checked; audioOpts.voice=$("optVoice").checked; try{ localStorage.setItem("skyhook.audio",JSON.stringify(audioOpts)); }catch(e){} if (sfxBus) sfxBus.gain.value=audioOpts.sfx?1:0; updateMusic(); }
 ["optMusic","optSfx","optVoice"].forEach(id=>$(id).addEventListener("change",saveAudio));
 
 // races: whoever presses Start race bumps a number in their presence; everyone who sees it restarts with a countdown
 function beginRace(id,byName){
-  raceId=id; restartRun(); raceLive=true; raceCount=3; announce("race","Race starting!",true);
+  raceId=id; restartRun(); raceLive=true; raceOver=false; raceStartSim=simTime+3; raceCount=3; for (const b of bots){ b.got.clear(); b.sparkCount=0; b.target=null; b.hook=null; } announce("race","Race starting!",true);
   for (const a of botAvatars.values()) queueIntro(a.ch,true); tone(440,.15,"square",.05);
   toast("3", byName ? byName+" started a race" : "Race starting for everyone on the island");
 }
@@ -1273,18 +1544,18 @@ function renderPlayers(){
   panel.hidden=false;
   const rows=[{name:myName()+" (you)",color:"#7ce0ff",s:got,t:elapsed,rs:runState,me:1,dk:dunks}];
   for (const a of avatars.values()){ const ps=a.pres||{}; rows.push({name:a.name+(ps.ps?" · paused":""),color:a.color,s:Number(ps.s)||0,t:Number(ps.t)||0,rs:String(ps.rs||""),dk:Math.max(0,Number(ps.dk)||0)}); }
-  for (const a of botAvatars.values()) rows.push({name:"Bot "+a.name,color:a.color,s:-1,t:0,rs:"",dk:a.dunks||0,bot:1});
+  for (const a of botAvatars.values()) rows.push({name:"Bot "+a.name,color:a.color,s:a.sparks||0,t:0,rs:"",dk:a.dunks||0,bot:1});
   rows.sort((x,y)=>y.s-x.s || x.t-y.t || y.dk-x.dk);
   const key=rows.map(r=>r.name+r.s+Math.floor(r.t)+r.rs+"d"+r.dk).join("|"); if (key===plKey) return; plKey=key;
   $("plCount").textContent=(rows.length-botAvatars.size)+" players"+(botAvatars.size?" · "+botAvatars.size+" bots":"");
   $("plList").replaceChildren(...rows.map(r=>{ const d=document.createElement("div"); d.className="pl"+(r.me?" me":"");
     const dot=document.createElement("i"); dot.style.background=r.color; const n=document.createElement("span"); n.textContent=r.name;
-    const sc=document.createElement("span"); sc.textContent=(r.bot?"":r.s+"/"+TOTAL)+(r.dk?(r.bot?"":" · ")+r.dk+" dunk"+(r.dk>1?"s":""):""); const tm=document.createElement("small"); tm.textContent = r.rs==="done" ? fmtT(r.t) : r.rs==="running" ? fmt(r.t) : "–";
+    const sc=document.createElement("span"); sc.textContent=r.s+"/"+TOTAL+(r.dk?" · "+r.dk+" dunk"+(r.dk>1?"s":""):""); const tm=document.createElement("small"); tm.textContent = r.rs==="done" ? fmtT(r.t) : r.rs==="running" ? fmt(r.t) : "–";
     d.append(dot,n,sc,tm); return d; }));
 }
 addEventListener("resize",()=>{ renderer.setSize(innerWidth,innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); });
 // interpolated poses start at the origin until the first physics step
 for (const b of world.bodies){ b.interpolatedPosition.copy(b.position); b.interpolatedQuaternion.copy(b.quaternion); }
 // small hook for automated testing; not used by the game itself
-window.__skyDebug={ chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded };
+window.__skyDebug={ forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded };
 frame();

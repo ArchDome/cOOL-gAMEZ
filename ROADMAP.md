@@ -26,20 +26,20 @@ This file is the work queue for Claude sessions, including unattended and schedu
 ## Queue
 
 ### Smart bots
-- [ ] Navigation graph of grapple anchors (pillar tops, rocks, trees, islets) built at map load. Each edge is "can swing from A to B", verified by simulated swings.
-- [ ] Swing executor: fire at the next anchor, reel to a target length, release at the right phase for momentum, then chain to the next.
-- [ ] Bots race for sparks. Each bot has its own spark set, plans a route with A*, and shows its spark count in the players panel.
-- [ ] Personality on top of skill: Yuki takes risky high routes, Lars takes slow ground routes, Matteo abandons the race to fight, Pip avoids players.
-- [ ] Training loop: `npm run train-bots` runs headless episodes through `__skyDebug.tick`, evolves the swing parameters per character (fitness: sparks per minute, minus falls), and writes `skyhook-isles/js/bot-params.js`. Re-runnable.
+- [x] (Done as an anchor list with stepping-anchor choice, not a full graph; revisit with A* if bots plateau.) Navigation graph of grapple anchors (pillar tops, rocks, trees, islets) built at map load. Each edge is "can swing from A to B", verified by simulated swings.
+- [x] Swing executor: fire at the next anchor, reel to a target length, release at the right phase for momentum, then chain to the next.
+- [x] Bots race for sparks. Each bot has its own spark set, plans a route with A*, and shows its spark count in the players panel.
+- [ ] Personality on top of skill (partly done: fighting, fleeing and grudges already override racing): Yuki takes risky high routes, Lars takes slow ground routes, Matteo abandons the race to fight, Pip avoids players.
+- [x] Training loop: `npm run train-bots` runs headless episodes through `__skyDebug.tick`, evolves the swing parameters per character (fitness: sparks per minute, minus falls), and writes `skyhook-isles/js/bot-params.js`. Re-runnable.
 
 ### Maps and cups
-- [ ] Map select on the start screen, with maps loaded by key and the world rebuilt when switching.
-- [ ] Map 2: rainy neon city inspired by Hong Kong. Dense towers, signs, wet streets, rooftops to grapple, rain particles.
-- [ ] Map 3: volcanic island. Lava sea, basalt columns, ash updrafts.
-- [ ] Map 4: frozen glacier. Ice spires, slippery ground, aurora sky.
-- [ ] Map 5: junkyard canyon. Cranes, stacked cars, magnet anchors.
-- [ ] Cups: a map pack of 3 maps, points per map by finishing order, best total wins. Podium screen.
-- [ ] Leaderboards with arcade-style initials per map and per cup, using the artifact `db` capability so friends see the same board.
+- [x] Map select on the start screen, with maps loaded by key and the world rebuilt when switching.
+- [x] Map 2: rainy neon city inspired by Hong Kong. Dense towers, signs, wet streets, rooftops to grapple, rain particles.
+- [x] Map 3: volcanic island. Lava sea, basalt columns, ash updrafts.
+- [x] Map 4: frozen glacier. Ice spires, slippery ground, aurora sky.
+- [x] Map 5: junkyard canyon. Cranes, stacked cars, magnet anchors.
+- [x] Cups: a map pack of 3 maps, points per map by finishing order, best total wins. Podium screen.
+- [x] Leaderboards with arcade-style initials per map and per cup, using the artifact `db` capability so friends see the same board.
 
 ### Later
 - [ ] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
@@ -50,3 +50,7 @@ This file is the work queue for Claude sessions, including unattended and schedu
 ## Questions for the owner
 
 (Unattended sessions add questions here instead of stopping.)
+
+- Leaderboard posting needs friends to be **Contributors** in the Share menu (viewers can read but not post). OK as is?
+- Cups are currently single-player: you vs the bots, with friends on the same map counted in the standings. Fully synced multiplayer cups, where the host picks and everyone switches maps together, are possible next. Want that?
+- Map Pack 2 reuses Neon Harbour as its third map. Want a sixth map instead?
