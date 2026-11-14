@@ -4,6 +4,14 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14: The French announcer is back
+
+- The owner liked a French woman's announcer voice from earlier. The code never chose one on purpose: the announcer asked for the artifact TTS "rounded" voice and otherwise fell back to whatever the browser offered, so it was most likely a French device voice reading the English lines.
+- It's now a deliberate setting: **Settings → Audio → Announcer voice: French (her)** (default) or Classic. It picks a French female voice from the device (Amélie, Audrey, Aurélie, Marie, Virginie, Julie, Céline, Chantal and so on, or any French voice) and reads the English lines with that accent. If the device has no French voice, it falls back to the classic voice. Bot voices are unchanged (still text only).
+- Recorded clips in `voice/` still take priority over either synthetic voice.
+
+---
+
 ## 2026-11-14: Character models
 
 - Each cast member is now dressed by `dressBody()` instead of being the same body recolored. They get their own skin tone on the head and hands, eyes, a three-stripe chest band in their flag colors, and legs with boots that swing while walking, kick while falling and trail while gliding.

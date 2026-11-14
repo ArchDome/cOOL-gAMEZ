@@ -84,6 +84,11 @@ const { openGame, checker } = require('./harness');
     const sn2 = await page.evaluate(() => window.__skyDebug.sniper());
     c.check('the spin sniper needs a 360 to charge, then fires', sn0.held === 'sniper' && sn1.sniperCharge > 0 && sn2.held === null, JSON.stringify([sn0, sn1, sn2]));
 
+    // French announcer: picks a French woman's voice from the device's list (fake list, like an iPad's)
+    const fr = await page.evaluate(() => { const d = window.__skyDebug, L = [{ name: 'Samantha', lang: 'en-US' }, { name: 'Thomas', lang: 'fr-FR' }, { name: 'Amélie', lang: 'fr-CA' }, { name: 'Daniel', lang: 'en-GB' }];
+      const v = d.pickFrenchVoice(L); return { pick: v && v.name, none: d.pickFrenchVoice([{ name: 'Alex', lang: 'en-US' }]), def: d.settings.announcer, opt: document.getElementById('optAnnouncer').value }; });
+    c.check('the French announcer is the default and picks a French female voice', fr.pick === 'Amélie' && fr.none === null && fr.def === 'french' && fr.opt === 'french', JSON.stringify(fr));
+
     // Ground punch: swinging at the ground while falling bounces you up; the bat bounces higher
     const punch = await page.evaluate(() => {
       const d = window.__skyDebug, b = d.body, out = {};
