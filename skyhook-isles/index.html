@@ -146,6 +146,9 @@ body.sumo #splits{display:none}
 .cuadd button{font:700 14px var(--body);color:var(--ink);background:rgba(124,224,255,.18);border:1px solid var(--hook);border-radius:8px;padding:6px 12px}
 .curules{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;font-size:14px;font-weight:700}
 .curules input[type=checkbox]{accent-color:var(--hook);width:16px;height:16px}
+.resprompt{text-align:center;font-weight:800;font-size:14px;letter-spacing:.06em;color:var(--muted);animation:respulse 1.4s ease-in-out infinite}
+@keyframes respulse{50%{opacity:.35}}
+#results,#results .card{cursor:pointer}#results input{cursor:text}
 .toast small{display:block;font-family:var(--body);font-weight:700;font-size:15px;color:var(--ink);margin-top:6px}
 .overlay{position:fixed;inset:0;display:grid;place-items:center;overflow:auto;background:radial-gradient(ellipse at 50% 35%,rgba(20,32,56,.35),rgba(12,18,32,.82));
   padding-block:calc(env(safe-area-inset-top,0px) + 16px) calc(env(safe-area-inset-bottom,0px) + 16px);
@@ -245,6 +248,7 @@ body.sumo #splits{display:none}
   <div style="font-size:13px;color:var(--muted)" id="resNote"></div>
   <div class="awards" id="awards" hidden></div>
   <button class="go" type="button" id="resNext">Next race</button>
+  <div class="resprompt" id="resPrompt">Click anywhere to continue</div>
 </div></div>
 <div class="chatlog" id="chatlog" aria-live="polite"></div>
 <div class="chatbar" id="chatbar" hidden><input id="chatIn" type="text" maxlength="140" autocomplete="off" placeholder="Say something… (Enter to send, Esc to cancel)"><button type="button" id="chatMic" title="Voice to text">Mic</button><button type="button" id="chatSend">Send</button></div>

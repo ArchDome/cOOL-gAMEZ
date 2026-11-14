@@ -4,6 +4,14 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14: Slow-motion finish, click to continue
+
+- When a match ends (the final spark is grabbed, the clock runs out, or someone reaches the KO target), time ramps down to 20% over about 0.3 s and stays there for 3 s of real time. There's a white flash, a low boom, a camera shake, and the music dips. Then the leaderboard appears. Physics, timers and the camera all run on the scaled time; the countdown uses real time.
+- The leaderboard shows a pulsing "Click anywhere to continue" ("Tap" on touch). Clicking anywhere (except the initials box), Space or Enter moves on to the next round, or the cup results after the last one. Clicks in the first 0.8 s are ignored so a stray swing doesn't skip it.
+- Tests: race end enters slow motion (time scale under 0.5) with the leaderboard still hidden. The leaderboard then appears, and a click in the corner loads the next cup map.
+
+---
+
 ## 2026-11-14: Speed units
 
 - **Settings → Display → Speed units:** Imperial (ft/s, the default) or Metric (m/s). The physics still runs in metres; only the display converts (× 3.28084). The Speed Demon award uses the same units. Saved per device.

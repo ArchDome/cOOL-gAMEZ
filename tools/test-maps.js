@@ -86,10 +86,19 @@ const { openGame, checker } = require('./harness');
   c.check('cup starts and auto-starts the first race', cupState.cup && cupState.cup.idx === 0 && (cupState.race.raceCount > 0 || cupState.race.raceLive), JSON.stringify(cupState));
   // finishing: force the end of the race and check points are awarded and Next goes to map 2
   await page.evaluate(() => window.__skyDebug.forceRaceEnd());
-  await page.waitForTimeout(400);
+  // the finish: slow motion first, then the leaderboard
+  const sm = await page.evaluate(() => ({ slowmo: window.__skyDebug.race().slowmo, hidden: document.getElementById('results').hidden }));
+  await page.waitForFunction(() => window.__skyDebug.race().timeScale < .5 || !document.getElementById('results').hidden, null, { timeout: 30000 }).catch(() => {});
+  sm.scale = await page.evaluate(() => window.__skyDebug.race().timeScale);
+  c.check('race end slows time before showing the leaderboard', sm.slowmo && sm.hidden && sm.scale < .5, JSON.stringify(sm));
+  await page.waitForFunction(() => !document.getElementById('results').hidden, null, { timeout: 60000 }).catch(() => {});
   const res = await page.evaluate(() => ({ visible: !document.getElementById('results').hidden, next: document.getElementById('resNext').textContent, cup: JSON.parse(localStorage.getItem('skyhook.cup.v1')) }));
   c.check('race results award cup points', res.visible && Object.keys(res.cup.points).length >= 1 && /Next race: Neon Harbour/.test(res.next), JSON.stringify(res));
-  await page.click('#resNext'); await page.waitForFunction(() => location.hash === '#map-neon' && window.__skyDebug, null, { timeout: 30000 });
+  // click anywhere on the leaderboard to move on (after a short guard against stray clicks)
+  await page.waitForTimeout(900);
+  const navN = page.waitForNavigation({ timeout: 30000 }).catch(() => null);
+  await page.mouse.click(20, 20); await navN;
+  await page.waitForFunction(() => location.hash === '#map-neon' && window.__skyDebug, null, { timeout: 30000 });
   c.check('next race loads the next map in the cup', await page.evaluate(() => JSON.parse(localStorage.getItem('skyhook.cup.v1')).idx === 1));
   const aw = await page.evaluate(() => {
     const d = window.__skyDebug, cup = d.cup(), saved = Object.keys(cup.stats || {}).length;
@@ -113,7 +122,9 @@ const { openGame, checker } = require('./harness');
       const a = bs[0], t = bs[1]; t.body.position.set(a.body.position.x + 1.2, a.body.position.y, a.body.position.z); t.body.velocity.set(0, 0, 0); t.C = { ...t.C, dodge: 0 };
       a.C = { ...a.C, aggr: 1, fear: 0 }; a.cd = 0; const v0 = Math.hypot(t.body.velocity.x, t.body.velocity.z); d.tick(3);
       bs[2].dunks = 10; d.checkRaceEnd();
-      return { hitSpeed: Math.hypot(t.body.velocity.x, t.body.velocity.z) - v0, ended: !document.getElementById('results').hidden, head: [...document.querySelectorAll('#resTable .hd span')].map(x => x.textContent).join(',') }; });
+      return { hitSpeed: Math.hypot(t.body.velocity.x, t.body.velocity.z) - v0 }; });
+    await page.waitForFunction(() => !document.getElementById('results').hidden, null, { timeout: 60000 }).catch(() => {});
+    Object.assign(sb, await page.evaluate(() => ({ ended: !document.getElementById('results').hidden, head: [...document.querySelectorAll('#resTable .hd span')].map(x => x.textContent).join(',') })));
     c.check('sumo: bots fight each other, and 10 KOs ends the round', sb.hitSpeed > 3 && sb.ended && /KOs/.test(sb.head), JSON.stringify(sb));
     // tactics: a bot stuck in a long stalemate switches target or goes to bait at the edge
     const tac = await page.evaluate(() => { const d = window.__skyDebug, b = d.bots()[0]; if (!b) return { skip: 1 };
