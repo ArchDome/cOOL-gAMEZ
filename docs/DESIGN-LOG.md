@@ -4,6 +4,14 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14: Timer no longer jitters
+
+- **Bug (owner):** the timer box changed width as the digits changed. The display font has proportional digits (a 1 is narrower than an 8), and in the compact HUD the box sizes itself to its text.
+- **Fix:** each character of the clock is rendered in its own fixed-width slot (digits 0.64 em, `:` and `.` 0.32 em), so the width depends only on how many characters there are. The DOM is only rewritten when the text changes.
+- Test: the timer and its box measure the same width for `1:11.11`, `8:08.08` and `0:44.70`, in both Full and Compact HUD.
+
+---
+
 ## 2026-11-14: Custom games, sumo arenas, smarter fighting bots, Pull
 
 **Custom game** (principle 7: everything customizable). Pick *Cup → Custom game…* on the start screen.

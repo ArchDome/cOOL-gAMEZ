@@ -98,6 +98,13 @@ const { openGame, checker } = require('./harness');
       d.setPull(false); d.setHook(null); return { d0: +d0.toFixed(1), d1: +d1.toFixed(1), meMoved: +Math.hypot(me.x - me0.x, me.z - me0.z).toFixed(2) }; });
     c.check('pull drags a hooked crate to you (it travels; you mostly stay put, bar the bump when it arrives)', pl.skip || (pl.d0 - pl.d1 > 6 && pl.meMoved < (pl.d0 - pl.d1) / 2), JSON.stringify(pl));
 
+    // The timer keeps a fixed width while its digits change (no jitter)
+    const clockW = await page.evaluate(() => { const d = window.__skyDebug, el = document.getElementById('timer'), sp = document.getElementById('splits'), out = [];
+      for (const hud of ['full', 'compact']) { d.settings.hud = hud; d.applyInputUI();
+        for (const t of ['1:11.11', '8:08.08', '0:44.70']) { d.setClock(t); out.push([el.getBoundingClientRect().width, sp.getBoundingClientRect().width].map(n => +n.toFixed(2))); } }
+      d.settings.hud = 'full'; d.applyInputUI(); return [out.slice(0, 3), out.slice(3)]; });
+    c.check('the timer box keeps a fixed width as digits change', clockW.every(g => g.every(w => w[0] === g[0][0] && w[1] === g[0][1])), JSON.stringify(clockW));
+
     // Ground punch: swinging at the ground while falling bounces you up; the bat bounces higher
     const punch = await page.evaluate(() => {
       const d = window.__skyDebug, b = d.body, out = {};
