@@ -12,11 +12,12 @@ async function setupPage(page) {
 
 // returns { mean, rows: [{key, start, sparks, falls}] }
 // Reloads the page first: the physics engine keeps internal ordering state, so only a fresh world is exactly reproducible.
-async function evaluate(page, params, chars, seconds, starts = STARTS) {
+async function evaluate(page, params, chars, seconds, starts = STARTS, overrides = null) {
   await page.reload(); await setupPage(page);
-  return page.evaluate(([params, chars, seconds, starts]) => {
+  return page.evaluate(([params, chars, seconds, starts, overrides]) => {
     const d = window.__skyDebug;
     if (params) d.setBotParams('default', params);
+    if (overrides) for (const [k, v] of Object.entries(overrides)) d.setBotParams(k, v);
     const realRandom = Math.random;
     const rows = [];
     try {
@@ -35,7 +36,7 @@ async function evaluate(page, params, chars, seconds, starts = STARTS) {
     } finally { Math.random = realRandom; }
     const mean = rows.reduce((s, r) => s + r.sparks - .5 * r.falls, 0) / rows.length;
     return { mean, rows };
-  }, [params || null, chars, seconds, starts]);
+  }, [params || null, chars, seconds, starts, overrides]);
 }
 
 module.exports = { setupPage, evaluate, STARTS };
