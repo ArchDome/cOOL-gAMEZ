@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { execSync } = require('child_process');
 const { chromium } = require('playwright');
+const http = require('http');
 
 const ROOT = path.resolve(__dirname, '..');
 const LIB_DIR = path.join(__dirname, '.libs');
@@ -39,8 +40,24 @@ function fakeRoomInit() {
   window.claude = { use: (n) => new Promise((r) => setTimeout(() => r(n === 'room' ? room : null), 10)) };
 }
 
-async function openGame(game, { fakeRoom = false, viewport = { width: 1000, height: 620 } } = {}) {
+// Static file server for the repo: games load their code as ES modules, which browsers refuse from file:// URLs.
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.mp3': 'audio/mpeg', '.png': 'image/png', '.css': 'text/css' };
+let server = null, serverPort = 0;
+function startServer() {
+  if (server) return Promise.resolve(serverPort);
+  server = http.createServer((req, res) => {
+    const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '');
+    const file = path.join(ROOT, rel);
+    if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream' });
+    fs.createReadStream(file).pipe(res);
+  });
+  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => { serverPort = server.address().port; server.unref(); resolve(serverPort); }));
+}
+
+async function openGame(game, { fakeRoom = false, viewport = { width: 1000, height: 620 }, hash = '' } = {}) {
   ensureLibs();
+  const port = await startServer();
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] });
   const page = await browser.newPage({ viewport });
   const errors = [];
@@ -50,7 +67,7 @@ async function openGame(game, { fakeRoom = false, viewport = { width: 1000, heig
   }
   await page.route('https://fonts.**', (r) => r.abort());
   if (fakeRoom) await page.addInitScript(fakeRoomInit);
-  await page.goto('file://' + path.join(ROOT, game, 'index.html'));
+  await page.goto(`http://127.0.0.1:${port}/${game}/index.html${hash}`);
   return { browser, page, errors };
 }
 

@@ -97,6 +97,17 @@ const { openGame, checker } = require('./harness');
     const rb = await page.evaluate(() => { const d = window.__skyDebug; return { local: d.bots().length, ctrl: d.ctrl(), shown: [...d.botAvatars.keys()] }; });
     c.check('friend-run bots replace ours', rb.local === 0 && !rb.ctrl && rb.shown.join() === 'bot:7', JSON.stringify(rb));
 
+    // Chat: my message goes out, a friend's message shows up, and a bot answers via (fake) Claude
+    await page.evaluate(() => { window.__skyDebug.setSample(async (prompt) => ({ text: 'Fjord-strong and ready to smash, little friend.' })); window.__skyDebug.sendChatText('hey Lars you are going down'); });
+    await page.waitForTimeout(1000);
+    const chat = await page.evaluate(() => window.__skyDebug.chat());
+    c.check('chat message is sent', chat.lastChat && chat.lastChat.t === 'hey Lars you are going down', JSON.stringify(chat.lastChat));
+    c.check('named bot replies in character', chat.lastBchat && chat.lastBchat.who === 'Lars' && chat.log.some(l => l.startsWith('Lars')), JSON.stringify(chat.lastBchat));
+    await friendAt({ chat: { n: 1, t: 'first' } }); await page.waitForTimeout(1000);
+    await friendAt({ chat: { n: 2, t: 'nice swing' } }); await page.waitForTimeout(1000);
+    c.check('friend chat shows up', (await page.evaluate(() => window.__skyDebug.chat().log)).some(l => l.includes('nice swing')));
+    c.check('the surfer joined the cast', await page.evaluate(() => window.__skyDebug.CHARACTERS.some(c => c.key === 'dylan' && c.from.includes('California'))));
+
     // Race
     await friendAt({ race: 2 }); await page.waitForTimeout(1000);
     const race = await page.evaluate(() => window.__skyDebug.race());

@@ -20,7 +20,7 @@ When you change a game, republish to its existing artifact URL (pass the URL, or
 
 ## Conventions
 
-- **One file per game.** Inline all CSS and JS. External scripts only from the artifact CDN allowlist (cdnjs, cdn.jsdelivr.net/npm, unpkg), pinned to exact versions. Fonts only from Google Fonts.
+- **File layout.** Small games are one `index.html`. `skyhook-isles` is split: `index.html` (page and HUD), `js/main.js` (engine), `js/lib.js`, and `maps/*.js` (one per map, listed in `maps/index.js`). Publish it with the Artifact tool's `files` option for every `js/` and `maps/` file. Otherwise, inline CSS and JS. External scripts only from the artifact CDN allowlist (cdnjs, cdn.jsdelivr.net/npm, unpkg), pinned to exact versions. Fonts only from Google Fonts.
 - **Artifact page rules.** No `<html>`, `<head>` or `<body>` tags: the page starts with `<title>`, then `<style>`. Include `[hidden]{display:none!important}` yourself, because local test runs don't get the artifact skeleton's reset.
 - **Phones and tablets.** The owner plays on an iPad, so every game needs touch controls (on-screen buttons, thumb drag) alongside keyboard and mouse.
 - **Physics timing.** Run physics at a fixed step. Render from interpolated poses (`body.interpolatedPosition` in cannon-es), not the raw ones, or motion jitters on high-refresh screens.
@@ -39,6 +39,10 @@ When you change a game, republish to its existing artifact URL (pass the URL, or
 - **The cloud sandbox blocks cdn.jsdelivr.net**, but npm is reachable. Run `npm pack three@0.160.0 cannon-es@0.20.0` in a scratch folder, unpack, and use Playwright `page.route()` to serve the CDN URLs from those local files. The published page still loads from the CDN.
 - `skyhook-isles` exposes `window.__skyDebug` for automated tests: player body, pillars, sparks, glider pickups, hook and ground state, a view setter, a `keys` set, and `tick(n)`, which steps controls and physics exactly n frames of 1/60 s. Use `tick` for physics measurements, because headless rendering is too slow for real-time timing.
 - The artifact `room` capability doesn't exist in local test runs. To test multiplayer logic, inject a fake `window.claude.use("room")` with Playwright `addInitScript` (implement `presence`, `peers`, `onPeers`, `onConnection` and `connected`, with a scripted fake friend). That still doesn't prove real two-device play, so say so when reporting results.
+
+## Design log
+
+Keep `docs/DESIGN-LOG.md` up to date: add a dated entry for every meaningful change, newest first, with screenshots in `docs/img/`. `node tools/screenshots.js` regenerates the Skyhook shots. Extend it when you add a map or feature worth showing.
 
 ## Audio
 
