@@ -1,0 +1,14 @@
+{
+  "name": "cool-gamez",
+  "private": true,
+  "description": "Browser games plus headless test and audio tooling",
+  "scripts": {
+    "test": "node tools/test-skyhook.js",
+    "test:skyhook": "node tools/test-skyhook.js",
+    "voice": "bash tools/voice/process.sh",
+    "voice:heavy": "PRESET=heavy bash tools/voice/process.sh"
+  },
+  "devDependencies": {
+    "playwright": "1.49.1"
+  }
+}

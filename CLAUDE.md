@@ -31,11 +31,24 @@ When you change a game, republish to its existing artifact URL (pass the URL, or
 
 ## Testing
 
+**Run `npm test` after every change to a game, and fix failures before publishing.** The harness lives in `tools/` (see `tools/README.md`). New games should get their own `tools/test-<game>.js` built on `tools/harness.js`.
+
+
 - Check scripts parse: extract the `<script>` body and run `node --check`, or for module scripts write it to a `.mjs` file first.
 - Run gameplay in headless Chromium with Playwright. Use `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader` for WebGL. It renders slowly, so don't judge frame rate from it.
 - **The cloud sandbox blocks cdn.jsdelivr.net**, but npm is reachable. Run `npm pack three@0.160.0 cannon-es@0.20.0` in a scratch folder, unpack, and use Playwright `page.route()` to serve the CDN URLs from those local files. The published page still loads from the CDN.
 - `skyhook-isles` exposes `window.__skyDebug` for automated tests: player body, pillars, sparks, glider pickups, hook and ground state, a view setter, a `keys` set, and `tick(n)`, which steps controls and physics exactly n frames of 1/60 s. Use `tick` for physics measurements, because headless rendering is too slow for real-time timing.
 - The artifact `room` capability doesn't exist in local test runs. To test multiplayer logic, inject a fake `window.claude.use("room")` with Playwright `addInitScript` (implement `presence`, `peers`, `onPeers`, `onConnection` and `connected`, with a scripted fake friend). That still doesn't prove real two-device play, so say so when reporting results.
+
+## Audio
+
+- Sound effects and music are synthesized with Web Audio, so there are no audio files to ship. Music must be original. Don't recreate or imitate a specific copyrighted song.
+- **Announcer clips:** the owner's recordings go in `tools/voice/raw/<key>.<ext>`. `npm run voice` (ffmpeg) bass-boosts them into `skyhook-isles/voice/`. Publish those files with the artifact via the Artifact tool's `files` option. Line keys are in `tools/voice/LINES.md`.
+
+## Workflow preferences
+
+- The owner wants an AI-optimized workflow. Prefer scriptable, loopable tools (CLI, Node scripts, ffmpeg) with pass/fail exit codes, and tell the owner when something can be run in a loop.
+- When the owner needs software, suggest open-source options first.
 
 ## Zettelkasten
 

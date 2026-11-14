@@ -16,6 +16,7 @@ Built with [Three.js](https://threejs.org) 0.160 for rendering and [cannon-es](h
 | Shift while hooked | Hold Reel | Reel in. Hook a crate to yank it toward you |
 | Space | Jump | Jump and double jump. While hooked, let go with a boost |
 | Hold Space while falling | Hold Jump while falling | Glide (after grabbing a glider pickup) |
+| F (or middle mouse) | Hit | Shove whoever is in front of you; with a bat, a home-run swing |
 | Wheel, R | | Zoom the camera, respawn |
 | T | Restart run | Restart the speedrun (resets sparks, crates and the boulder) |
 | Esc | | Pause. Click the game to capture the mouse again |
@@ -38,6 +39,19 @@ Everyone who opens the artifact link lands on the same island. This uses the cla
 - **Start race** (in the *On the island* panel) gives everyone a 3-2-1 countdown, restarts all runs at once, and lists each player's sparks and time.
 
 **How it works:** each player runs their own physics and shares a small pose (position, velocity, facing, glider, hook) through room presence about 20 times a second. Friends are drawn at their last pose, nudged forward by their velocity and smoothed, so your own movement never waits on the network. The trade-off is that crates and the boulder are local to each player, not shared.
+
+## Messing with each other
+
+- **Shove** (F, or the Hit button) is always available. It's short range with a small knockback and a 0.8 s cooldown, and it also pushes crates around.
+- **Baseball bat:** grab a red pickup (5 on the island, 30 s each). Your shove becomes a home-run swing with big knockback that also knocks people off their rope or glider.
+- **Dunks:** if someone falls into the sea within 8 s of your hit, you get the dunk. Dunks show in the *On the island* panel.
+
+## Sound
+
+Everything is generated live with Web Audio, with no audio files:
+- **Sound effects:** swings, bat cracks, splashes and pickups.
+- **Race music:** an original 132 BPM 90s-style techno track with an acid bassline, chord stabs and breakdowns. The start screen sets it to Always, Races only or Off.
+- **Announcer:** calls out home runs, dunks, power-ups and race starts, using Claude's voice where available or the browser's speech voice otherwise. Recorded clips replace it line by line (see `tools/README.md`).
 
 ## Speedrun timer
 
