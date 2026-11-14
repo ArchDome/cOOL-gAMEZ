@@ -41,6 +41,12 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] Cups: a map pack of 3 maps, points per map by finishing order, best total wins. Podium screen.
 - [x] Leaderboards with arcade-style initials per map and per cup, using the artifact `db` capability so friends see the same board.
 
+### Next ideas (unattended sessions may pick these up)
+- [ ] Synced multiplayer cups: the player who starts a cup broadcasts it, friends follow map switches, and the host's points table is authoritative.
+- [ ] Per-character training runs for the weakest racers (`npm run train-bots -- 10 8 40 kofi`, then pip), on a repo copy.
+- [ ] Bots that use the glider (they can grab pickups but never glide).
+- [ ] A sixth map so Map Pack 2 doesn't reuse Neon Harbour.
+
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.
