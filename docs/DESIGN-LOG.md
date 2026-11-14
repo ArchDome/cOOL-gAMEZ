@@ -4,6 +4,15 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14: Pop-ups only when it involves you
+
+- Owner feedback: no notifications when other players attack each other. Removed the pop-ups and announcer lines for: a bot dodging someone else's swing, friends or bots grabbing a bat, a friend falling in without your help, and a bot finishing its sparks (the final spark alert already covers that).
+- Kept, because they involve you or change your race: hits on you, your hits and dunks, comets aimed at you, traps anyone sets off (they're hazards for you), the final spark appearing or being taken, race countdowns, and cup joins.
+- Test: a friend's bat pickup and a friend's swing at a bot leave the toast empty.
+- New principle added to `docs/DESIGN-PRINCIPLES.md`: pop-ups are for you.
+
+---
+
 ## 2026-11-14: Timer no longer jitters
 
 - **Bug (owner):** the timer box changed width as the digits changed. The display font has proportional digits (a 1 is narrower than an 8), and in the compact HUD the box sizes itself to its text.

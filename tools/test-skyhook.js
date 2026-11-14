@@ -209,6 +209,14 @@ const { openGame, checker } = require('./harness');
       await friendAt({ h: 0 });
     }
 
+    // Pop-ups only for actions that involve you: a friend grabbing a bat or hitting a bot stays quiet
+    const quiet = await page.evaluate(() => { const t = document.getElementById('toast'); t.hidden = true; t.textContent = ''; return true; });
+    await friendAt({ bt: 0 }); await page.waitForTimeout(300); await friendAt({ bt: 1 });
+    await page.waitForTimeout(1500);
+    const bk = await page.evaluate(() => { const d = window.__skyDebug, b = d.bots()[0]; if (b) { b.C = { ...b.C, dodge: 1 }; d.hitBot('bot:' + b.id, [1, 0], false, 'fr1end00peer0000', 'Friend'); } const t = document.getElementById('toast'); return { hidden: t.hidden, text: t.textContent }; });
+    c.check('no pop-up when other players act on each other', quiet && (bk.hidden || !/grabbed a bat|dodged/.test(bk.text)), JSON.stringify(bk));
+    await friendAt({ bt: 0 });
+
     // Falling in the sea after being hit credits the friend
     await page.evaluate(() => { const b = window.__skyDebug.body; b.position.set(0, -4, -116); b.velocity.set(0, 0, 0); }); // out over the sea
     await page.waitForFunction(() => { const sp = window.__fake.mine().sp; return sp && sp.n >= 1; }, null, { timeout: 20000 }).catch(() => {});

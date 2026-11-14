@@ -1122,7 +1122,7 @@ function updateRemotes(dt){
       const sp=ps.sp;
       if (sp && typeof sp.n==="number"){ if (!lastSpSeen.has(pr.peer)) lastSpSeen.set(pr.peer,sp.n); else if (sp.n>lastSpSeen.get(pr.peer)){ lastSpSeen.set(pr.peer,sp.n);
         if (myPeer && sp.by===myPeer){ dunks++; faceHappyT=2; announce("dunk","Dunked! "+a.name+" is swimming."); toast("Dunked "+a.name+"!","Straight into the sea."); }
-        else { if (amController && typeof sp.by==="string" && sp.by.startsWith("bot:")) creditBot(sp.by); announce("swim",a.name+" is swimming with the fishes."); } } }
+        else { if (amController && typeof sp.by==="string" && sp.by.startsWith("bot:")) creditBot(sp.by); } } }
       const tp=ps.trp;
       if (tp && typeof tp.n==="number"){ if (!lastTrapSeen.has(pr.peer)) lastTrapSeen.set(pr.peer,tp.n); else if (tp.n>lastTrapSeen.get(pr.peer)){ lastTrapSeen.set(pr.peer,tp.n); if (Number.isInteger(tp.i)) triggerTrap(tp.i,{peer:pr.peer,name:cleanName(tp.by)},false); } }
       const fn=ps.fin;
@@ -1140,7 +1140,7 @@ function updateRemotes(dt){
       const bsp=ps.bsp;
       if (bsp && typeof bsp.n==="number"){ if (!lastBspSeen.has(pr.peer)) lastBspSeen.set(pr.peer,bsp.n); else if (bsp.n>lastBspSeen.get(pr.peer)){ lastBspSeen.set(pr.peer,bsp.n);
         if (myPeer && bsp.by===myPeer){ const nm=cleanName(bsp.name); dunks++; announce("dunk","Dunked! "+nm+" is swimming."); toast("Dunked "+nm+"!","Bots can't swim."); } } }
-      const bt=ps.bt?1:0; if (lastBtSeen.has(pr.peer) && bt && !lastBtSeen.get(pr.peer)){ announce("enemybat",a.name+" has the bat. Run!"); toast(a.name+" grabbed a bat"); } lastBtSeen.set(pr.peer,bt);
+      const bt=ps.bt?1:0; lastBtSeen.set(pr.peer,bt);   // (no pop-up: only actions that involve you get one)
       if (typeof ps.sw==="number"){ if (a.swLast!=null && ps.sw!==a.swLast){ a.swing=1; a.swingBat=!!ps.bt; } a.swLast=ps.sw; }
       if (typeof ps.race==="number"){ if (!raceSeen.has(pr.peer)) raceSeen.set(pr.peer,ps.race); else if (ps.race>raceSeen.get(pr.peer)){ raceSeen.set(pr.peer,ps.race); if (ps.race!==raceId) beginRace(ps.race,a.name,ps.md); } }
     }
@@ -1539,7 +1539,7 @@ function botSay(C,text,priority,log=true){
 function hitBot(key,dir,bat,fromPeer,fromName){
   const b=bots.find(x=>"bot:"+x.id===key); if (!b) return;
   if (b.shieldT>0) return;
-  if (Math.random()<b.C.dodge){ const v=b.body.velocity; v.x+=-dir[1]*9; v.z+=dir[0]*9; v.y=Math.max(v.y,4); b.jumpT=simTime; toast(b.name+" dodged!",b.C.taunt); botSay(b.C,b.C.taunt); return; }
+  if (Math.random()<b.C.dodge){ const v=b.body.velocity; v.x+=-dir[1]*9; v.z+=dir[0]*9; v.y=Math.max(v.y,4); b.jumpT=simTime; if (fromPeer===(myPeer||"me")){ toast(b.name+" dodged!",b.C.taunt); botSay(b.C,b.C.taunt); } return; }
   if (Math.random()<.6) botSay(b.C,b.C.hurt);
   if (b.C.grudge) b.grudge={peer:fromPeer,until:simTime+20};
   const v=b.body.velocity, k=(bat?BAT_K:10)/Math.sqrt(b.C.scale); v.x+=dir[0]*k; v.z+=dir[1]*k; v.y=Math.max(v.y,bat?BAT_UP:5);
@@ -1601,7 +1601,7 @@ function botThink(b,dt){
   if (b.bat<=0 && RULES.bats) for (const g of batPickups){ if (g.cd>0) continue; const d=g.pos.distanceTo(tmpV.set(p.x,p.y,p.z)); if (d<35 && d<bd*.8){ goal=g.pos; b.pickup=g; break; } }
   if (!(b.gliderT>0)) for (const g of gliderPickups){ if (g.cd<=0 && g.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<2.2){ b.gliderT=GLIDE_TIME; g.cd=GLIDER_RESPAWN; g.grp.visible=g.beam.visible=false; break; } }
   if (b.gliderT>0) b.gliderT=Math.max(0,b.gliderT-dt);
-  if (b.pickup && b.pickup.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<2.2){ b.bat=BAT_TIME; b.pickup.cd=BAT_RESPAWN; b.pickup.grp.visible=b.pickup.beam.visible=false; toast(b.name+" grabbed a bat"); announce("enemybat",b.name+" has the bat. Run!"); b.pickup=null; }
+  if (b.pickup && b.pickup.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<2.2){ b.bat=BAT_TIME; b.pickup.cd=BAT_RESPAWN; b.pickup.grp.visible=b.pickup.beam.visible=false; b.pickup=null; }
   if (!goal && !b.pickup){ if (botRace(b,dt)){ botHop(b,dt); return; } }
   if (!goal){ b.wanderT-=dt; if (!b.wander || b.wanderT<=0){ b.wander=new THREE.Vector3(...landNear(p)); b.wanderT=6; } goal=b.wander; }
   if (best && goal===best.pos && !b.pickup) goal=botTactics(b,best,bd,dt) || goal;
@@ -1746,7 +1746,7 @@ function botRace(b,dt){
     T=sparks[b.target].pos;
     if (Math.hypot(T.x-p.x,T.y-p.y,T.z-p.z)<(b.magnetT>0?14:2.3)){
       b.got.add(b.target); b.sparkCount++; b.target=null; if (b.sparkCount>=TOTAL) b.doneT=simTime-raceStartSim;
-      if (b.sparkCount===TOTAL){ toast(b.name+" collected every spark!"); botSay(C,C.taunt,true); if (RULES.final && !finale.active && !finale.got) spawnFinale(finaleSpot(p),b.name,true); }
+      if (b.sparkCount===TOTAL){ botSay(C,C.taunt,true); if (RULES.final && !finale.active && !finale.got) spawnFinale(finaleSpot(p),b.name,true); }
       return true;
     }
   }

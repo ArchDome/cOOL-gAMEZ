@@ -31,6 +31,10 @@ Big events get a fuss: music swells, light shows, the announcer, the camera. A d
 
 The HUD always shows who is winning and who is close behind. Track lots of stats (kills, deaths, sparks, falls, distance, air time) and show them.
 
+## 6b. Pop-ups are for you
+
+Toasts and announcer lines only fire for actions that involve the player: they hit you, you hit someone, something is coming for you, or the race itself changes. Other people's fights stay visual and audible in the world, not on your screen.
+
 ## 7. Everything is customizable
 
 Every setting a player might want to fine-tune should be an option: sensitivity, aim assist, gyro, control scheme, HUD size, audio. Sensible defaults for each device.
