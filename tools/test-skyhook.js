@@ -9,6 +9,7 @@ const { openGame, checker } = require('./harness');
     await page.waitForFunction(() => window.__skyDebug, null, { timeout: 30000 });
     c.check('engine boots', true);
     await page.fill('#nick', 'Tester');
+    await page.selectOption('#optBots', '0'); // movement checks first, without bots shoving us
     await page.click('#go');
     await page.waitForTimeout(300);
 
@@ -35,42 +36,71 @@ const { openGame, checker } = require('./harness');
     await page.waitForTimeout(500);
     c.check('bat pickup grants time', (await page.evaluate(() => window.__skyDebug.bat())) > 25);
 
-    // Multiplayer with a scripted friend
+    // Bots (solo: this game runs them)
+    await page.evaluate(() => { const el = document.getElementById('optBots'); el.value = '2'; el.dispatchEvent(new Event('change')); });
+    await page.waitForTimeout(600);
+    const bots0 = await page.evaluate(() => { const d = window.__skyDebug; return { n: d.bots().length, ctrl: d.ctrl(), names: d.bots().map(b => b.name), avatars: d.botAvatars.size }; });
+    c.check('bots spawn as characters', bots0.n === 2 && bots0.ctrl && bots0.avatars === 2 && bots0.names.join() === 'Matteo,Yuki', JSON.stringify(bots0));
+    const intro = await page.evaluate(() => window.__skyDebug.intro());
+    c.check('entrance cards play for each character', intro.seen.includes('matteo') && intro.seen.includes('yuki') && (await page.textContent('#introName')).length > 0, JSON.stringify(intro));
+    const chase = await page.evaluate(() => { const d = window.__skyDebug, m = d.bots()[0], me = d.body.position;
+      m.body.position.set(me.x + 20, me.y + 1, me.z); m.body.velocity.set(0, 0, 0); m.introT = 0; d.tick(10);
+      const d0 = Math.hypot(m.body.position.x - me.x, m.body.position.z - me.z); d.tick(120);
+      return { d0, d1: Math.hypot(m.body.position.x - me.x, m.body.position.z - me.z) }; });
+    c.check('aggressive bot chases you', chase.d1 < chase.d0 - 5, `${chase.d0.toFixed(1)} m -> ${chase.d1.toFixed(1)} m`);
+    const hitB = await page.evaluate(() => { const d = window.__skyDebug, m = d.bots()[0]; m.body.velocity.set(0, 0, 0); d.hitBot('bot:' + m.id, [1, 0], true, 'me', 'Tester'); return m.body.velocity.x; });
+    c.check('hitting a bot knocks it back', hitB > 15, `vx ${hitB.toFixed(1)}`);
+    const dodges = await page.evaluate(() => { const d = window.__skyDebug, k = d.CHARACTERS.find(c => c.key === 'kofi'); return k.dodge; });
+    c.check('characters have distinct personalities', dodges > .3);
+
+    // Multiplayer with a scripted friend (bots off so they don't shove us out of position)
+    await page.evaluate(() => { const el = document.getElementById('optBots'); el.value = '0'; el.dispatchEvent(new Event('change')); });
+    await page.waitForTimeout(400);
+    await page.evaluate(() => { const d = window.__skyDebug; d.body.velocity.set(0, 0, 0); d.tick(30); });
     const me = await page.evaluate(() => { const p = window.__skyDebug.body.position; return [p.x, p.y, p.z]; });
     const friendAt = (extra = {}) => page.evaluate(([me, extra]) => window.__fake.setFriend({ n: 'Friend', p: [me[0], me[1], me[2] - 2], v: [0, 0, 0], yw: 0, g: 0, h: 0, s: 0, t: 0, rs: 'running', ps: 0, race: 1, sw: 0, bt: 0, hit: 0, sp: 0, dk: 0, ...extra }), [me, extra]);
     await friendAt();
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(1000);
     c.check('friend avatar appears', (await page.evaluate(() => window.__skyDebug.avatars.size)) === 1);
 
     // I swing at the friend (facing -z, friend is 2 m in front)
+    const preSwing = await page.evaluate(() => { const d = window.__skyDebug, b = d.body.position, a = [...d.avatars.values()][0]; return { me: [b.x, b.z].map(n => +n.toFixed(1)), friend: a ? [a.disp.x, a.disp.z].map(n => +n.toFixed(1)) : null, bat: +d.bat().toFixed(1), bots: d.bots().length, botAv: d.botAvatars.size }; });
     await page.evaluate(() => { window.__skyDebug.view(0, .3); window.__skyDebug.attack(); });
     await page.waitForTimeout(200);
-    const sentHit = await page.evaluate(() => window.__fake.mine().hit);
-    c.check('bat swing sends a hit to the friend', sentHit && sentHit.to === 'fr1end00peer0000' && sentHit.f === 1, JSON.stringify(sentHit));
+    const sentHit = await page.evaluate(() => window.__skyDebug.presence().lastHit);
+    c.check('bat swing sends a hit to the friend', sentHit && sentHit.to === 'fr1end00peer0000' && sentHit.f === 1, JSON.stringify(sentHit) + ' ' + JSON.stringify(preSwing));
 
     // The friend hits me: first set a baseline counter, then bump it
     await friendAt({ hit: { n: 1, to: 'x', d: [1, 0], f: 0 } });
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(1000);
     const vx0 = await page.evaluate(() => window.__skyDebug.body.velocity.x);
     await friendAt({ hit: { n: 2, to: 'me000000peer0000', d: [1, 0], f: 1 } });
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(1000);
     const vx1 = await page.evaluate(() => window.__skyDebug.body.velocity.x);
     c.check('being hit by a bat knocks me back', vx1 - vx0 > 5, `vx ${vx0.toFixed(1)} -> ${vx1.toFixed(1)}`);
 
     // Falling in the sea after being hit credits the friend
     await page.evaluate(() => { const b = window.__skyDebug.body; b.position.set(0, -4, -116); b.velocity.set(0, 0, 0); }); // out over the sea
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(1000);
     const sp = await page.evaluate(() => window.__fake.mine().sp);
     c.check('splash is broadcast with who knocked me in', sp && sp.by === 'fr1end00peer0000', JSON.stringify(sp));
 
     // Friend splashes because of me -> my dunk count goes up
-    await friendAt({ sp: { n: 1, by: 'nobody' } }); await page.waitForTimeout(300);
-    await friendAt({ sp: { n: 2, by: 'me000000peer0000' } }); await page.waitForTimeout(400);
-    c.check('dunking the friend scores', (await page.evaluate(() => window.__skyDebug.presence().dunks)) === 1);
+    const dunks0 = await page.evaluate(() => window.__skyDebug.presence().dunks);
+    await friendAt({ sp: { n: 1, by: 'nobody' } }); await page.waitForTimeout(1000);
+    await friendAt({ sp: { n: 2, by: 'me000000peer0000' } }); await page.waitForTimeout(1000);
+    c.check('dunking the friend scores', (await page.evaluate(() => window.__skyDebug.presence().dunks)) === dunks0 + 1);
+
+    // The friend (lower peer id, not paused) now runs the bots: ours despawn, theirs are drawn
+    await friendAt({ bots: [[7, 'Lars', me[0] + 6, me[1], me[2], 0, 0, 0, 0, 0, 0, 0, 0, 2]] });
+    await page.waitForTimeout(1000);
+    const rb = await page.evaluate(() => { const d = window.__skyDebug; return { local: d.bots().length, ctrl: d.ctrl(), shown: [...d.botAvatars.keys()] }; });
+    c.check('friend-run bots replace ours', rb.local === 0 && !rb.ctrl && rb.shown.join() === 'bot:7', JSON.stringify(rb));
 
     // Race
-    await friendAt({ race: 2 }); await page.waitForTimeout(400);
-    c.check('friend starting a race triggers my countdown', /3|2|1|GO/.test(await page.textContent('#toast')));
+    await friendAt({ race: 2 }); await page.waitForTimeout(1000);
+    const race = await page.evaluate(() => window.__skyDebug.race());
+    c.check('friend starting a race triggers my countdown', race.raceId === 2 && (race.raceCount > 0 || race.raceLive), JSON.stringify(race) + ' toast=' + await page.textContent('#toast'));
 
     // Audio: music sequencer is running
     await page.waitForTimeout(600);

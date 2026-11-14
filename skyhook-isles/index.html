@@ -28,6 +28,15 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
 .stat.sp b{color:var(--spark)}
 .stat.gl b{color:var(--hook)}
 .stat.bt b{color:#ff6b5a}
+.intro{position:fixed;left:max(16px,env(safe-area-inset-left,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 70px);display:grid;grid-template-columns:10px 1fr;gap:0 14px;
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 18px 14px 14px;max-width:min(92vw,420px);pointer-events:none;backdrop-filter:blur(8px);animation:introIn .35s cubic-bezier(.2,1.4,.4,1)}
+.intro .stripe{grid-row:span 4;border-radius:5px;background:linear-gradient(var(--s1) 0 33.3%,var(--s2) 0 66.6%,var(--s3) 0)}
+.intro small{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.intro b{font-family:var(--display);font-weight:400;font-size:clamp(22px,4vw,30px);line-height:1.05}
+.intro span{font-size:13px;font-weight:700;color:#ffb86b}
+.intro q{font-size:15px;font-style:italic;color:#e8edf6;margin-top:4px}
+@keyframes introIn{from{transform:translateX(-30px);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.intro{animation:none}}
 .opts{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;font-size:14px;font-weight:700}
 .opts select{font:700 14px var(--body);color:var(--ink);background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
 .opts .chk{display:flex;gap:6px;align-items:center;cursor:pointer}
@@ -125,6 +134,7 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
   </div>
 </div>
 <div class="toast" id="toast" hidden></div>
+<div class="intro" id="intro" hidden><i class="stripe"></i><small id="introFrom"></small><b id="introName"></b><span id="introTrait"></span><q id="introLine"></q></div>
 <div class="touch" id="touch" hidden>
   <div class="joy" id="joy" hidden><i id="joyKnob"></i></div>
   <div class="btns">
@@ -163,6 +173,8 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
       <select id="optMusic"><option value="always">Always</option><option value="races">Races only</option><option value="off">Off</option></select>
       <label class="chk"><input type="checkbox" id="optSfx" checked> Sound effects</label>
       <label class="chk"><input type="checkbox" id="optVoice" checked> Announcer</label>
+      <label for="optBots">Bots</label>
+      <select id="optBots"><option>0</option><option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select>
     </div>
     <div class="field"><label for="nick">Your name</label><input id="nick" type="text" maxlength="16" autocomplete="off" placeholder="e.g. JakeyBoy"></div>
     <div class="net" id="net"><i></i><span>Connecting to the island…</span></div>
@@ -585,7 +597,7 @@ let hook=null; // {phase, tip, target(local or world), body, len}
 let aimHit=null;
 const tmpV=new THREE.Vector3(), tmpV2=new THREE.Vector3();
 function anchorWorld(h,out){
-  if (h.remote){ const a=avatars.get(h.remote); if (!a){ if (h.phase!=="retract") h.phase="retract"; return out.copy(h.point); } h.point.copy(a.disp); h.point.y+=.3; return out.copy(h.point); }
+  if (h.remote){ const a=avatars.get(h.remote)||botAvatars.get(h.remote); if (!a){ if (h.phase!=="retract") h.phase="retract"; return out.copy(h.point); } h.point.copy(a.disp); h.point.y+=.3; return out.copy(h.point); }
   if(h.body){ const w=h.body.pointToWorldFrame(h.local,new CANNON.Vec3()); return out.set(w.x,w.y,w.z); } return out.copy(h.point); }
 function hookDown(){
   if (!running || raceCount>0) return; hookHeld=true; audioOn();
@@ -691,6 +703,7 @@ world.addEventListener("preStep",()=>{
     const v=pBody.velocity, target = inUpdraft ? 9 : glideSink;
     v.y += 26*dt; v.y += (target - v.y)*(1-Math.exp(-4*dt));
   }
+  botsPreStep(dt);
 });
 world.addEventListener("postStep",()=>{
   let g=false, best=0;
@@ -916,7 +929,7 @@ function frame(){
     safeT+=dt; if (grounded && safeT>.5 && p.y>2){ safeT=0; lastSafe.copy(p); }
   }
   updateHook(dt);
-  updateRemotes(dt); sendPresence(); tickRace(dt);
+  updateRemotes(dt); updateBots(dt); sendPresence(); tickRace(dt);
   updateCamera();
   sun.position.set(p.x+SUN_DIR.x*120,p.y+SUN_DIR.y*120,p.z+SUN_DIR.z*120); sun.target.position.set(p.x,p.y,p.z);
   // glider pickups
@@ -991,15 +1004,16 @@ function sendPresence(){
   if (now-presT < (running?50:1000)) return; presT=now;
   const p=pBody.interpolatedPosition, v=pBody.velocity;
   const h = hook ? [hook.phase==="fly"?1:hook.phase==="attached"?2:3, r2(hook.tip.x),r2(hook.tip.y),r2(hook.tip.z), r2(hook.len||0), hook.remote||""] : 0;
-  room.presence({n:myName(), p:[r2(p.x),r2(p.y),r2(p.z)], v:[r2(v.x),r2(v.y),r2(v.z)], yw:r2(hero.rotation.y), g:gliding?1:0, h, s:got, t:Math.round(elapsed*10)/10, rs:runState, ps:running?0:1, sw:swingN, bt:batTime>0?1:0, hit:lastHit, sp:lastSplash, dk:dunks}).catch(()=>{});
+  room.presence({n:myName(), p:[r2(p.x),r2(p.y),r2(p.z)], v:[r2(v.x),r2(v.y),r2(v.z)], yw:r2(hero.rotation.y), g:gliding?1:0, h, s:got, t:Math.round(elapsed*10)/10, rs:runState, ps:running?0:1, sw:swingN, bt:batTime>0?1:0, hit:lastHit, sp:lastSplash, dk:dunks, bots:botsPayload(), bsp:lastBsp}).catch(()=>{});
 }
 function nameSprite(text,color){
-  const c=document.createElement("canvas"); c.width=256; c.height=64; const x=c.getContext("2d");
-  x.font="700 30px 'Nunito Sans', system-ui, sans-serif"; const w=Math.min(250,x.measureText(text).width+28);
-  x.fillStyle="rgba(14,22,38,.72)"; x.beginPath(); x.roundRect ? x.roundRect(128-w/2,8,w,48,14) : x.rect(128-w/2,8,w,48); x.fill();
-  x.fillStyle=color; x.textAlign="center"; x.textBaseline="middle"; x.fillText(text,128,33);
+  const c=document.createElement("canvas"); let x=c.getContext("2d"); const font="700 30px 'Nunito Sans', system-ui, sans-serif";
+  x.font=font; const tw=x.measureText(text).width, W=Math.max(256,Math.min(1024,Math.ceil(tw+48)));
+  c.width=W; c.height=64; x=c.getContext("2d"); x.font=font; const w=Math.min(W-6,tw+28);
+  x.fillStyle="rgba(14,22,38,.72)"; x.beginPath(); x.roundRect ? x.roundRect(W/2-w/2,8,w,48,14) : x.rect(W/2-w/2,8,w,48); x.fill();
+  x.fillStyle=color; x.textAlign="center"; x.textBaseline="middle"; x.fillText(text,W/2,33);
   const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace;
-  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false,transparent:true})); sp.scale.set(2.6,.65,1); sp.renderOrder=10; return sp;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false,transparent:true})); sp.scale.set(2.6*W/256,.65,1); sp.renderOrder=10; return sp;
 }
 function makeAvatar(peer){
   const color=colorFor(peer), g=new THREE.Group(), body=heroBody.clone(true); g.add(body);
@@ -1031,10 +1045,16 @@ function updateRemotes(dt){
       // hits, splashes, power-ups and swings from this friend
       const hit=ps.hit;
       if (hit && typeof hit.n==="number"){ if (!lastHitSeen.has(pr.peer)) lastHitSeen.set(pr.peer,hit.n); else if (hit.n>lastHitSeen.get(pr.peer)){ lastHitSeen.set(pr.peer,hit.n);
-        if (myPeer && hit.to===myPeer && Array.isArray(hit.d) && hit.d.length===2 && hit.d.every(Number.isFinite)) takeHit([Math.max(-1,Math.min(1,hit.d[0])),Math.max(-1,Math.min(1,hit.d[1]))],!!hit.f,a); } }
+        if (Array.isArray(hit.d) && hit.d.length===2 && hit.d.every(Number.isFinite)){ const dir=[Math.max(-1,Math.min(1,hit.d[0])),Math.max(-1,Math.min(1,hit.d[1]))];
+          if (myPeer && hit.to===myPeer) takeHit(dir,!!hit.f, hit.bn ? {peer:"bot:"+(hit.bid|0),name:cleanName(hit.bn)} : a, Number.isFinite(hit.m) ? Math.max(.5,Math.min(1.6,hit.m)) : 1);
+          else if (amController && typeof hit.to==="string" && hit.to.startsWith("bot:")) hitBot(hit.to,dir,!!hit.f,a.peer,a.name); } } }
       const sp=ps.sp;
       if (sp && typeof sp.n==="number"){ if (!lastSpSeen.has(pr.peer)) lastSpSeen.set(pr.peer,sp.n); else if (sp.n>lastSpSeen.get(pr.peer)){ lastSpSeen.set(pr.peer,sp.n);
-        if (myPeer && sp.by===myPeer){ dunks++; announce("dunk","Dunked! "+a.name+" is swimming."); toast("Dunked "+a.name+"!","Straight into the sea."); } else announce("swim",a.name+" is swimming with the fishes."); } }
+        if (myPeer && sp.by===myPeer){ dunks++; announce("dunk","Dunked! "+a.name+" is swimming."); toast("Dunked "+a.name+"!","Straight into the sea."); }
+        else { if (amController && typeof sp.by==="string" && sp.by.startsWith("bot:")) creditBot(sp.by); announce("swim",a.name+" is swimming with the fishes."); } } }
+      const bsp=ps.bsp;
+      if (bsp && typeof bsp.n==="number"){ if (!lastBspSeen.has(pr.peer)) lastBspSeen.set(pr.peer,bsp.n); else if (bsp.n>lastBspSeen.get(pr.peer)){ lastBspSeen.set(pr.peer,bsp.n);
+        if (myPeer && bsp.by===myPeer){ const nm=cleanName(bsp.name); dunks++; announce("dunk","Dunked! "+nm+" is swimming."); toast("Dunked "+nm+"!","Bots can't swim."); } } }
       const bt=ps.bt?1:0; if (lastBtSeen.has(pr.peer) && bt && !lastBtSeen.get(pr.peer)){ announce("enemybat",a.name+" has the bat. Run!"); toast(a.name+" grabbed a bat"); } lastBtSeen.set(pr.peer,bt);
       if (typeof ps.sw==="number"){ if (a.swLast!=null && ps.sw!==a.swLast){ a.swing=1; a.swingBat=!!ps.bt; } a.swLast=ps.sw; }
       if (typeof ps.race==="number"){ if (!raceSeen.has(pr.peer)) raceSeen.set(pr.peer,ps.race); else if (ps.race>raceSeen.get(pr.peer)){ raceSeen.set(pr.peer,ps.race); if (ps.race!==raceId) beginRace(ps.race,a.name); } }
@@ -1093,13 +1113,23 @@ function attack(){
     if (bat){ crack(); shakeT=.25; announce("homerun","Home run!"); toast("HOME RUN!","You launched "+a.name); }
     else { thud(); toast("Shoved "+a.name); }
   }
+  for (const [key,a] of botAvatars){
+    const dx=a.disp.x-p.x, dy=a.disp.y-p.y, dz=a.disp.z-p.z, d=Math.hypot(dx,dz);
+    if (d>range+.8 || Math.abs(dy)>2.5) continue;
+    if (d>.3 && (dx*fx+dz*fz)/d<.35) continue;
+    const nx=d>.3?dx/d:fx, nz=d>.3?dz/d:fz;
+    if (amController) hitBot(key,[nx,nz],bat,myPeer||"me",myName());
+    else { hitN++; lastHit={n:hitN,to:key,d:[r2(nx),r2(nz)],f:bat?1:0}; a.disp.x+=nx*(bat?1.2:.5); a.disp.z+=nz*(bat?1.2:.5); }
+    landed=true;
+    if (bat){ crack(); shakeT=.25; announce("homerun","Home run!"); toast("HOME RUN!","You launched "+a.name); } else { thud(); toast("Shoved "+a.name); }
+  }
   for (const dyn of dynamics){
     const b=dyn.body, dx=b.position.x-p.x, dy=b.position.y-p.y, dz=b.position.z-p.z, d=Math.hypot(dx,dz)||1;
     if (d<range+.7 && Math.abs(dy)<2.5 && (dx*fx+dz*fz)/d>.2){ const f=(bat?55:20)*Math.min(1,b.mass/2); b.wakeUp(); b.applyImpulse(new CANNON.Vec3(dx/d*f,f*.45,dz/d*f)); if (!landed){ bat?crack():thud(); landed=true; } }
   }
 }
-function takeHit(dir,bat,from){
-  const v=pBody.velocity, k=bat?24:10;
+function takeHit(dir,bat,from,mul=1){
+  const v=pBody.velocity, k=(bat?24:10)*mul;
   v.x+=dir[0]*k; v.z+=dir[1]*k; v.y=Math.max(v.y,bat?12:5);
   knockUntil=simTime+(bat?.9:.45); if (hook) hook.phase="retract"; gliding=false;
   lastHitBy={peer:from.peer,name:from.name,t:simTime}; shakeT=bat?.5:.25;
@@ -1110,9 +1140,240 @@ function fellInWater(){
   splashS();
   const by = lastHitBy && simTime-lastHitBy.t<8 ? lastHitBy : null;
   spN++; lastSplash={n:spN,by:by?by.peer:""}; lastHitBy=null;
+  if (by && amController && by.peer.startsWith("bot:")) creditBot(by.peer);
+  if (by && by.peer.startsWith("bot:")){ const ba=botAvatars.get(by.peer); if (ba && ba.C){ setTimeout(()=>botSay(ba.C,ba.C.taunt,true),1200); } }
   respawn(null);
   if (by){ announce("dunked","Splashdown! "+by.name+" sends you swimming."); toast("Splashdown!",by.name+" knocked you into the sea"); }
   else { announce("splash","Man overboard!"); toast("Splash!","Back to dry land"); }
+}
+
+// ---------------- bots ----------------
+// One player's game runs the bots (the lowest peer id among players who aren't paused) and shares their
+// poses in presence; everyone else draws them. Hits on bots are routed to that player as "bot:<id>".
+// The bots are a cast of original characters. Personality numbers drive the AI:
+// aggr = how hard they chase and how often they swing, fear = how readily they run away,
+// grapple = how often they swing on ropes, dodge = chance to slip a hit, power = knockback, grudge = hunts whoever hit them.
+const CHARACTERS=[
+  {key:"matteo",name:"Matteo",full:"Matteo “Il Fulmine” Ricci",from:"Italy",stripes:["#009246","#f4f5f0","#ce2b37"],suit:"#1f8f4e",hat:"#ce2b37",scale:1,
+   trait:"Hyper-aggressive showboat",intro:"Ciao, everybody! Try to keep up.",taunt:"Bellissimo!",hurt:"Mamma mia!",anim:"spin",
+   aggr:1,fear:0,speed:1.08,grapple:1,dodge:0,power:1,voice:{tts:"buttery",rate:1.2,pitch:1.1,lang:"it"}},
+  {key:"yuki",name:"Yuki",full:"Yuki Tanabe",from:"Japan",stripes:["#f4f5f0","#bc002d","#f4f5f0"],suit:"#2b2f3a",hat:"#bc002d",scale:.95,
+   trait:"Precise sky-runner. Avoids fights",intro:"Let us begin. Precisely.",taunt:"Efficient.",hurt:"Unacceptable.",anim:"bow",
+   aggr:.25,fear:.2,speed:1.05,grapple:2.2,dodge:.25,power:.8,voice:{tts:"glassy",rate:1,pitch:1.2,lang:"ja"}},
+  {key:"lars",name:"Lars",full:"“Big” Lars Brekke",from:"Norway",stripes:["#ba0c2f","#f4f5f0","#00205b"],suit:"#00205b",hat:"#ba0c2f",scale:1.3,
+   trait:"Slow, huge, hits like a landslide",intro:"Ha! The fjords made me strong!",taunt:"Like chopping wood!",hurt:"Is that all?",anim:"pound",
+   aggr:.8,fear:0,speed:.78,grapple:.5,dodge:0,power:1.5,voice:{tts:"rounded",rate:.9,pitch:.5,lang:"nb"}},
+  {key:"pip",name:"Pip",full:"Priya “Pip” Nair",from:"India",stripes:["#ff9933","#f4f5f0","#138808"],suit:"#ff9933",hat:"#138808",scale:.9,
+   trait:"Terrified of everyone. Bites when cornered",intro:"Oh no, oh no, is it starting already?",taunt:"Sorry! So sorry!",hurt:"Aaah! Not the face!",anim:"cower",
+   aggr:.15,fear:.95,speed:1.15,grapple:1.2,dodge:.15,power:.9,voice:{tts:"airy",rate:1.3,pitch:1.5,lang:"en-in"}},
+  {key:"kofi",name:"Kofi",full:"Kofi “Smooth” Mensah",from:"Ghana",stripes:["#ce1126","#fcd116","#006b3f"],suit:"#fcd116",hat:"#006b3f",scale:1,
+   trait:"Trickster. Dodges and taunts",intro:"Relax, my friend. This will be fun.",taunt:"Too slow, my friend!",hurt:"Okay, okay. Nice one.",anim:"dance",
+   aggr:.55,fear:.1,speed:1.1,grapple:1,dodge:.45,power:1,voice:{tts:"buttery",rate:1.05,pitch:.85,lang:"en-gh"}},
+  {key:"valentina",name:"Valentina",full:"Valentina “La Furia” Cruz",from:"Argentina",stripes:["#74acdf","#f4f5f0","#74acdf"],suit:"#74acdf",hat:"#f6b40e",scale:1,
+   trait:"Holds grudges. Hit her once and she hunts you",intro:"You want trouble? You found it.",taunt:"That's what you get!",hurt:"Oh, now you've done it.",anim:"knuckles",
+   aggr:.6,fear:0,speed:1.05,grapple:1.1,dodge:.1,power:1.1,grudge:true,voice:{tts:"glassy",rate:1.1,pitch:1,lang:"es"}},
+];
+const BOT_NAMES=CHARACTERS.map(c=>c.name);
+let bots=[], botSerial=1, amController=false, wantBots=2, bspN=0, lastBsp=0;
+const botAvatars=new Map(), lastBspSeen=new Map();
+try{ const b=localStorage.getItem("skyhook.bots"); if (b!==null) wantBots=Math.max(0,Math.min(6,+b|0)); }catch(e){}
+$("optBots").value=String(wantBots);
+$("optBots").addEventListener("change",()=>{ wantBots=+$("optBots").value|0; try{ localStorage.setItem("skyhook.bots",String(wantBots)); }catch(e){} });
+function isBotController(){
+  if (!room || !myPeer) return true;
+  if (!running) return false;
+  for (const a of avatars.values()) if (a.pres && !a.pres.ps && a.peer<myPeer) return false;
+  return true;
+}
+function landNear(c){
+  for (let k=0;k<40;k++){ const a=Math.random()*Math.PI*2, d=14+Math.random()*22, x=c.x+Math.cos(a)*d, z=c.z+Math.sin(a)*d;
+    if (Math.abs(x)>HALF*.85 || Math.abs(z)>HALF*.85) continue; const g=H(x,z); if (g>2.5 && slopeAt(x,z)<.5) return [x,g+2,z]; }
+  return [spawnPos.x+4,spawnPos.y,spawnPos.z+4];
+}
+function spawnBot(i){
+  const body=new CANNON.Body({mass:5,shape:new CANNON.Sphere(.5),fixedRotation:true,linearDamping:.01,material:playerMat,collisionFilterGroup:8,collisionFilterMask:1|4});
+  body.position.set(...landNear(pBody.position)); body.interpolatedPosition.copy(body.position); world.addBody(body);
+  const ch=i%CHARACTERS.length, C=CHARACTERS[ch];
+  bots.push({id:botSerial++,ch,C,name:C.name,grudge:null,introT:0,lastSay:0,body,yaw:0,hook:null,cd:1.5+Math.random(),grappleCd:2+Math.random()*2,wish:new THREE.Vector3(),speed:7.5,
+    bat:0,swingN:0,knockUntil:-9,jumpT:-9,lastHitBy:null,stuck:0,standing:false,dunks:0,wander:null,wanderT:0,pickup:null});
+}
+function removeBot(b){ world.removeBody(b.body); }
+function botSay(C,text,priority){ for (const a of botAvatars.values()) if (a.C===C){ a.sayText=text; a.sayT=2.8; } announce("bot",C.name+": "+text,priority,C.voice,text); }
+function hitBot(key,dir,bat,fromPeer,fromName){
+  const b=bots.find(x=>"bot:"+x.id===key); if (!b) return;
+  if (Math.random()<b.C.dodge){ const v=b.body.velocity; v.x+=-dir[1]*9; v.z+=dir[0]*9; v.y=Math.max(v.y,4); b.jumpT=simTime; toast(b.name+" dodged!",b.C.taunt); botSay(b.C,b.C.taunt); return; }
+  if (Math.random()<.6) botSay(b.C,b.C.hurt);
+  if (b.C.grudge) b.grudge={peer:fromPeer,until:simTime+20};
+  const v=b.body.velocity, k=(bat?24:10)/Math.sqrt(b.C.scale); v.x+=dir[0]*k; v.z+=dir[1]*k; v.y=Math.max(v.y,bat?12:5);
+  b.knockUntil=simTime+(bat?.9:.45); b.hook=null; b.lastHitBy={peer:fromPeer,name:fromName,t:simTime};
+}
+function creditBot(key){ const b=bots.find(x=>"bot:"+x.id===key); if (b) b.dunks++; }
+function botSplash(b){
+  const by=b.lastHitBy && simTime-b.lastHitBy.t<8 ? b.lastHitBy : null;
+  b.body.position.set(...landNear(pBody.position)); b.body.velocity.set(0,0,0); b.body.interpolatedPosition.copy(b.body.position); b.hook=null; b.lastHitBy=null;
+  if (!by) return;
+  if (by.peer===(myPeer||"me")){ dunks++; announce("dunk","Dunked! "+b.name+" is swimming."); toast("Dunked "+b.name+"!","Bots can't swim."); }
+  else { bspN++; lastBsp={n:bspN,by:by.peer,name:b.name}; }
+}
+function botAttack(b,t){
+  b.swingN++; const bat=b.bat>0, p=b.body.position;
+  let dx=t.pos.x-p.x, dz=t.pos.z-p.z; const d=Math.hypot(dx,dz)||1; dx/=d; dz/=d;
+  const near=Math.hypot(p.x-pBody.position.x,p.z-pBody.position.z)<35;
+  if (t.me){ takeHit([dx,dz],bat,{peer:"bot:"+b.id,name:b.name},b.C.power); }
+  else { hitN++; lastHit={n:hitN,to:t.peer,d:[r2(dx),r2(dz)],f:bat?1:0,bn:b.name,bid:b.id,m:b.C.power}; if (near) (bat?crack:thud)(); }
+  if (Math.random()<.35) botSay(b.C,b.C.taunt);
+  if (near && !t.me) whoosh(bat);
+}
+// per-frame decisions for each bot (only on the controlling player's game)
+const bRay=new THREE.Raycaster();
+function botThink(b,dt){
+  const p=b.body.position, v=b.body.velocity;
+  b.cd-=dt; b.grappleCd-=dt; if (b.bat>0) b.bat=Math.max(0,b.bat-dt);
+  if (p.y < -1.8){ botSplash(b); return; }
+  // nearest player who is actually playing
+  let best=null, bd=1e9;
+  const cands=[];
+  if (running && raceCount<=0) cands.push({me:true,peer:myPeer||"me",pos:pBody.position});
+  for (const a of avatars.values()) if (a.pres && !a.pres.ps) cands.push({me:false,peer:a.peer,pos:a.disp});
+  for (const c of cands){ const d=Math.hypot(c.pos.x-p.x,c.pos.y-p.y,c.pos.z-p.z); if (d<bd){ bd=d; best=c; } }
+  const C=b.C;
+  if (b.introT>0){ b.introT-=dt; b.wish.set(0,0,0); return; }
+  // grudge: hunt whoever hit us last
+  if (b.grudge && simTime<b.grudge.until){ const g=cands.find(c=>c.peer===b.grudge.peer); if (g){ best=g; bd=Math.hypot(g.pos.x-p.x,g.pos.y-p.y,g.pos.z-p.z); } } else b.grudge=null;
+  const chaseRange=40+C.aggr*100;
+  let goal=best && bd<chaseRange ? best.pos : null;
+  // timid characters head for high ground instead of picking fights
+  if (C.aggr<.4 && !b.grudge){ if (!b.perch || b.perchT<=0){ const q=pillars[(Math.random()*pillars.length)|0]; b.perch=new THREE.Vector3(q.x,q.top+1,q.z); b.perchT=12; } b.perchT-=dt; if (!best || bd>6) goal=b.perch; }
+  // fear: run from anyone close, especially if they carry a bat
+  let fleeing=false;
+  if (best && bd<12){ const armed = best.me ? batTime>0 : !!(avatars.get(best.peer)&&avatars.get(best.peer).pres&&avatars.get(best.peer).pres.bt);
+    if (C.fear>.5 || (armed && C.fear>0) ){ fleeing = bd>2.4 || C.fear<.9; } }
+  if (fleeing){ const fx=p.x-best.pos.x, fz=p.z-best.pos.z, fl=Math.hypot(fx,fz)||1; b.wish.set(fx/fl,0,fz/fl); b.speed=11*C.speed;
+    if (simTime-b.lastSay>4 && Math.random()<.02){ b.lastSay=simTime; botSay(C,C.hurt); }
+    if (p.y<-1.8) botSplash(b); if (Math.hypot(v.x,v.z)>1) b.yaw=Math.atan2(-v.x,-v.z); return; }
+  // detour for a bat if one is close
+  b.pickup=null;
+  if (b.bat<=0) for (const g of batPickups){ if (g.cd>0) continue; const d=g.pos.distanceTo(tmpV.set(p.x,p.y,p.z)); if (d<35 && d<bd*.8){ goal=g.pos; b.pickup=g; break; } }
+  if (b.pickup && b.pickup.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<2.2){ b.bat=BAT_TIME; b.pickup.cd=BAT_RESPAWN; b.pickup.grp.visible=b.pickup.beam.visible=false; toast(b.name+" grabbed a bat"); announce("enemybat",b.name+" has the bat. Run!"); b.pickup=null; }
+  if (!goal){ b.wanderT-=dt; if (!b.wander || b.wanderT<=0){ b.wander=new THREE.Vector3(...landNear(p)); b.wanderT=6; } goal=b.wander; }
+  const gx=goal.x-p.x, gz=goal.z-p.z, gd=Math.hypot(gx,gz);
+  if (gd>1.2) b.wish.set(gx/gd,0,gz/gd); else b.wish.set(0,0,0);
+  b.speed = (gd>14 ? 11 : 7.5)*C.speed*(b.grudge?1.15:1);
+  // swing when close (cornered cowards lash out too)
+  const reach=(b.bat>0?3:2)*Math.sqrt(C.scale);
+  if (best && !b.pickup && bd<reach && Math.abs(best.pos.y-p.y)<2 && b.cd<=0 && (C.aggr>.2 || bd<1.6)){ botAttack(b,best); b.cd=(2.6-1.6*C.aggr)+Math.random()*1.2; }
+  // grapple toward far or high goals
+  if (b.hook){ b.hook.t+=dt; if (b.hook.t>3.5 || b.hook.len<4 || gd<8) { b.hook=null; b.grappleCd=1.5+Math.random()*2; } }
+  else if (b.grappleCd<=0 && (gd>28/C.grapple || goal.y-p.y>5/C.grapple)){
+    b.grappleCd=(2+Math.random()*2)/C.grapple;
+    const from=new THREE.Vector3(p.x,p.y+1,p.z), dir=new THREE.Vector3(goal.x,goal.y+7,goal.z).sub(from).normalize();
+    bRay.set(from,dir); bRay.far=70;
+    const hit=bRay.intersectObjects(grappleables,false).find(h=>!h.object.userData.remote && !h.object.userData.body);
+    if (hit && hit.distance>6) b.hook={point:hit.point.clone(),len:hit.distance*.95,t:0};
+  }
+  // hop when stuck against something
+  const hs=Math.hypot(v.x,v.z);
+  if (b.standing && b.wish.lengthSq()>0 && hs<2){ b.stuck+=dt; if (b.stuck>.5){ v.y=11; b.jumpT=simTime; b.stuck=0; } } else b.stuck=0;
+  if (hs>1) b.yaw=Math.atan2(-v.x,-v.z);
+}
+// per physics step: rope, hover over the ground, walking
+function botsPreStep(dt){
+  if (!amController) return;
+  for (const b of bots){
+    const p=b.body.position, v=b.body.velocity;
+    if (b.hook){ b.hook.len=Math.max(3,b.hook.len-14*dt); const A=b.hook.point, dx=A.x-p.x, dy=A.y-p.y, dz=A.z-p.z, d=Math.hypot(dx,dy,dz)||1;
+      if (d>b.hook.len){ const nx=dx/d, ny=dy/d, nz=dz/d, rel=v.x*nx+v.y*ny+v.z*nz, k=Math.max(0,-rel)+(d-b.hook.len)*30*dt; v.x+=nx*k; v.y+=ny*k; v.z+=nz*k; } }
+    b.standing=false;
+    if (!b.hook && simTime>b.knockUntil && simTime-b.jumpT>.2 && v.y<6){
+      const [gy,ny]=groundBelow(p), h=p.y-gy;
+      if (ny>.6 && h<RIDE+PROBE){ b.standing=true; v.y=Math.max(-20,Math.min(10,(gy+RIDE-p.y)*18))+26*dt; }
+    }
+    if (b.standing && simTime>b.knockUntil){ const k=1-Math.exp(-10*dt); v.x+=(b.wish.x*b.speed-v.x)*k; v.z+=(b.wish.z*b.speed-v.z)*k; }
+    else if (b.wish.lengthSq()>0){ v.x+=b.wish.x*9*dt; v.z+=b.wish.z*9*dt; }
+  }
+}
+function botsPayload(){
+  if (!amController || !bots.length) return 0;
+  return bots.map(b=>{ const q=b.body.interpolatedPosition, v=b.body.velocity;
+    return [b.id,b.name,r2(q.x),r2(q.y),r2(q.z),r2(v.x),r2(v.y),r2(v.z),r2(b.yaw),b.bat>0?1:0,b.swingN,b.hook?[r2(b.hook.point.x),r2(b.hook.point.y),r2(b.hook.point.z)]:0,b.dunks,b.ch]; });
+}
+function updateBots(dt){
+  const ctrl=isBotController();
+  if (ctrl!==amController){ amController=ctrl; if (!ctrl){ bots.forEach(removeBot); bots=[]; } }
+  if (amController){
+    while (bots.length<wantBots) spawnBot(bots.length);
+    while (bots.length>wantBots) removeBot(bots.pop());
+    if (running) for (const b of bots) botThink(b,dt);
+  }
+  // gather poses: our own bots, or the ones another player is running
+  const now=performance.now(), seen=new Set();
+  const show=(key,name,pos,vel,yaw,bat,swingN,tip,dk,raw,local,ch)=>{
+    seen.add(key);
+    let a=botAvatars.get(key);
+    if (!a){ a=makeAvatar(key); const C=CHARACTERS[ch]||CHARACTERS[0]; a.ch=ch; a.C=C;
+      a.torso.material.color.set(C.suit); const hat=a.body.children[2]; hat.material=new THREE.MeshStandardMaterial({color:C.hat,roughness:.7});
+      a.g.scale.setScalar(C.scale); a.color="#"+new THREE.Color(C.stripes[0]==="#f4f5f0"?C.stripes[1]:C.stripes[0]).lerp(new THREE.Color("#ffffff"),.45).getHexString(); botAvatars.set(key,a); queueIntro(ch,false); }
+    a.name=name; a.dunks=dk;
+    if (local){ a.disp.copy(pos); }
+    else {
+      if (raw!==a.raw){ a.raw=raw; a.recv=now; a.np.copy(pos); a.nv.copy(vel); if (!a.has){ a.disp.copy(a.np); a.has=true; } }
+      const age=Math.min(.25,(now-a.recv)/1000); tmpT.copy(a.np).addScaledVector(a.nv,age);
+      if (a.disp.distanceTo(tmpT)>10) a.disp.copy(tmpT); else a.disp.lerp(tmpT,1-Math.exp(-14*dt));
+    }
+    a.g.position.copy(a.disp);
+    let dy=yaw-a.yaw; dy=Math.atan2(Math.sin(dy),Math.cos(dy)); a.yaw+=dy*Math.min(1,10*dt); a.g.rotation.y=a.yaw;
+    if (a.swLast!=null && swingN!==a.swLast){ a.swing=1; a.swingBat=bat; }
+    a.swLast=swingN;
+    if (a.bat) a.bat.visible=bat; if (a.swing>0) a.swing=Math.max(0,a.swing-dt/.28); poseSwing(a.body,a.bat,a.swing,a.swingBat);
+    a.body.rotation.x = tip ? -.35 : 0;
+    a.body.rotation.z=0; a.body.position.x=0; a.body.scale.set(1,1,1);
+    if (a.introT>0){ a.introT=Math.max(0,a.introT-dt); const u=1-a.introT/1.8, w=Math.sin(Math.PI*u);
+      switch (a.C.anim){
+        case "spin": a.g.rotation.y=a.yaw+u*Math.PI*4; break;
+        case "bow": a.body.rotation.x=-.9*w; break;
+        case "pound": a.body.scale.set(1+.12*Math.abs(Math.sin(u*Math.PI*6)),1-.08*Math.abs(Math.sin(u*Math.PI*6)),1); break;
+        case "cower": a.body.rotation.x=.35*w; a.body.position.x=Math.sin(u*80)*.06; break;
+        case "dance": a.body.rotation.z=Math.sin(u*Math.PI*6)*.35; a.g.rotation.y=a.yaw+Math.sin(u*Math.PI*3)*.6; break;
+        case "knuckles": a.body.position.y+= .1*Math.abs(Math.sin(u*Math.PI*5)); break;
+      } }
+    if (a.sayT>0) a.sayT-=dt;
+    const text = a.sayT>0 ? "“"+a.sayText+"”" : name+" · "+(a.C?a.C.from:"Bot");
+    if (text!==a.labelText){ if (a.label){ a.g.remove(a.label); a.label.material.map.dispose(); a.label.material.dispose(); } a.label=nameSprite(text,a.color); a.label.position.y=1.55; a.g.add(a.label); a.labelText=text; }
+    if (tip){ tmpH.set(0,.35,-.1).applyEuler(a.g.rotation).add(a.g.position); const len=tmpH.distanceTo(tip);
+      a.rope.visible=a.tip.visible=true; a.rope.position.copy(tmpH).add(tip).multiplyScalar(.5); a.rope.scale.set(1,len,1);
+      a.rope.quaternion.setFromUnitVectors(UP,tmpT.copy(tip).sub(tmpH).normalize()); a.tip.position.copy(tip); a.tip.quaternion.copy(a.rope.quaternion); }
+    else a.rope.visible=a.tip.visible=false;
+  };
+  if (amController){
+    for (const b of bots) show("bot:"+b.id,b.name,b.body.interpolatedPosition,b.body.velocity,b.yaw,b.bat>0,b.swingN,b.hook?b.hook.point:null,b.dunks,null,true,b.ch);
+  } else {
+    for (const a of avatars.values()){
+      const list=a.pres && a.pres.bots; if (!Array.isArray(list)) continue;
+      for (const e of list.slice(0,8)){
+        if (!Array.isArray(e) || e.length<13 || ![e[2],e[3],e[4],e[5],e[6],e[7],e[8]].every(n=>typeof n==="number" && isFinite(n) && Math.abs(n)<5000)) continue;
+        const tip=Array.isArray(e[11]) && e[11].length===3 && e[11].every(Number.isFinite) ? new THREE.Vector3(...e[11]) : null;
+        show("bot:"+(e[0]|0),cleanName(e[1]),new THREE.Vector3(e[2],e[3],e[4]),new THREE.Vector3(e[5],e[6],e[7]),e[8],!!e[9],e[10]|0,tip,Math.max(0,e[12]|0),e,false,Math.max(0,Math.min(CHARACTERS.length-1,e[13]|0)));
+      }
+    }
+  }
+  for (const [k,a] of botAvatars) if (!seen.has(k)){ dropAvatar(a); botAvatars.delete(k); }
+  tickIntro(dt);
+}
+// entrance cards: one at a time, with the character's move and line
+const introQ=[], introSeen=new Set(); let introCh=null, introLeft=0;
+function queueIntro(ch,force){ const C=CHARACTERS[ch]; if (!C || (!force && introSeen.has(C.key)) || introQ.includes(ch)) return; introSeen.add(C.key); introQ.push(ch); }
+function tickIntro(dt){
+  if (introCh!==null){ introLeft-=dt; if (introLeft<=0){ $("intro").hidden=true; introCh=null; } }
+  if (introCh===null && introQ.length){
+    const ch=introQ.shift(), C=CHARACTERS[ch], el=$("intro");
+    el.style.setProperty("--s1",C.stripes[0]); el.style.setProperty("--s2",C.stripes[1]); el.style.setProperty("--s3",C.stripes[2]);
+    $("introFrom").textContent=C.from; $("introName").textContent=C.full; $("introTrait").textContent=C.trait; $("introLine").textContent=C.intro;
+    el.hidden=false; el.style.animation="none"; void el.offsetWidth; el.style.animation="";
+    introCh=ch; introLeft=2.4;
+    for (const a of botAvatars.values()) if (a.ch===ch) a.introT=1.8;
+    for (const b of bots) if (b.ch===ch) b.introT=1.8;
+    botSay(C,C.intro,true);
+  }
 }
 
 // ---------------- announcer ----------------
@@ -1120,10 +1381,13 @@ function fellInWater(){
 // Each line has a key so recorded clips can replace the synthetic voice later.
 let ttsNS=null, lastSay=0;
 if (window.claude && typeof window.claude.use==="function") window.claude.use("tts").then(t=>{ ttsNS=t; }).catch(()=>{});
-function sayLocal(text){
+function sayLocal(text,vo){
   const ss=window.speechSynthesis; if (!ss) return;
-  try{ ss.cancel(); const u=new SpeechSynthesisUtterance(text); u.pitch=.6; u.rate=1.05;
-    const vs=ss.getVoices(); const pick=vs.find(v=>/^en/i.test(v.lang)&&/(male|daniel|alex|fred|david|james)/i.test(v.name))||vs.find(v=>/^en/i.test(v.lang)); if (pick) u.voice=pick;
+  try{ ss.cancel(); const u=new SpeechSynthesisUtterance(text); u.pitch=vo?vo.pitch:.6; u.rate=vo?vo.rate:1.05;
+    const vs=ss.getVoices(), lang=vo&&vo.lang;
+    const pick=(lang && vs.find(v=>v.lang.toLowerCase().replace("_","-").startsWith(lang)))
+      || (!vo && vs.find(v=>/^en/i.test(v.lang)&&/(male|daniel|alex|fred|david|james)/i.test(v.name))) || vs.find(v=>/^en/i.test(v.lang));
+    if (pick) u.voice=pick;
     ss.speak(u); }catch(e){}
 }
 // recorded clips (made with tools/voice/process.sh) are listed in voice/index.json and replace the synthetic voice
@@ -1137,12 +1401,13 @@ function playClip(buf){
   const src=ac.createBufferSource(), g=ac.createGain(); src.buffer=buf; g.gain.value=1.3; src.connect(g).connect(master); src.start();
   if (musicBus){ const t=ac.currentTime; musicBus.gain.cancelScheduledValues(t); musicBus.gain.setTargetAtTime(musicOn?.2:0,t,.05); musicBus.gain.setTargetAtTime(musicOn?.55:0,t+buf.duration,.3); }
 }
-function announce(key,text,priority){
+function announce(key,text,priority,vo,spoken){
   if (!audioOpts.voice) return;
   const now=performance.now(); if (!priority && now-lastSay<1500) return; lastSay=now;
   if (ac && clips[key]){ playClip(clips[key]); return; }
-  if (ttsNS){ ttsNS.speak(text,{voice:"rounded",rate:1.1}).catch(()=>sayLocal(text)); return; }
-  sayLocal(text);
+  const words=spoken||text;
+  if (ttsNS){ ttsNS.speak(words,{voice:vo?vo.tts:"rounded",rate:vo?Math.max(.7,Math.min(1.5,vo.rate)):1.1}).catch(()=>sayLocal(words,vo)); return; }
+  sayLocal(words,vo);
 }
 
 // ---------------- music ----------------
@@ -1192,7 +1457,8 @@ function saveAudio(){ audioOpts.music=$("optMusic").value; audioOpts.sfx=$("optS
 
 // races: whoever presses Start race bumps a number in their presence; everyone who sees it restarts with a countdown
 function beginRace(id,byName){
-  raceId=id; restartRun(); raceLive=true; raceCount=3; announce("race","Race starting!",true); tone(440,.15,"square",.05);
+  raceId=id; restartRun(); raceLive=true; raceCount=3; announce("race","Race starting!",true);
+  for (const a of botAvatars.values()) queueIntro(a.ch,true); tone(440,.15,"square",.05);
   toast("3", byName ? byName+" started a race" : "Race starting for everyone on the island");
 }
 function tickRace(dt){
@@ -1205,22 +1471,23 @@ $("raceBtn").addEventListener("click",e=>{ e.currentTarget.blur(); if (!room){ t
 let plKey="";
 function renderPlayers(){
   const panel=$("players");
-  if (!room || !avatars.size){ panel.hidden=true; plKey=""; return; }
+  if (!avatars.size && !botAvatars.size){ panel.hidden=true; plKey=""; return; }
   panel.hidden=false;
   const rows=[{name:myName()+" (you)",color:"#7ce0ff",s:got,t:elapsed,rs:runState,me:1,dk:dunks}];
   for (const a of avatars.values()){ const ps=a.pres||{}; rows.push({name:a.name+(ps.ps?" · paused":""),color:a.color,s:Number(ps.s)||0,t:Number(ps.t)||0,rs:String(ps.rs||""),dk:Math.max(0,Number(ps.dk)||0)}); }
-  rows.sort((x,y)=>y.s-x.s || x.t-y.t);
+  for (const a of botAvatars.values()) rows.push({name:"Bot "+a.name,color:a.color,s:-1,t:0,rs:"",dk:a.dunks||0,bot:1});
+  rows.sort((x,y)=>y.s-x.s || x.t-y.t || y.dk-x.dk);
   const key=rows.map(r=>r.name+r.s+Math.floor(r.t)+r.rs+"d"+r.dk).join("|"); if (key===plKey) return; plKey=key;
-  $("plCount").textContent=rows.length+" players";
+  $("plCount").textContent=(rows.length-botAvatars.size)+" players"+(botAvatars.size?" · "+botAvatars.size+" bots":"");
   $("plList").replaceChildren(...rows.map(r=>{ const d=document.createElement("div"); d.className="pl"+(r.me?" me":"");
     const dot=document.createElement("i"); dot.style.background=r.color; const n=document.createElement("span"); n.textContent=r.name;
-    const sc=document.createElement("span"); sc.textContent=r.s+"/"+TOTAL+(r.dk?" · "+r.dk+" dunk"+(r.dk>1?"s":""):""); const tm=document.createElement("small"); tm.textContent = r.rs==="done" ? fmtT(r.t) : r.rs==="running" ? fmt(r.t) : "–";
+    const sc=document.createElement("span"); sc.textContent=(r.bot?"":r.s+"/"+TOTAL)+(r.dk?(r.bot?"":" · ")+r.dk+" dunk"+(r.dk>1?"s":""):""); const tm=document.createElement("small"); tm.textContent = r.rs==="done" ? fmtT(r.t) : r.rs==="running" ? fmt(r.t) : "–";
     d.append(dot,n,sc,tm); return d; }));
 }
 addEventListener("resize",()=>{ renderer.setSize(innerWidth,innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); });
 // interpolated poses start at the origin until the first physics step
 for (const b of world.bodies){ b.interpolatedPosition.copy(b.position); b.interpolatedQuaternion.copy(b.quaternion); }
 // small hook for automated testing; not used by the game itself
-window.__skyDebug={ attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded };
+window.__skyDebug={ CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded };
 frame();
 </script>

@@ -46,6 +46,23 @@ Everyone who opens the artifact link lands on the same island. This uses the cla
 - **Baseball bat:** grab a red pickup (5 on the island, 30 s each). Your shove becomes a home-run swing with big knockback that also knocks people off their rope or glider.
 - **Dunks:** if someone falls into the sea within 8 s of your hit, you get the dunk. Dunks show in the *On the island* panel.
 
+## Bots: the cast
+
+Pick 0–6 bots on the start screen. In multiplayer, one player's game runs them for everyone (the lowest peer id among players who aren't paused) and shares their poses. If that player pauses or leaves, control hands over. Hits on bots are routed to whoever runs them.
+
+Each bot is an original character with their own country, colors, entrance move, catchphrases, voice and AI personality:
+
+| Character | From | Plays like |
+| --- | --- | --- |
+| Matteo "Il Fulmine" Ricci | Italy | Hyper-aggressive showboat: always chasing, swings often |
+| Yuki Tanabe | Japan | Precise sky-runner: grapples to high ground, avoids fights, dodges sometimes |
+| "Big" Lars Brekke | Norway | 1.3× size, slow, 1.5× knockback |
+| Priya "Pip" Nair | India | Terrified: runs away, panics when hit, lashes out only when cornered |
+| Kofi "Smooth" Mensah | Ghana | Trickster: dodges about 45% of hits and taunts |
+| Valentina "La Furia" Cruz | Argentina | Grudges: hunts whoever hit her for 20 s, faster |
+
+Entrance cards (colors, name, style, catchphrase, plus a move and a spoken line) play when a character first appears and at every race start. Their lines also show as speech bubbles.
+
 ## Sound
 
 Everything is generated live with Web Audio, with no audio files:
