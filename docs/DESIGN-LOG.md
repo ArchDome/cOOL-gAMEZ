@@ -4,6 +4,12 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14: Speed units
+
+- **Settings → Display → Speed units:** Imperial (ft/s, the default) or Metric (m/s). The physics still runs in metres; only the display converts (× 3.28084). The Speed Demon award uses the same units. Saved per device.
+
+---
+
 ## 2026-11-14: Pop-ups only when it involves you
 
 - Owner feedback: no notifications when other players attack each other. Removed the pop-ups and announcer lines for: a bot dodging someone else's swing, friends or bots grabbing a bat, a friend falling in without your help, and a bot finishing its sparks (the final spark alert already covers that).

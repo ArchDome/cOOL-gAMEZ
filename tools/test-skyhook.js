@@ -105,6 +105,15 @@ const { openGame, checker } = require('./harness');
       d.settings.hud = 'full'; d.applyInputUI(); return [out.slice(0, 3), out.slice(3)]; });
     c.check('the timer box keeps a fixed width as digits change', clockW.every(g => g.every(w => w[0] === g[0][0] && w[1] === g[0][1])), JSON.stringify(clockW));
 
+    // Speed units: feet per second by default, metric as an option
+    const u0 = await page.evaluate(() => ({ set: window.__skyDebug.settings.units, opt: document.getElementById('optUnits').value }));
+    await page.waitForFunction(() => window.__skyDebug.speedText()[1] === 'ft/s', null, { timeout: 20000 }).catch(() => {});
+    const u1 = await page.evaluate(() => window.__skyDebug.speedText()[1]);
+    await page.evaluate(() => { const el = document.getElementById('optUnits'); el.value = 'metric'; el.dispatchEvent(new Event('change')); });
+    const u2 = await page.waitForFunction(() => window.__skyDebug.speedText()[1] === 'm/s', null, { timeout: 20000 }).then(() => 'm/s', () => 'stuck');
+    await page.evaluate(() => { const el = document.getElementById('optUnits'); el.value = 'imperial'; el.dispatchEvent(new Event('change')); });
+    c.check('speedometer defaults to ft/s and can switch to m/s', u0.set === 'imperial' && u0.opt === 'imperial' && u1 === 'ft/s' && u2 === 'm/s', JSON.stringify([u0, u1, u2]));
+
     // Ground punch: swinging at the ground while falling bounces you up; the bat bounces higher
     const punch = await page.evaluate(() => {
       const d = window.__skyDebug, b = d.body, out = {};
