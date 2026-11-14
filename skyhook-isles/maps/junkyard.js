@@ -24,7 +24,7 @@ function colorAt(x,y,z,ny,c,THREE){
 }
 
 function build(api){
-  const {THREE,CANNON,scene,world,R,H,slopeAt,groundMat,grappleables,camBlockers,dynamics,pillars,rocks,updrafts}=api;
+  const {THREE,CANNON,scene,world,R,H,slopeAt,groundMat,grappleables,camBlockers,dynamics,pillars,rocks,updrafts,traps}=api;
   const steel=new THREE.MeshStandardMaterial({color:"#c9a020",roughness:.5,metalness:.5,flatShading:true});
   const dark=new THREE.MeshStandardMaterial({color:"#3a3a3e",roughness:.6,metalness:.6});
   const carCols=["#8a2a22","#2a4a7a","#3a6a3a","#8a7a2a","#5a5a62","#6a3a6a"].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.7,metalness:.4,flatShading:true}));
@@ -67,13 +67,33 @@ function build(api){
   // electromagnets hanging over the gorge: grab points that save a fall
   const magMat=new THREE.MeshStandardMaterial({color:"#2a2a30",metalness:.8,roughness:.3});
   const glow=new THREE.MeshStandardMaterial({color:"#3a6aff",emissive:"#3a6aff",emissiveIntensity:.9});
+  const mags=[];
   for (let k=0;k<14;k++){
     const z=-ISLAND+12+k*(ISLAND*2-24)/13, x=14*Math.sin(z*.03)+(R()-.5)*10, y=10+R()*12, r=2.2;
     const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,1.2,14),magMat); m.position.set(x,y,z); m.castShadow=true; scene.add(m); grappleables.push(m); camBlockers.push(m);
     const ring=new THREE.Mesh(new THREE.TorusGeometry(r*.8,.12,6,20),glow); ring.rotation.x=Math.PI/2; ring.position.set(x,y-.62,z); scene.add(ring);
     const cable=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,60,4),magMat); cable.position.set(x,y+30,z); scene.add(cable);
     const b=new CANNON.Body({mass:0,material:groundMat}); b.addShape(new CANNON.Cylinder(r,r,1.2,14)); b.position.set(x,y,z); world.addBody(b);
-    rocks.push({x,y,z,r,top:y+.6});
+    rocks.push({x,y,z,r,top:y+.6}); mags.push({x,y,z,ring});
+  }
+  // trap: crane control consoles on both rims of the gorge. Hit or hook the big red button and every magnet
+  // switches on for 8 s, catching anyone who swings too close. Mash Jump to wriggle free.
+  if (traps){
+    const triggers=[], panel=new THREE.MeshStandardMaterial({color:"#d8b020",roughness:.6,metalness:.3,flatShading:true});
+    const btnMat=new THREE.MeshStandardMaterial({color:"#ff2a1a",emissive:"#ff2a1a",emissiveIntensity:1.2}), stripe=new THREE.MeshStandardMaterial({color:"#1a1a1e"});
+    for (const [side,z0] of [[-1,-28],[1,26]]){
+      let x=14*Math.sin(z0*.03)+side*27, z=z0;
+      for (let k=0;k<12 && H(x,z)<12;k++) x+=side*3;
+      const g=H(x,z);
+      const base=new THREE.Mesh(new THREE.BoxGeometry(2.2,2.4,1.4),panel); base.position.set(x,g+1.2,z); base.rotation.y=side>0?Math.PI/2:-Math.PI/2; base.castShadow=true; scene.add(base);
+      const band=new THREE.Mesh(new THREE.BoxGeometry(2.25,.3,1.45),stripe); band.position.set(x,g+.5,z); band.rotation.y=base.rotation.y; scene.add(band);
+      const btn=new THREE.Mesh(new THREE.CylinderGeometry(.55,.6,.45,16),btnMat); btn.position.set(x,g+2.6,z); scene.add(btn);
+      const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,4,6),stripe); pole.position.set(x,g+4.4,z); scene.add(pole);
+      const lamp=new THREE.Mesh(new THREE.SphereGeometry(.3,10,8),btnMat); lamp.position.set(x,g+6.5,z); scene.add(lamp);
+      const b=new CANNON.Body({mass:0,material:groundMat}); b.addShape(new CANNON.Box(new CANNON.Vec3(1.1,1.2,.7))); b.position.set(x,g+1.2,z); b.quaternion.setFromEuler(0,base.rotation.y,0); world.addBody(b);
+      triggers.push(btn,base); camBlockers.push(base);
+    }
+    traps.push({kind:"magnet",triggers,magnets:mags,dur:8,cool:18,name:"Crane magnets"});
   }
   // dust devils: updrafts
   for (let tries=0; updrafts.length<4 && tries<400; tries++){

@@ -4,6 +4,22 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14: Maps are toys: traps, throwing, smashing walls
+
+Principle 4 ("every map has something to trigger") and principle 1 ("if they want to break through a wall, let them").
+
+- **Trap system.** A map's `build()` pushes trap definitions into `api.traps`, and the engine runs them. Setting one off is a numbered presence event (`trp`), so every game runs the trap at the same moment and applies it to its own player (the bot controller handles bots). Activators get credit: anyone who falls in while trapped counts as a dunk for whoever set it off.
+- **Scrapyard Canyon: crane magnets.** Yellow consoles with a big red button and warning lamp sit on both rims of the gorge. Hit the button or hook it, and after a 0.8 s flashing windup all 14 magnets turn red for 8 s. Anyone within 10 m is pulled in and pinned underneath. Mash Jump 4 times to break free (bots wriggle loose after 3–5 s, depending on how scared they are). Then it's a long drop into the river. 18 s cooldown.
+- **Ember Caldera: the idol.** A stone idol with a gold mask and glowing eyes stands on a torch-lit altar on the cone. Hook it and drag it, throw it, or bat it into the crater, and the volcano erupts: a 22 m blast at the top, then 12 s of lava bombs arcing out up to 80 m and exploding where they land (they knock people around and blow holes in buildings). The idol goes back on its altar, with a 40 s cooldown. It also respawns if it lands in the lava.
+- **Throwing.** Hook anything loose (crates, cars, the idol), then press Hit: it flies where you're looking (20–40 m/s, faster for light things). A thrown or batted prop that hits a player knocks them like a bat, scaled by its speed (`m` on the hit event).
+- **Breakable walls.** Bat swings (2.8 m) and shoves (1.7 m) knock blocks out of destructible buildings, and hitting one at more than 21 m/s smashes straight through at 90% speed.
+- **New awards:** Trap Master, Yeet Lord, Wrecking Ball. New stats `traps`, `throws` and `smashes` are added to presence.
+
+![Magnet console](img/skyhook-trap-magnets.png)
+![The idol](img/skyhook-trap-idol.png)
+
+---
+
 ## 2026-11-14: The final spark
 
 - When anyone (you, a friend or a bot) collects all 15 sparks, a **final spark** appears about 25–55 m from them (aiming for 38 m on a pillar, rock or spark spot). That's a head start for whoever finished first, but still a race.

@@ -71,6 +71,10 @@ const { openGame, checker } = require('./harness');
     c.check('the final spark spawns nearby and grabbing it scores a bonus', fin.active && fin.dist > 15 && fin.dist < 70 && fin2.got && fin2.score === fin2.s + 5 && fin2.fg && fin2.fg.n >= 1, JSON.stringify([fin, fin2]));
     await page.evaluate(() => window.__skyDebug.resetFinale());
 
+    // Throwing: a hooked prop flies where you look, and counts as a thrown missile
+    const yt = await page.evaluate(() => { const d = window.__skyDebug, dyn = d.dynamics[0]; if (!dyn) return { skip: 'no props' }; d.yeet(dyn.body); const v = dyn.body.velocity; return { speed: Math.hypot(v.x, v.y, v.z), tracked: d.thrown.some(o => o.body === dyn.body) }; });
+    c.check('hooked props can be thrown', yt.skip || (yt.speed > 15 && yt.tracked), JSON.stringify(yt));
+
     // Ground punch: swinging at the ground while falling bounces you up; the bat bounces higher
     const punch = await page.evaluate(() => {
       const d = window.__skyDebug, b = d.body, out = {};

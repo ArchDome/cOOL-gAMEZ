@@ -29,6 +29,21 @@ const { openGame, checker } = require('./harness');
     c.check(`${key}: spawn is on dry ground`, r.ground > .5, `ground ${r.ground.toFixed(1)} m`);
     c.check(`${key}: walking is smooth`, r.standing > .8 && r.vmin > -12 && r.vmax < 12, `standing ${(r.standing * 100).toFixed(0)}%, vy ${r.vmin.toFixed(1)}..${r.vmax.toFixed(1)}`);
     c.check(`${key}: bots spawn and move`, r.bots === 2 && r.botMoves > 3, `bots ${r.bots}, moved ${r.botMoves.toFixed(1)} m`);
+    // map traps
+    if (key === 'junkyard') {
+      await page.evaluate(() => { const d = window.__skyDebug; document.getElementById('optBots').value = '0'; document.getElementById('optBots').dispatchEvent(new Event('change')); d.triggerTrap(0, 'Friend'); });
+      await page.waitForFunction(() => window.__skyDebug.traps[0].windup === 0, null, { timeout: 30000 }).catch(() => {});
+      const mg = await page.evaluate(() => { const d = window.__skyDebug, T = d.traps[0], m = T.magnets[3], b = d.body;
+        b.position.set(m.x + 3, m.y - 3, m.z); b.velocity.set(0, 0, 0); d.tick(40);
+        return { kind: T.kind, triggers: T.triggers.length, magnets: T.magnets.length, active: T.active > 0, stuck: !!d.meMag.mag, dist: Math.hypot(b.position.x - m.x, b.position.y - (m.y - 1.4), b.position.z - m.z) }; });
+      c.check('junkyard: the magnet trap grabs a player who swings close', mg.kind === 'magnet' && mg.triggers >= 2 && mg.active && mg.stuck && mg.dist < 1.5, JSON.stringify(mg));
+    }
+    if (key === 'volcano') {
+      const id0 = await page.evaluate(() => { const d = window.__skyDebug, T = d.traps.find(t => t.kind === 'idol'); const b = T.idol.body; b.position.set(T.crater.x, T.crater.y + 3, T.crater.z); b.velocity.set(0, -2, 0); return { kind: T.kind, cd: T.cd }; });
+      await page.waitForFunction(() => { const T = window.__skyDebug.traps.find(t => t.kind === 'idol'); return T.active > 0; }, null, { timeout: 30000 }).catch(() => {});
+      const id1 = await page.evaluate(() => { const T = window.__skyDebug.traps.find(t => t.kind === 'idol'), q = T.idol.body.position; return { active: T.active > 0, back: Math.hypot(q.x - T.altar.x, q.z - T.altar.z) < 3 }; });
+      c.check('volcano: throwing the idol in the crater erupts the volcano', id0.kind === 'idol' && id1.active && id1.back, JSON.stringify([id0, id1]));
+    }
   }
   // graphics: at High, the bloom post-processing add-ons load and render without errors
   {

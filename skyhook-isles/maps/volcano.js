@@ -22,7 +22,19 @@ function colorAt(x,y,z,ny,c,THREE){
 }
 
 function build(api){
-  const {THREE,CANNON,scene,world,R,H,slopeAt,groundMat,grappleables,camBlockers,pillars,rocks,updrafts}=api;
+  const {THREE,CANNON,scene,world,R,H,slopeAt,groundMat,grappleables,camBlockers,pillars,rocks,updrafts,traps}=api;
+  // trap: a mysterious idol on a stone altar partway up the cone. Hook it, drag it, throw it (Hit while hooked)
+  // or bat it into the crater, and the volcano erupts: a big blast at the top and lava bombs raining around.
+  if (traps){
+    const dx=SPAWN.x-PEAK.x, dz=SPAWN.z-PEAK.z, dl=Math.hypot(dx,dz), ax=PEAK.x+dx/dl*34, az=PEAK.z+dz/dl*34, ag=H(ax,az);
+    const stone=new THREE.MeshStandardMaterial({color:"#3a332e",flatShading:true,roughness:.9});
+    const slab=new THREE.Mesh(new THREE.BoxGeometry(3.4,1,3.4),stone); slab.position.set(ax,ag+.3,az); slab.castShadow=slab.receiveShadow=true; scene.add(slab);
+    for (const [ox,oz] of [[-1.4,-1.4],[1.4,-1.4],[-1.4,1.4],[1.4,1.4]]){ const t=new THREE.Mesh(new THREE.CylinderGeometry(.18,.22,1.6,6),stone); t.position.set(ax+ox,ag+1.5,az+oz); scene.add(t);
+      const f=new THREE.Mesh(new THREE.SphereGeometry(.22,8,6),new THREE.MeshBasicMaterial({color:"#ff8a2a",toneMapped:false})); f.position.set(ax+ox,ag+2.4,az+oz); scene.add(f); }
+    const b=new CANNON.Body({mass:0,material:groundMat}); b.addShape(new CANNON.Box(new CANNON.Vec3(1.7,.5,1.7))); b.position.set(ax,ag+.3,az); world.addBody(b);
+    grappleables.push(slab);
+    traps.push({kind:"idol",altar:{x:ax,y:ag+.8,z:az},crater:{x:PEAK.x,y:H(PEAK.x,PEAK.z),z:PEAK.z,r:9},dur:12,cool:40,name:"The idol"});
+  }
   const basalt=[new THREE.MeshStandardMaterial({color:"#2b2724",flatShading:true,roughness:.85}),new THREE.MeshStandardMaterial({color:"#34302c",flatShading:true,roughness:.85})];
   const hot=new THREE.MeshStandardMaterial({color:"#2a1a14",emissive:"#ff4a10",emissiveIntensity:.8,flatShading:true});
   // clusters of hexagonal basalt columns (collider: one box per column)
