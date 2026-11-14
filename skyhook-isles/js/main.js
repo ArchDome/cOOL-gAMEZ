@@ -48,6 +48,22 @@ const sky=new THREE.Mesh(new THREE.SphereGeometry(900,32,16),new THREE.ShaderMat
   vertexShader:"varying vec3 vP; void main(){ vec4 w=modelMatrix*vec4(position,1.); vP=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }",
   fragmentShader:"uniform vec3 top; uniform vec3 mid; uniform vec3 bot; varying vec3 vP; void main(){ float h=normalize(vP-cameraPosition).y; vec3 c = h>0. ? mix(mid,top,smoothstep(0.,.55,h)) : mix(mid,bot,smoothstep(0.,-.25,h)); gl_FragColor=vec4(c,1.);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}"}));
 scene.add(sky);
+// the sun (a moon on night maps): a glowing disc that sits at a fixed direction around the camera; bloom picks it up
+const sunDisc=(()=>{ const cv=document.createElement("canvas"); cv.width=cv.height=128; const x=cv.getContext("2d"); const g=x.createRadialGradient(64,64,4,64,64,64);
+  g.addColorStop(0,"rgba(255,255,255,1)"); g.addColorStop(.18,"rgba(255,250,235,.95)"); g.addColorStop(.35,"rgba(255,230,180,.35)"); g.addColorStop(1,"rgba(255,220,160,0)"); x.fillStyle=g; x.fillRect(0,0,128,128);
+  const t=new THREE.CanvasTexture(cv); t.colorSpace=THREE.SRGBColorSpace;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:t,color:MAP.theme.night?"#c8d8ff":MAP.theme.sun[0],transparent:true,depthWrite:false,fog:false,toneMapped:false}));
+  sp.scale.setScalar(MAP.theme.night?60:110); sp.renderOrder=-1; scene.add(sp); return sp; })();
+// clouds on day maps: soft blobs drawn once into a texture, scattered high and drifting slowly
+const clouds=[];
+if (!MAP.theme.night){
+  const cv=document.createElement("canvas"); cv.width=256; cv.height=128; const x=cv.getContext("2d");
+  for (let i=0;i<14;i++){ const cx=40+Math.random()*176, cy=50+Math.random()*40, r=18+Math.random()*30, g=x.createRadialGradient(cx,cy,0,cx,cy,r);
+    g.addColorStop(0,"rgba(255,255,255,.9)"); g.addColorStop(1,"rgba(255,255,255,0)"); x.fillStyle=g; x.fillRect(0,0,256,128); }
+  const tex=new THREE.CanvasTexture(cv); tex.colorSpace=THREE.SRGBColorSpace;
+  for (let i=0;i<16;i++){ const m=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,color:MAP.theme.waterGlow?"#7a5a50":"#ffffff",transparent:true,opacity:.55+Math.random()*.3,depthWrite:false,fog:false}));
+    const a=Math.random()*Math.PI*2, d=180+Math.random()*320; m.position.set(Math.cos(a)*d,130+Math.random()*60,Math.sin(a)*d); m.scale.set(140+Math.random()*120,50+Math.random()*30,1); scene.add(m); clouds.push(m); }
+}
 const hemi=new THREE.HemisphereLight(...MAP.theme.hemi); scene.add(hemi);
 const sun=new THREE.DirectionalLight(...MAP.theme.sun);
 sun.castShadow=true; sun.shadow.mapSize.set(GFX_SET.shadow,GFX_SET.shadow);
@@ -287,6 +303,9 @@ let heroBat=null;
     const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.075,.035,1.05,10),wood); barrel.position.y=.5; bat.add(barrel);
     const knob=new THREE.Mesh(new THREE.SphereGeometry(.05,8,6),wood); knob.position.y=-.03; bat.add(knob);
     bat.visible=false; heroBody.add(bat); heroBat=bat; }
+  for (const side of [-1,1]){ const arm=new THREE.Group(); arm.name=side<0?"armL":"armR"; arm.position.set(side*.42,.3,0);
+    const limb=new THREE.Mesh(new THREE.CapsuleGeometry(.1,.34,3,8),suit); limb.position.y=-.24; limb.name="limb"; arm.add(limb);
+    const hand=new THREE.Mesh(new THREE.SphereGeometry(.11,8,6),skin); hand.position.y=-.48; arm.add(hand); heroBody.add(arm); }
   heroBody.traverse(o=>{ if(o.isMesh){ o.castShadow=true; } });
 }
 const hand=new THREE.Vector3();
@@ -609,6 +628,8 @@ function updateCamera(){
   if (shakeT>0){ camera.position.x+=(Math.random()-.5)*shakeT*.7; camera.position.y+=(Math.random()-.5)*shakeT*.7; shakeT=Math.max(0,shakeT-camDt); }
   camera.lookAt(camTarget);
   sky.position.copy(camera.position);
+  sunDisc.position.copy(camera.position).addScaledVector(SUN_DIR,700);
+  for (const c of clouds){ c.position.x+=camDt*2.2; if (c.position.x>520) c.position.x-=1040; }
   // aim
   const ad=tmpV2; camera.getWorldDirection(ad);
   ray.set(camera.position,ad); ray.far=HOOK_RANGE+camDist;
@@ -735,6 +756,7 @@ function frame(){
   const faceYaw = hook ? yaw : (onGround && !gliding) ? (wish.lengthSq()>.01 ? Math.atan2(-wish.x,-wish.z) : hero.rotation.y) : (hs>1.5 ? Math.atan2(-v.x,-v.z) : hero.rotation.y);
   let dy=faceYaw-hero.rotation.y; dy=Math.atan2(Math.sin(dy),Math.cos(dy)); hero.rotation.y+=dy*Math.min(1,10*dt);
   if (onGround) bobPhase += hs*1.4*dt;
+  poseArms(heroBody, attached?"rope" : gliding?"glide" : (!onGround && v.y<-14)?"fall" : "walk", bobPhase, onGround?Math.min(1,hs/6):.2);
   const bob = onGround ? Math.abs(Math.sin(bobPhase))*.08*Math.min(1,hs/4) : 0;
   sitOff += ((standing?RIDE-.5:0)-sitOff)*Math.min(1,12*dt); hero.position.y-=sitOff;
   heroBody.position.y=bob-.08;
@@ -842,6 +864,7 @@ function nameSprite(text,color){
 function makeAvatar(peer){
   const color=colorFor(peer), g=new THREE.Group(), body=heroBody.clone(true); g.add(body);
   const torso=body.children[0]; torso.material=new THREE.MeshStandardMaterial({color,roughness:.6}); torso.userData.remote=peer;
+  for (const n of ["armL","armR"]) body.getObjectByName(n).getObjectByName("limb").material=torso.material;   // sleeves follow the suit
   const w=wing.clone(true); w.visible=false; g.add(w);
   const r=new THREE.Mesh(rope.geometry,rope.material), tip=hookTip.clone(); r.visible=tip.visible=false;
   scene.add(g,r,tip); grappleables.push(torso);
@@ -899,6 +922,8 @@ function updateRemotes(dt){
     a.open += ((ps.g?1:0)-a.open)*Math.min(1,10*dt); a.wing.visible=a.open>.02; a.wing.scale.set(a.open,1,.4+.6*a.open);
     if (a.bat) a.bat.visible=!!ps.bt; if (a.swing>0) a.swing=Math.max(0,a.swing-dt/.28); poseSwing(a.body,a.bat,a.swing,a.swingBat);
     if (ps.pc!==a.pcSeen){ a.pcSeen=ps.pc; const C=charByKey(typeof ps.pc==="string"?ps.pc:""); if (ps.pc && C!==CLASSIC){ a.torso.material.color.set(C.suit); a.body.children[2].material=new THREE.MeshStandardMaterial({color:C.hat,roughness:.7}); a.g.scale.setScalar(C.scale||1); } }
+    a.phase=(a.phase||0)+Math.hypot(a.nv.x,a.nv.z)*1.4*dt;
+    poseArms(a.body, Array.isArray(ps.h)&&ps.h[0]===2?"rope" : ps.g?"glide" : a.nv.y<-14?"fall":"walk", a.phase, Math.min(1,Math.hypot(a.nv.x,a.nv.z)/6));
     a.body.rotation.x = ps.g ? -1.1 : (Array.isArray(ps.h) && ps.h[0]===2 ? -.35 : 0);
     const text = a.name + (ps.ps ? " (paused)" : "");
     if (text!==a.labelText){ if (a.label){ a.g.remove(a.label); a.label.material.map.dispose(); a.label.material.dispose(); } a.label=nameSprite(text,a.color); a.label.position.y=1.55; a.g.add(a.label); a.labelText=text; }
@@ -1020,6 +1045,7 @@ let myCharKey="classic"; try{ myCharKey=localStorage.getItem("skyhook.char")||"c
 function applyHeroLook(){
   const C=charByKey(myCharKey);
   heroBody.children[0].material=new THREE.MeshStandardMaterial({color:C.suit,roughness:.6});
+  for (const n of ["armL","armR"]) heroBody.getObjectByName(n).getObjectByName("limb").material=heroBody.children[0].material;
   heroBody.children[2].material=new THREE.MeshStandardMaterial({color:C.hat,roughness:.7});
   hero.scale.setScalar(C.scale||1);
   $("faceName").textContent=C.name;
@@ -1141,6 +1167,15 @@ function botHop(b,dt){
   const v=b.body.velocity, hs=Math.hypot(v.x,v.z);
   if (b.standing && b.wish.lengthSq()>0 && hs<2){ b.stuck+=dt; if (b.stuck>.5){ v.y=11; b.jumpT=simTime; b.stuck=0; } } else b.stuck=0;
   if (hs>1) b.yaw=Math.atan2(-v.x,-v.z);
+}
+// ---------- arm poses ----------
+function poseArms(body,mode,phase,amt){
+  const L=body.getObjectByName("armL"), Rr=body.getObjectByName("armR"); if (!L||!Rr) return;
+  const t=performance.now()/1000;
+  if (mode==="rope"){ Rr.rotation.set(-2.7,0,-.15); L.rotation.set(-.6,0,.25); }
+  else if (mode==="glide"){ Rr.rotation.set(-2.9,0,-.25); L.rotation.set(-2.9,0,.25); }
+  else if (mode==="fall"){ Rr.rotation.set(-2.4+Math.sin(t*18)*.5,0,-.6); L.rotation.set(-2.4+Math.cos(t*18)*.5,0,.6); }
+  else { const w=Math.sin(phase*2)*.7*amt; Rr.rotation.set(w,0,-.08); L.rotation.set(-w,0,.08); }
 }
 // ---------- spark racing ----------
 // Anchors are places a bot can swing to: pillar tops, floating rocks and tree tops.
@@ -1309,6 +1344,7 @@ function updateBots(dt){
     a.swLast=swingN;
     if (a.bat) a.bat.visible=bat; if (a.swing>0) a.swing=Math.max(0,a.swing-dt/.28); poseSwing(a.body,a.bat,a.swing,a.swingBat);
     a.body.rotation.x = tip ? -.35 : 0;
+    a.phase=(a.phase||0)+Math.hypot(vel.x,vel.z)*1.4*dt; poseArms(a.body, tip?"rope" : vel.y<-14?"fall":"walk", a.phase, Math.min(1,Math.hypot(vel.x,vel.z)/6));
     a.body.rotation.z=0; a.body.position.x=0; a.body.scale.set(1,1,1);
     if (a.introT>0){ a.introT=Math.max(0,a.introT-dt); const u=1-a.introT/1.8, w=Math.sin(Math.PI*u);
       switch (a.C.anim){

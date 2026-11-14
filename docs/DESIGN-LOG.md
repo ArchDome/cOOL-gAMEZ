@@ -4,6 +4,20 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14 (overnight): Arms, sun and clouds
+
+- **Arms:** every character has arms in their suit color.
+  - They swing with the walk cycle.
+  - The right hand reaches up the rope while grappling.
+  - Both hold the glider bar.
+  - They flail during a fast fall.
+
+  Friends and bots use the same poses, driven by their shared velocity and rope state.
+- **Sun disc:** a glowing disc (a moon on night maps) in the sun's direction. Bloom makes it glow.
+- **Clouds:** soft drifting clouds on day maps, tinted ashy on the volcano.
+
+![The cast, now with arms](img/skyhook-cast-arms.png)
+
 ## 2026-11-14 (overnight): Exactly reproducible training, and personality in how bots race
 
 **Reproducibility, fixed for real.** The same parameters were scoring 2.11 on one run and 3.61 on another. Four leaks, each found by tracing:
