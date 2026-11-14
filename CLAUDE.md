@@ -35,6 +35,7 @@ When you change a game, republish to its existing artifact URL (pass the URL, or
 
 
 - Check scripts parse: extract the `<script>` body and run `node --check`, or for module scripts write it to a `.mjs` file first.
+- Tests run at Low graphics: the harness sets `skyhook.gfx=low` because bloom is too slow in the software renderer. Pass `gfx: 'high'` to `openGame` for a quality check. `index.html` has an import map for `three` and `three/addons/` (post-processing); the harness serves those from the local npm copy.
 - Run gameplay in headless Chromium with Playwright. Use `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader` for WebGL. It renders slowly, so don't judge frame rate from it.
 - **The cloud sandbox blocks cdn.jsdelivr.net**, but npm is reachable. Run `npm pack three@0.160.0 cannon-es@0.20.0` in a scratch folder, unpack, and use Playwright `page.route()` to serve the CDN URLs from those local files. The published page still loads from the CDN.
 - `skyhook-isles` exposes `window.__skyDebug` for automated tests: player body, pillars, sparks, glider pickups, hook and ground state, a view setter, a `keys` set, and `tick(n)`, which steps controls and physics exactly n frames of 1/60 s. Use `tick` for physics measurements, because headless rendering is too slow for real-time timing.

@@ -227,6 +227,8 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
     <div class="opts">
       <label for="optChar">Play as</label>
       <select id="optChar"></select>
+      <label for="optGfx">Graphics</label>
+      <select id="optGfx"><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
       <label for="optMap">Map</label>
       <select id="optMap"></select>
       <label for="optMusic">Music</label>
@@ -250,4 +252,5 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
 <script>
 setTimeout(function(){ if(!window.__skyhookBooted){ var e=document.getElementById("err"); e.hidden=false; e.textContent="The 3D engine didn't load. Check your connection and reload the page."; document.getElementById("go").disabled=true; } },15000);
 </script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script type="module" src="js/main.js"></script>

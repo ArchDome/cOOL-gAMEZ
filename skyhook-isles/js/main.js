@@ -29,7 +29,11 @@ const slopeAt=(x,z)=>Math.hypot(H(x+1,z)-H(x-1,z),H(x,z+1)-H(x,z-1))/2;
 
 // ---------------- renderer / scene ----------------
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"});
-renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));
+// graphics quality: high on desktop, medium on touch devices by default
+const TOUCH_DEVICE = matchMedia("(pointer: coarse)").matches;
+let GFX="high"; try{ GFX=localStorage.getItem("skyhook.gfx") || (TOUCH_DEVICE?"medium":"high"); }catch(e){ GFX=TOUCH_DEVICE?"medium":"high"; }
+const GFX_SET={ high:{pr:1.75,shadow:4096,bloom:1}, medium:{pr:1.25,shadow:2048,bloom:.5}, low:{pr:1,shadow:1024,bloom:0} }[GFX]||{pr:1.25,shadow:2048,bloom:.5};
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,GFX_SET.pr));
 renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.05;
@@ -46,7 +50,7 @@ const sky=new THREE.Mesh(new THREE.SphereGeometry(900,32,16),new THREE.ShaderMat
 scene.add(sky);
 const hemi=new THREE.HemisphereLight(...MAP.theme.hemi); scene.add(hemi);
 const sun=new THREE.DirectionalLight(...MAP.theme.sun);
-sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
+sun.castShadow=true; sun.shadow.mapSize.set(GFX_SET.shadow,GFX_SET.shadow);
 Object.assign(sun.shadow.camera,{left:-55,right:55,top:55,bottom:-55,near:1,far:300});
 sun.shadow.bias=-.0004; sun.shadow.normalBias=.05;
 scene.add(sun,sun.target);
@@ -97,7 +101,7 @@ world.addContactMaterial(new CANNON.ContactMaterial(groundMat,playerMat,{frictio
 world.addContactMaterial(new CANNON.ContactMaterial(playerMat,world.defaultMaterial,{friction:0,restitution:0}));
 world.defaultContactMaterial.friction=.4;
 
-let terrainMesh=null, terrainHF=null;
+let terrainMesh=null, terrainHF=null, waterNormals=null;
 const grappleables=[];   // meshes the hook can bite into
 const camBlockers=[];    // meshes the camera won't pass through
 const dynamics=[];       // {mesh, body}
@@ -121,6 +125,17 @@ const dynamics=[];       // {mesh, body}
 {
   const m=new THREE.Mesh(new THREE.PlaneGeometry(3000,3000),(MAP.theme.waterGlow ? new THREE.MeshStandardMaterial({color:MAP.theme.water,emissive:MAP.theme.water,emissiveIntensity:.85,roughness:.6}) : new THREE.MeshStandardMaterial({color:MAP.theme.water,roughness:.25,metalness:.1,transparent:true,opacity:.88})));
   m.rotation.x=-Math.PI/2; m.position.y=0; m.receiveShadow=true; scene.add(m);
+  if (!MAP.theme.waterGlow){
+    // a tiling normal map built from a few sine waves, scrolled every frame so the sea ripples and catches the sun
+    const N2=128, data=new Uint8Array(N2*N2*4);
+    for (let y=0;y<N2;y++) for (let x=0;x<N2;x++){ const u=x/N2*Math.PI*2, v=y/N2*Math.PI*2;
+      const dx=Math.cos(u*3+v)*.5+Math.cos(u*5-v*2)*.3+Math.cos(u*2+v*4)*.2, dy=Math.cos(v*3-u)*.5+Math.cos(v*5+u*3)*.3+Math.cos(v*2-u*5)*.2;
+      const nx=dx*.35, ny=dy*.35, nz=1, l=Math.hypot(nx,ny,nz), o=(y*N2+x)*4;
+      data[o]=(nx/l*.5+.5)*255; data[o+1]=(ny/l*.5+.5)*255; data[o+2]=(nz/l*.5+.5)*255; data[o+3]=255; }
+    const nt=new THREE.DataTexture(data,N2,N2); nt.wrapS=nt.wrapT=THREE.RepeatWrapping; nt.repeat.set(140,140); nt.needsUpdate=true;
+    m.material.normalMap=nt; m.material.normalScale.set(.6,.6); m.material.roughness=.12; m.material.metalness=.35; m.material.needsUpdate=true;
+    waterNormals=nt;
+  }
 }
 
 // ---------------- map objects ----------------
@@ -781,7 +796,8 @@ function frame(){
       if (h.dataset.v!==html){ h.dataset.v=html; h.innerHTML=html; } }
   }
   renderTimer(); updateItems(dt); if (running) updateFace(dt);
-  renderer.render(scene,camera);
+  if (waterNormals){ waterNormals.offset.x=(t*.006)%1; waterNormals.offset.y=(t*.004)%1; }
+  if (composer) composer.render(); else renderer.render(scene,camera);
 }
 // ---------------- multiplayer ----------------
 // Each player runs their own physics and shares a pose about 20 times a second through room presence.
@@ -1774,9 +1790,24 @@ function renderPlayers(){
     const sc=document.createElement("span"); sc.textContent=r.s+"/"+TOTAL+(r.dk?" · "+r.dk+" dunk"+(r.dk>1?"s":""):""); const tm=document.createElement("small"); tm.textContent = r.rs==="done" ? fmtT(r.t) : r.rs==="running" ? fmt(r.t) : "–";
     d.append(dot,n,sc,tm); return d; }));
 }
-addEventListener("resize",()=>{ renderer.setSize(innerWidth,innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); });
+addEventListener("resize",()=>{ renderer.setSize(innerWidth,innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); if (composer) composer.setSize(innerWidth,innerHeight); });
+// bloom: load three.js post-processing add-ons; if they can't load, the game renders normally
+let composer=null;
+if (GFX_SET.bloom>0){
+  Promise.all([import("three/addons/postprocessing/EffectComposer.js"),import("three/addons/postprocessing/RenderPass.js"),import("three/addons/postprocessing/UnrealBloomPass.js"),import("three/addons/postprocessing/OutputPass.js")])
+    .then(([{EffectComposer},{RenderPass},{UnrealBloomPass},{OutputPass}])=>{
+      const rt=new THREE.WebGLRenderTarget(innerWidth,innerHeight,{type:THREE.HalfFloatType,samples:GFX==="high"?4:0});
+      const c=new EffectComposer(renderer,rt); c.setPixelRatio(renderer.getPixelRatio()); c.setSize(innerWidth,innerHeight);
+      c.addPass(new RenderPass(scene,camera));
+      const night=MAP.theme.night||MAP.theme.waterGlow;
+      const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth*GFX_SET.bloom,innerHeight*GFX_SET.bloom), night?.85:.45, .5, night?.6:.9);
+      c.addPass(bloom); c.addPass(new OutputPass());
+      composer=c;
+    }).catch(()=>{ composer=null; });
+}
+{ const sel=$("optGfx"); sel.value=GFX; sel.addEventListener("change",()=>{ try{ localStorage.setItem("skyhook.gfx",sel.value); }catch(e){} location.reload(); }); }
 // interpolated poses start at the origin until the first physics step
 for (const b of world.bodies){ b.interpolatedPosition.copy(b.position); b.interpolatedQuaternion.copy(b.quaternion); }
 // small hook for automated testing; not used by the game itself
-window.__skyDebug={ giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded };
+window.__skyDebug={ gfx:()=>({GFX,composer:!!composer}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded };
 frame();

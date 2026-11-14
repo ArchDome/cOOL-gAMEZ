@@ -4,6 +4,15 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14 (overnight): Graphics push
+
+- **Bloom** (three.js `UnrealBloomPass` with an `OutputPass` for tone mapping) makes neon signs, lit windows, lava, sparks, item boxes and lightning glow. It's stronger on night and lava maps. The add-ons load through an import map, and if they can't load, the game renders normally.
+- **Animated water:** a procedurally generated tiling normal map (sums of sines), scrolled every frame, with low roughness so the sea ripples and catches the sun.
+- **Graphics setting** (start screen): High (pixel ratio up to 1.75, 4096 shadows, full-res bloom, 4× MSAA), Medium (1.25, 2048, half-res bloom), Low (1, 1024, no bloom). The default is High on desktop and Medium on touch devices like the iPad.
+- **Tests** run at Low, because the software renderer can't keep up with bloom, plus one check at High that the bloom add-ons load cleanly.
+
+![Neon Harbour with bloom](img/neon-overview.png) ![Skyhook Isles with block towers](img/skyhook-islets.png)
+
 ## 2026-11-14 (overnight): Mario Kart items and destructible towers
 
 **Item boxes.** About 16 rainbow ? boxes per map (around spawn, on some pillar tops, scattered on the ground) respawn 8 s after pickup. You hold one item and use it with **G** (or the Item button). Rolls are weighted by race position: leaders mostly get shields and magnets, and the back of the pack gets bombs and comets.

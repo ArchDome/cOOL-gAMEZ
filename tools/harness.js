@@ -55,7 +55,7 @@ function startServer() {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => { serverPort = server.address().port; server.unref(); resolve(serverPort); }));
 }
 
-async function openGame(game, { fakeRoom = false, viewport = { width: 1000, height: 620 }, hash = '' } = {}) {
+async function openGame(game, { fakeRoom = false, viewport = { width: 1000, height: 620 }, hash = '', gfx = 'low' } = {}) {
   ensureLibs();
   const port = await startServer();
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] });
@@ -65,7 +65,14 @@ async function openGame(game, { fakeRoom = false, viewport = { width: 1000, heig
   for (const [url, [spec, file]] of Object.entries(LIBS)) {
     await page.route(url, (r) => r.fulfill({ path: path.join(LIB_DIR, spec, file), contentType: 'text/javascript' }));
   }
+  // three.js add-ons (post-processing etc.) live under examples/jsm in the same package
+  await page.route('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/**', (r) => {
+    const rel = r.request().url().split('/examples/jsm/')[1];
+    r.fulfill({ path: path.join(LIB_DIR, 'three@0.160.0', 'package', 'examples', 'jsm', rel), contentType: 'text/javascript' });
+  });
   await page.route('https://fonts.**', (r) => r.abort());
+  // tests run at low graphics: the software renderer is far too slow for bloom (real devices are fine)
+  await page.addInitScript((g) => { try { if (!localStorage.getItem('skyhook.gfx.pinned')) localStorage.setItem('skyhook.gfx', g); } catch (e) {} }, gfx);
   if (fakeRoom) await page.addInitScript(fakeRoomInit);
   await page.goto(`http://127.0.0.1:${port}/${game}/index.html${hash}`);
   return { browser, page, errors };

@@ -30,6 +30,16 @@ const { openGame, checker } = require('./harness');
     c.check(`${key}: walking is smooth`, r.standing > .8 && r.vmin > -12 && r.vmax < 12, `standing ${(r.standing * 100).toFixed(0)}%, vy ${r.vmin.toFixed(1)}..${r.vmax.toFixed(1)}`);
     c.check(`${key}: bots spawn and move`, r.bots === 2 && r.botMoves > 3, `bots ${r.bots}, moved ${r.botMoves.toFixed(1)} m`);
   }
+  // graphics: at High, the bloom post-processing add-ons load and render without errors
+  {
+    const hi = await openGame('skyhook-isles', { gfx: 'high' });
+    await hi.page.waitForFunction(() => window.__skyDebug, null, { timeout: 30000 });
+    await hi.page.waitForFunction(() => window.__skyDebug.gfx().composer, null, { timeout: 30000 }).catch(() => {});
+    const g = await hi.page.evaluate(() => window.__skyDebug.gfx());
+    await hi.page.waitForTimeout(1500);
+    c.check('bloom loads at High graphics', g.GFX === 'high' && g.composer && hi.errors.length === 0, JSON.stringify(g) + ' ' + hi.errors.join(' | '));
+    await hi.browser.close();
+  }
   // cup: starting a cup goes to its first map and auto-starts a race there
   await page.goto(page.url().split('#')[0] + '#map-isles'); await page.reload();
   await page.waitForFunction(() => window.__skyDebug, null, { timeout: 30000 });

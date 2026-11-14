@@ -45,7 +45,8 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.
 - [ ] Bots use items too (grab boxes, throw bombs at nearby players, fire comets when behind).
-- [ ] Graphics push: bloom, better water, rain, and a quality setting tuned for iPad.
+- [x] Graphics push: bloom, better water, rain, and a quality setting tuned for iPad.
+- [ ] More graphics: volumetric-looking light shafts, soft clouds, screen-space ambient occlusion at High, better character models.
 - [ ] Owner's recorded announcer clips (`npm run voice`), when the owner sends them.
 
 ## Questions for the owner
