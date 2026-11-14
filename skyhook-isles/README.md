@@ -14,6 +14,8 @@ Built with [Three.js](https://threejs.org) 0.160 for rendering and [cannon-es](h
 | Shift while hooked | Hold Reel | Reel in. Hook a crate to yank it toward you |
 | Space | Jump | Jump and double jump. While hooked, let go with a boost |
 | Wheel, R | | Zoom the camera, respawn |
+| T | Restart run | Restart the speedrun (resets sparks, crates and the boulder) |
+| Esc | | Pause. Click the game to capture the mouse again |
 
 ## What's in the world
 
@@ -22,6 +24,16 @@ Built with [Three.js](https://threejs.org) 0.160 for rendering and [cannon-es](h
 - Updrafts that launch you into the sky.
 - Dynamic crates (including a stack at spawn) and a boulder you can knock or yank around.
 - 15 sparks. Each one shines a beam into the sky until you collect it. Your best time is saved.
+
+## Speedrun timer
+
+LiveSplit-style splits in the top right. The timer starts on your first move, jump or hook after a restart, and pauses while the game is paused.
+
+- Each spark is a split. Sparks can be collected in any order, so split *n* is your *n*th spark.
+- Completed splits show your time and the difference from your personal best: green if ahead, red if behind, gold if it was your fastest-ever segment.
+- On the current split, a red live delta appears once you fall behind your PB pace.
+- **Sum of best** adds up your best segments: the theoretical best run.
+- Your PB and best segments are saved in the browser (`localStorage`), per device.
 
 ## How the grapple works
 

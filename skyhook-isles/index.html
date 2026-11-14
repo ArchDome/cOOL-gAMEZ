@@ -58,7 +58,22 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
 .btns button{width:78px;height:78px;border-radius:50%;border:2px solid rgba(255,255,255,.35);background:rgba(14,22,38,.55);color:var(--ink);font:800 14px var(--body);touch-action:none}
 .btns button.on{background:rgba(124,224,255,.35);border-color:var(--hook)}
 .btns #tHook{grid-row:span 2;align-self:center;width:96px;height:96px;border-color:var(--hook)}
-@media (max-width:560px){ .hint{display:none} .stats{gap:12px} }
+.rightcol{display:grid;gap:8px;justify-items:end;align-content:start}
+.splits{width:250px;display:grid;gap:6px;pointer-events:auto;font-variant-numeric:tabular-nums}
+.sp-head,.sp-foot{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sp-foot b{font-size:13px;letter-spacing:0;color:var(--ink)}
+.splits ol{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.splits li{display:grid;grid-template-columns:1fr 64px 62px;gap:6px;font-size:13px;font-weight:600;padding:3px 6px;border-radius:6px}
+.splits li span:not(:first-child){text-align:right}
+.splits li.cur{background:rgba(124,224,255,.16)}
+.splits li.next{color:var(--muted)}
+.ahead{color:#7bd36a}.behind{color:#ff7a62}.gold{color:var(--spark)}
+.runtime{font-family:var(--display);font-size:30px;line-height:1;text-align:right}
+.runtime.ahead{color:#7bd36a}.runtime.behind{color:#ff7a62}.runtime.done{color:var(--spark)}
+.runtime.ready{color:var(--muted)}
+.splits button{font:700 12px var(--body);color:var(--ink);background:rgba(255,255,255,.1);border:1px solid var(--line);border-radius:8px;padding:6px 8px;cursor:pointer}
+.splits button:focus-visible{outline:2px solid var(--hook);outline-offset:2px}
+@media (max-width:560px){ .hint{display:none} .stats{gap:12px} .splits{width:210px} .splits li{grid-template-columns:1fr 56px 56px;font-size:12px} .runtime{font-size:24px} }
 </style>
 
 <div id="app"></div>
@@ -66,10 +81,18 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
 <div class="hud">
   <div class="row">
     <div class="chip brand">Skyhook Isles<small id="where">The meadow</small></div>
-    <div class="chip stats">
-      <div class="stat sp"><b id="sparks">0/15</b><span>Sparks</span></div>
-      <div class="stat"><b id="timer">0:00</b><span>Time</span></div>
-      <div class="stat"><b id="speed">0</b><span>m/s</span></div>
+    <div class="rightcol">
+      <div class="chip stats">
+        <div class="stat sp"><b id="sparks">0/15</b><span>Sparks</span></div>
+        <div class="stat"><b id="speed">0</b><span>m/s</span></div>
+      </div>
+      <div class="chip splits" id="splits" aria-label="Speedrun splits">
+        <div class="sp-head"><span>Splits</span><span id="pbLbl">No PB yet</span></div>
+        <ol id="splitList"></ol>
+        <div class="runtime ready" id="timer">0:00.00</div>
+        <div class="sp-foot"><span>Sum of best</span><b id="sob">–</b></div>
+        <button type="button" id="resetBtn">Restart run (T)</button>
+      </div>
     </div>
   </div>
   <div class="row">
@@ -95,12 +118,15 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
       <dt>Shift</dt><dd>While hooked, reel in. Hook a crate and reel to yank it.</dd>
       <dt>Space</dt><dd>Jump and double jump. While hooked, let go with a boost.</dd>
       <dt>Wheel · R</dt><dd>Zoom the camera · respawn.</dd>
+      <dt>T</dt><dd>Restart the speedrun. The timer starts on your first move.</dd>
+      <dt>Esc</dt><dd>Pause. Click the game to capture the mouse again.</dd>
     </dl>
     <dl class="keys" id="keysTouch" hidden>
       <dt>Left thumb</dt><dd>Drag to move.</dd>
       <dt>Right thumb</dt><dd>Drag to look around.</dd>
       <dt>Hook</dt><dd>Hold to grapple at the crosshair, release to let go.</dd>
       <dt>Reel · Jump</dt><dd>Reel in while hooked. Jump while hooked to launch off.</dd>
+      <dt>Restart run</dt><dd>Resets the island. The timer starts on your first move.</dd>
     </dl>
     <button class="go" type="button" id="go">Play</button>
     <div class="best" id="best"></div>
@@ -289,7 +315,7 @@ function addCrate(x,y,z){
   const m=new THREE.Mesh(crateGeo,R()<.5?crateMat:crateMat2); m.castShadow=m.receiveShadow=true; scene.add(m);
   const edge=new THREE.LineSegments(new THREE.EdgesGeometry(crateGeo),new THREE.LineBasicMaterial({color:"#5d3a1c"})); m.add(edge);
   const b=new CANNON.Body({mass:2,shape:new CANNON.Box(new CANNON.Vec3(.65,.65,.65))}); b.position.set(x,y,z); b.sleepSpeedLimit=.3; world.addBody(b);
-  m.userData.body=b; grappleables.push(m); dynamics.push({mesh:m,body:b});
+  m.userData.body=b; grappleables.push(m); dynamics.push({mesh:m,body:b,p0:b.position.clone(),q0:b.quaternion.clone()});
 }
 { const cx=SPAWN.x+11, cz=SPAWN.z-7, gy=H(cx,cz);
   for(let lvl=0;lvl<4;lvl++) for(let i=0;i<4-lvl;i++) addCrate(cx+(i-(3-lvl)/2)*1.35, gy+.66+lvl*1.31, cz);
@@ -297,7 +323,7 @@ function addCrate(x,y,z){
 { const bx=PEAK.x-16, bz=PEAK.z+14, r=2.2;
   const m=new THREE.Mesh(new THREE.IcosahedronGeometry(r,1),new THREE.MeshStandardMaterial({color:"#7d746a",flatShading:true})); m.castShadow=m.receiveShadow=true; scene.add(m);
   const b=new CANNON.Body({mass:40,shape:new CANNON.Sphere(r),angularDamping:.2}); b.position.set(bx,H(bx,bz)+r+.5,bz); world.addBody(b);
-  m.userData.body=b; grappleables.push(m); dynamics.push({mesh:m,body:b}); }
+  m.userData.body=b; grappleables.push(m); dynamics.push({mesh:m,body:b,p0:b.position.clone(),q0:b.quaternion.clone()}); }
 
 // ---------------- updrafts ----------------
 const updrafts=[];
@@ -365,21 +391,37 @@ const isTouch = matchMedia("(pointer: coarse)").matches || ("ontouchstart" in wi
 const touchMove={x:0,y:0};
 if (isTouch){ $("keysDesk").hidden=true; $("keysTouch").hidden=false; $("hint").hidden=true; }
 addEventListener("keydown",e=>{
+  if (e.key==="Escape"){ pauseGame(); return; }
   if (!running) return;
   const k=e.key.toLowerCase(); keys.add(k);
   if (k===" "){ jumpQueued=true; e.preventDefault(); }
   if (k==="e" && !e.repeat) hookDown();
   if (k==="r") respawn("Respawned");
+  if (k==="t" && !e.repeat) restartRun();
 });
 addEventListener("keyup",e=>{ const k=e.key.toLowerCase(); keys.delete(k); if(k==="e") hookUp(); });
-addEventListener("blur",()=>{ keys.clear(); hookUp(); });
+addEventListener("blur",()=>{ keys.clear(); hookUp(); pauseGame(); });
+document.addEventListener("visibilitychange",()=>{ if (document.hidden) pauseGame(); });
+// mouse capture: Play/Resume asks for it, and clicking the game asks again if it was lost
+function captureMouse(){
+  if (isTouch || locked) return;
+  const tryLock=opts=>{ try{ return canvas.requestPointerLock(opts); }catch(e){ return null; } };
+  const r=tryLock({unadjustedMovement:true});
+  if (r && r.catch) r.catch(()=>{ const r2=tryLock(); if (r2 && r2.catch) r2.catch(()=>{ if (running) toast("Click the game to capture the mouse"); }); });
+}
+function pauseGame(){
+  if (!running) return;
+  running=false; keys.clear(); hookUp(); reelHeld=false; dragLook=null;
+  if (document.pointerLockElement) document.exitPointerLock();
+  showStart(true);
+}
 canvas.addEventListener("contextmenu",e=>e.preventDefault());
 let dragLook=null;
 canvas.addEventListener("pointerdown",e=>{
   if (!running) return;
   if (e.pointerType==="touch"){ touchDown(e); return; }
   if (locked || e.button===2){ hookDown(); return; }
-  if (e.button===0){ dragLook={x:e.clientX,y:e.clientY,id:e.pointerId}; try{canvas.setPointerCapture(e.pointerId);}catch(_){} }
+  if (e.button===0){ captureMouse(); dragLook={x:e.clientX,y:e.clientY,id:e.pointerId}; try{canvas.setPointerCapture(e.pointerId);}catch(_){} }
 });
 canvas.addEventListener("pointermove",e=>{
   if (e.pointerType==="touch"){ touchMoveH(e); return; }
@@ -392,7 +434,7 @@ canvas.addEventListener("wheel",e=>{ camDist=Math.min(15,Math.max(3.5,camDist+e.
 function look(dx,dy){ if (Math.abs(dx)>250||Math.abs(dy)>250) return;  yaw-=dx*.0026; pitch=Math.min(1.25,Math.max(-.55,pitch+dy*.0022)); }
 document.addEventListener("pointerlockchange",()=>{
   locked = document.pointerLockElement===canvas;
-  if (!locked && running && triedLock && !isTouch){ running=false; hookUp(); showStart(true); }
+  if (!locked && running && !isTouch) pauseGame();
 });
 // touch: left side moves, right side looks
 let joy=null, lookT=null;
@@ -505,6 +547,7 @@ function controls(dt){
   const L=Math.hypot(ix,iy); if (L>1){ ix/=L; iy/=L; }
   fwd.set(-Math.sin(yaw),0,-Math.cos(yaw)); right.set(Math.cos(yaw),0,-Math.sin(yaw));
   wish.copy(right).multiplyScalar(ix).addScaledVector(fwd,iy);
+  if (wish.lengthSq()>0 || jumpQueued || hookHeld) startRunIfReady();
   const attached = hook && hook.phase==="attached";
   const sprint = keys.has("shift") && !attached;
   const speed = sprint ? 13 : 8.5;
@@ -576,10 +619,73 @@ function respawn(msg){
 }
 
 // ---------------- HUD / game flow ----------------
-let got=0, elapsed=0, finished=false, best=null;
-try{ const b=localStorage.getItem("skyhook.best"); if(b) best=+b; }catch(e){}
+let got=0, elapsed=0, finished=false;
+// speedrun: runState is "ready" (waiting for first input), "running" or "done"
+let runState="ready", splits=[], pb=null, gold=[];
+const SPLIT_KEY="skyhook.splits.v1";
+try{ const raw=JSON.parse(localStorage.getItem(SPLIT_KEY)||"null"); if(raw){ if(Array.isArray(raw.pb)&&raw.pb.length) pb=raw.pb.map(Number); if(Array.isArray(raw.gold)) gold=raw.gold.map(Number); } }catch(e){}
+const saveSplits=()=>{ try{ localStorage.setItem(SPLIT_KEY,JSON.stringify({pb,gold})); }catch(e){} };
 const fmt=s=>`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,"0")}`;
-if (best) $("best").textContent="Best time for all sparks: "+fmt(best);
+const fmtT=s=>{ const m=Math.floor(s/60), r=s-m*60; return `${m}:${r.toFixed(2).padStart(5,"0")}`; };
+const fmtD=d=>{ const a=Math.abs(d), sgn=d<0?"−":"+"; return a>=60 ? sgn+fmt(a) : sgn+a.toFixed(a<10?2:1); };
+function pbText(){ return pb && pb.length===TOTAL ? "PB "+fmtT(pb[TOTAL-1]) : "No PB yet"; }
+if (pb && pb.length===TOTAL) $("best").textContent="Personal best for all sparks: "+fmtT(pb[TOTAL-1]);
+function startRunIfReady(){ if (runState==="ready" && running){ runState="running"; elapsed=0; } }
+function split(){
+  const segStart = splits.length ? splits[splits.length-1] : 0;
+  const seg = elapsed-segStart, i=splits.length;
+  const wasGold = !(gold[i]>0) || seg<gold[i];
+  splits.push(elapsed);
+  splitMeta[i]={gold:wasGold && pb!=null, seg};
+  if (wasGold){ gold[i]=seg; saveSplits(); }
+}
+let splitMeta=[];
+function finishRun(){
+  runState="done"; finished=true;
+  const final=elapsed, prev=pb && pb.length===TOTAL ? pb[TOTAL-1] : null;
+  const newPb = prev==null || final<prev;
+  if (newPb){ pb=splits.slice(); saveSplits(); }
+  $("best").textContent="Personal best for all sparks: "+fmtT(pb[TOTAL-1]);
+  return {final,prev,newPb};
+}
+function restartRun(){
+  got=0; elapsed=0; finished=false; runState="ready"; splits=[]; splitMeta=[];
+  for (const sp of sparks){ sp.got=false; sp.mesh.visible=true; sp.beam.visible=true; }
+  for (const d of dynamics){ d.body.position.copy(d.p0); d.body.quaternion.copy(d.q0); d.body.velocity.set(0,0,0); d.body.angularVelocity.set(0,0,0); d.body.interpolatedPosition.copy(d.p0); d.body.interpolatedQuaternion.copy(d.q0); d.body.wakeUp(); }
+  lastSafe.copy(spawnPos); respawn(null); hook=null;
+  toast("Run reset","The timer starts on your first move.");
+  renderSplits(true);
+}
+let splitsKey="";
+function renderSplits(force){
+  // a five-row window: two done, the current split, two upcoming
+  const cur=Math.min(splits.length,TOTAL-1), from=Math.max(0,Math.min(cur-2,TOTAL-5)), key=from+"|"+splits.length+"|"+(pb?pb.length:0);
+  if (!force && key===splitsKey) return; splitsKey=key;
+  const ol=$("splitList"); ol.replaceChildren();
+  for (let i=from;i<Math.min(TOTAL,from+5);i++){
+    const li=document.createElement("li"); const name=document.createElement("span"), dl=document.createElement("span"), tm=document.createElement("span");
+    name.textContent="Spark "+(i+1);
+    if (i<splits.length){ tm.textContent=fmtT(splits[i]);
+      if (pb && pb[i]!=null){ const d=splits[i]-pb[i]; dl.textContent=fmtD(d); dl.className = splitMeta[i]&&splitMeta[i].gold ? "gold" : d<0 ? "ahead" : "behind"; } }
+    else { tm.textContent = pb && pb[i]!=null ? fmtT(pb[i]) : "–"; li.className = i===splits.length && runState!=="done" ? "cur" : "next"; if (i===splits.length) dl.id="liveDelta"; }
+    li.append(name,dl,tm); ol.append(li);
+  }
+  $("pbLbl").textContent=pbText();
+  const sob = gold.length>=TOTAL && gold.slice(0,TOTAL).every(g=>g>0) ? gold.slice(0,TOTAL).reduce((a,b)=>a+b,0) : null;
+  $("sob").textContent = sob!=null ? fmtT(sob) : "–";
+}
+function renderTimer(){
+  const tEl=$("timer"); tEl.textContent=fmtT(elapsed);
+  let cls="runtime";
+  if (runState==="ready") cls+=" ready";
+  else if (runState==="done") cls+=" done";
+  else if (pb && pb[splits.length]!=null){ cls += elapsed>pb[splits.length] ? " behind" : " ahead"; }
+  tEl.className=cls;
+  // live delta on the current split appears once you fall behind your PB pace, as in LiveSplit
+  const ld=$("liveDelta");
+  if (ld){ const target = pb && pb[splits.length]; if (runState==="running" && target!=null && elapsed>target){ ld.textContent=fmtD(elapsed-target); ld.className="behind"; } else { ld.textContent=""; ld.className=""; } }
+}
+$("resetBtn").addEventListener("click",e=>{ e.currentTarget.blur(); restartRun(); });
 function showStart(paused){
   $("start").hidden=false;
   $("go").textContent = paused ? "Resume" : "Play";
@@ -587,9 +693,7 @@ function showStart(paused){
 $("go").addEventListener("click",()=>{
   audioOn(); $("start").hidden=true; running=true; clock.getDelta();
   if (isTouch){ $("touch").hidden=false; return; }
-  const lock=opts=>{ try{ const r=canvas.requestPointerLock(opts); triedLock=true; return r; }catch(e){ triedLock=false; return null; } };
-  const r=lock({unadjustedMovement:true});
-  if (r && r.catch) r.catch(()=>{ const r2=lock(); if (r2 && r2.catch) r2.catch(()=>{ triedLock=false; }); });
+  captureMouse();
 });
 function placeName(p){
   if (p.y>40) return "High above the isles";
@@ -607,7 +711,7 @@ function frame(){
   requestAnimationFrame(frame);
   const dt=Math.min(clock.getDelta(),.05);
   const t=clock.elapsedTime;
-  if (running){ controls(dt); world.step(1/60,dt,4); if(!finished) elapsed+=dt; }
+  if (running){ controls(dt); world.step(1/60,dt,4); if(runState==="running") elapsed+=dt; }
   for (const d of dynamics){ d.mesh.position.copy(d.body.interpolatedPosition); d.mesh.quaternion.copy(d.body.interpolatedQuaternion); }
   // hero
   const p=pBody.interpolatedPosition, v=pBody.velocity; camDt=dt;
@@ -631,14 +735,17 @@ function frame(){
   for (const s of sparks){ if (s.got) continue; s.mesh.rotation.y+=dt*2; s.mesh.position.y=s.pos.y+Math.sin(t*2+s.pos.x)*.2;
     if (running && s.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<1.9){ s.got=true; s.mesh.visible=false; s.beam.visible=false; got++;
       [880,1108,1318].forEach((f,i)=>tone(f,.18,"triangle",.07,1,i*.07));
-      if (got===TOTAL){ finished=true; const prev=best; if(!best||elapsed<best){ best=elapsed; try{localStorage.setItem("skyhook.best",String(best));}catch(e){} }
-        toast("Every spark found!", `${fmt(elapsed)}${prev&&elapsed<prev?" · new best":""}`); $("best").textContent="Best time for all sparks: "+fmt(best); }
-      else toast(`Spark ${got} of ${TOTAL}`, got===1?"Follow the light beams to find the rest.":""); } }
+      if (runState==="ready") runState="running";
+      split(); const i=splits.length-1, d = pb && pb[i]!=null ? splits[i]-pb[i] : null;
+      const dTxt = d==null ? fmtT(splits[i]) : `${fmtT(splits[i])} · ${fmtD(d)}${splitMeta[i].gold?" · best segment":""}`;
+      if (got===TOTAL){ const r=finishRun(); toast(r.newPb ? (r.prev==null?"First full run!":"New personal best!") : "Every spark found!", r.prev==null ? fmtT(r.final) : `${fmtT(r.final)} · ${fmtD(r.final-r.prev)} vs PB`); }
+      else toast(`Spark ${got} of ${TOTAL}`, got===1 && !pb ? "Follow the light beams to find the rest." : dTxt);
+      renderSplits(true); } }
   for (const u of updrafts) u.rings.forEach((r,k)=>{ const ph=((t*.6+k/u.rings.length)%1); r.position.y=ph*34; r.material.opacity=.55*(1-ph); });
   for (let i=puffs.length-1;i>=0;i--){ const m=puffs[i]; m.userData.t+=dt; m.position.addScaledVector(m.userData.v,dt); m.material.opacity=.6*(1-m.userData.t/.5); if(m.userData.t>.5){ scene.remove(m); m.geometry.dispose(); m.material.dispose(); puffs.splice(i,1); } }
   hudT+=dt;
   if (hudT>.1){ hudT=0;
-    $("sparks").textContent=`${got}/${TOTAL}`; $("timer").textContent=fmt(elapsed); $("speed").textContent=Math.round(Math.hypot(v.x,v.y,v.z));
+    $("sparks").textContent=`${got}/${TOTAL}`; renderSplits(false); $("speed").textContent=Math.round(Math.hypot(v.x,v.y,v.z));
     $("where").textContent=placeName(p);
     if (!isTouch){ const h=$("hint");
       if (attached) swings++;
@@ -647,12 +754,13 @@ function frame(){
       h.hidden = elapsed>45 && swings>20;
       if (h.dataset.v!==html){ h.dataset.v=html; h.innerHTML=html; } }
   }
+  renderTimer();
   renderer.render(scene,camera);
 }
 addEventListener("resize",()=>{ renderer.setSize(innerWidth,innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); });
 // interpolated poses start at the origin until the first physics step
 for (const b of world.bodies){ b.interpolatedPosition.copy(b.position); b.interpolatedQuaternion.copy(b.quaternion); }
 // small hook for automated testing; not used by the game itself
-window.__skyDebug={ body:pBody, pillars, rocks, view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded };
+window.__skyDebug={ body:pBody, pillars, rocks, sparks, view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded };
 frame();
 </script>
