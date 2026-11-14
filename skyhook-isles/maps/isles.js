@@ -139,7 +139,7 @@ function placeName(p,H){
 }
 
 export default {
-  key:"isles", name:"Skyhook Isles", seed:20261114,
+  key:"isles", name:"Skyhook Isles", seed:20261114, destructibles:{count:5,color:"#a8743c"},
   grid:{N:129,ES:2.5},
   spawn:SPAWN, peak:PEAK,
   theme:{ fog:["#c9d6e8",130,420], sky:["#4f7fcf","#a9c6ec","#f3d2a6"], hemi:["#d6e6ff","#58663a",.95], sun:["#fff0d4",2.3], sunDir:[-.45,.8,.4], water:"#2b7c9c" },

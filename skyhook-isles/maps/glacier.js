@@ -77,7 +77,7 @@ function placeName(p,H){
 }
 
 export default {
-  key:"glacier", name:"Glacier Spires", seed:4242,
+  key:"glacier", name:"Glacier Spires", seed:4242, destructibles:{count:5,color:"#b8dcf4"},
   grid:{N:121,ES:2.5},
   spawn:SPAWN, peak:PEAK,
   theme:{ fog:["#b8cce0",90,360], sky:["#0b1638","#3a5a8c","#cfe2f2"], hemi:["#e4f0ff","#7a8aa0",1.05], sun:["#f2f6ff",1.8], sunDir:[-.3,.55,-.5], water:"#1f4a66", snow:true, ice:true },

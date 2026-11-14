@@ -95,7 +95,7 @@ function placeName(p,H){
 }
 
 export default {
-  key:"junkyard", name:"Scrapyard Canyon", seed:777,
+  key:"junkyard", name:"Scrapyard Canyon", seed:777, destructibles:{count:6,color:"#8a6a3a"},
   grid:{N:121,ES:2.25},
   spawn:SPAWN, peak:PEAK,
   theme:{ fog:["#c9a27a",90,330], sky:["#5a7aa8","#d8b48a","#f0c890"], hemi:["#ffe2b8","#6a4a2a",.95], sun:["#ffe0b0",2.2], sunDir:[.6,.6,-.3], water:"#5a4a3a" },

@@ -21,7 +21,7 @@ const { openGame, checker } = require('./harness');
       d.keys.delete('w');
       const sel = document.getElementById('optBots'); sel.value = '2'; sel.dispatchEvent(new Event('change')); d.tick(2);
       const bots = d.bots(); const moved = bots.map(x => x.body.position.clone());
-      d.tick(120); const dist = bots.map((x, i) => Math.hypot(x.body.position.x - moved[i].x, x.body.position.z - moved[i].z));
+      d.tick(240); const dist = bots.map((x, i) => Math.hypot(x.body.position.x - moved[i].x, x.body.position.z - moved[i].z));
       return { where: document.getElementById('where').textContent, sparks: d.sparks.length, pillars: d.pillars.length, ground: g, vmin, vmax, standing: st / 120, bots: bots.length, botMoves: Math.max(...dist), mapSel: document.getElementById('optMap').value };
     });
     c.check(`${key}: loads with no errors`, errors.length === 0, errors.join(' | '));

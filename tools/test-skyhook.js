@@ -53,6 +53,21 @@ const { openGame, checker } = require('./harness');
     const dodges = await page.evaluate(() => { const d = window.__skyDebug, k = d.CHARACTERS.find(c => c.key === 'kofi'); return k.dodge; });
     c.check('characters have distinct personalities', dodges > .3);
 
+    // Race items and destructible towers
+    await page.waitForFunction(() => { const d = window.__skyDebug, b = d.itemBoxes[0]; d.body.position.set(b.pos.x, b.pos.y, b.pos.z); d.body.velocity.set(0, 0, 0); return !!d.item().heldItem; }, null, { timeout: 15000, polling: 100 }).catch(() => {});
+    c.check('a ? box gives you an item', !!(await page.evaluate(() => window.__skyDebug.item().heldItem)));
+    await page.evaluate(() => { const d = window.__skyDebug; d.giveItem('shield'); d.useItem(); d.takeHit([1, 0], true, { peer: 'x', name: 'X' }); });
+    c.check('a shield blocks a hit', (await page.evaluate(() => Math.abs(window.__skyDebug.body.velocity.x))) < 5);
+    const tw = await page.evaluate(() => { const d = window.__skyDebug, before = d.towers(); const t = d.towerSpots ? null : null; return before; });
+    const blast = await page.evaluate(() => { const d = window.__skyDebug, before = d.towers().reduce((a, b) => a + b, 0); const t0 = d.towersAt(0); d.explodeAt(t0.x, t0.y + 3, t0.z); return { before, after: d.towers().reduce((a, b) => a + b, 0) }; });
+    c.check('an explosion blows a hole and the tower collapses', blast.after < blast.before - 6, `${blast.before} -> ${blast.after} blocks`);
+    await page.evaluate(() => { const d = window.__skyDebug; d.body.position.set(-55, 8, 45); d.body.velocity.set(0, 0, 0); d.tick(30); d.giveItem('bomb'); d.view(0, .3); d.useItem(); });
+    await page.waitForFunction(() => { const b = window.__skyDebug.item().lastBoom; return b && b.n >= 2; }, null, { timeout: 40000 }).catch(() => {});
+    c.check('a thrown bomb explodes and is shared', !!(await page.evaluate(() => window.__skyDebug.item().lastBoom && window.__skyDebug.item().lastBoom.n >= 2)), JSON.stringify(await page.evaluate(() => window.__skyDebug.item().lastBoom)));
+    const comet = await page.evaluate(() => { const d = window.__skyDebug, bs = d.bots(); if (!bs.length) return 'no bots'; bs[0].sparkCount = 9; d.giveItem('comet'); d.useItem(); return document.getElementById('toast').textContent; });
+    c.check('a homing comet targets the leader', /hunting Matteo|hunting Yuki/.test(comet), comet);
+    await page.evaluate(() => { const d = window.__skyDebug; d.calm(); d.body.position.set(-55, 8, 45); d.body.velocity.set(0, 0, 0); d.tick(30); });
+
     // Character select and the reacting face
     await page.evaluate(() => { const el = document.getElementById('optChar'); el.value = 'matteo'; el.dispatchEvent(new Event('change')); window.__skyDebug.tick(3); });
     await page.waitForTimeout(300);

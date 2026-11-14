@@ -125,7 +125,7 @@ function placeName(p,H){
 }
 
 export default {
-  key:"neon", name:"Neon Harbour", seed:88442,
+  key:"neon", name:"Neon Harbour", seed:88442, destructibles:{count:7,color:"#6a7088"},
   grid:{N:121,ES:2.25},
   spawn:SPAWN, peak:PLAZA,
   theme:{

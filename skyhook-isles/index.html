@@ -28,7 +28,8 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
 .stat.sp b{color:var(--spark)}
 .stat.gl b{color:var(--hook)}
 .stat.bt b{color:#ff6b5a}
-.intro{position:fixed;left:max(16px,env(safe-area-inset-left,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 70px);display:grid;grid-template-columns:10px 1fr;gap:0 14px;
+.stat.it b{color:#d9a6ff;font-size:16px;line-height:20px}
+.intro{position:fixed;left:max(16px,env(safe-area-inset-left,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 196px);display:grid;grid-template-columns:10px 1fr;gap:0 14px;
   background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 18px 14px 14px;max-width:min(92vw,420px);pointer-events:none;backdrop-filter:blur(8px);animation:introIn .35s cubic-bezier(.2,1.4,.4,1)}
 .intro .stripe{grid-row:span 4;border-radius:5px;background:linear-gradient(var(--s1) 0 33.3%,var(--s2) 0 66.6%,var(--s3) 0)}
 .intro small{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
@@ -153,6 +154,7 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
         <div class="stat"><b id="speed">0</b><span>m/s</span></div>
         <div class="stat gl"><b id="glider">–</b><span>Glider</span></div>
         <div class="stat bt"><b id="bat">–</b><span>Bat</span></div>
+        <div class="stat it"><b id="item">–</b><span>Item (G)</span></div>
       </div>
       <div class="chip splits" id="splits" aria-label="Speedrun splits">
         <div class="sp-head"><span>Splits</span><span id="pbLbl">No PB yet</span></div>
@@ -193,6 +195,7 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
     <button type="button" id="tHook">Hook</button>
     <button type="button" id="tJump">Jump</button>
     <button type="button" id="tHit">Hit</button>
+    <button type="button" id="tItem">Item</button>
   </div>
 </div>
 <div class="overlay" id="start">
@@ -205,6 +208,7 @@ body{background:#1b2a44;color:var(--ink);font-family:var(--body);font-size:15px;
       <dt>Shift</dt><dd>While hooked, reel in. Hook a crate and reel to yank it.</dd>
       <dt>Space</dt><dd>Jump and double jump. While hooked, let go with a boost.</dd>
       <dt>Wheel · R</dt><dd>Zoom the camera · respawn.</dd>
+      <dt>G</dt><dd>Use your item: grab rainbow ? boxes for a rocket boost, bomb, homing comet, shield or spark magnet. Bombs blow holes in towers.</dd>
       <dt>F</dt><dd>Shove whoever is right in front of you. With a red bat pickup it becomes a home-run swing.</dd>
       <dt>Glider</dt><dd>Grab a cyan glider pickup, then hold Space while falling. Look down to dive, up to float.</dd>
       <dt>Enter · V</dt><dd>Type in chat, or hold V and talk to send voice as text. Characters answer back in text. Scroll the chat panel to see earlier messages.</dd>

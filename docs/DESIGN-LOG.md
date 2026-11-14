@@ -4,6 +4,27 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14 (overnight): Mario Kart items and destructible towers
+
+**Item boxes.** About 16 rainbow ? boxes per map (around spawn, on some pillar tops, scattered on the ground) respawn 8 s after pickup. You hold one item and use it with **G** (or the Item button). Rolls are weighted by race position: leaders mostly get shields and magnets, and the back of the pack gets bombs and comets.
+
+| Item | What it does |
+| --- | --- |
+| Rocket boost | A burst forward and up |
+| Bomb | Thrown forward; 1.8 s fuse; a radius-7 blast that knocks back everyone nearby and breaks towers |
+| Homing comet | The blue-shell equivalent. Hunts whoever has the most sparks (player or bot) and explodes on them, 1.6× power |
+| Shield bubble | 8 s immune to hits and blasts |
+| Spark magnet | 6 s of collecting sparks within 14 m |
+
+**Destructible towers.** Each map has 5–7 block towers (2×2 blocks, 8–13 floors, colors per map).
+- An explosion turns blocks within its radius into flying debris.
+- Every block left above a hole in its column collapses too.
+- Towers rebuild when a race starts.
+
+**Multiplayer.** Explosions are shared through presence (a numbered `boom` event). Each game knocks itself back and breaks its own copy of the towers, and whoever runs the bots knocks the bots. Hits from blasts count as last-touch for sea dunks.
+
+![A tower in Neon Harbour, then the blast](img/tower-after.png)
+
 ## 2026-11-14 (overnight): Character select and a reacting face
 
 - **Play as:** pick any of the seven cast members, or the original Climber, on the start screen. Your colors and size show for you and your friends, and bots fill in with characters nobody picked.

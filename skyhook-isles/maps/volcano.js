@@ -77,7 +77,7 @@ function placeName(p,H){
 }
 
 export default {
-  key:"volcano", name:"Ember Caldera", seed:31337,
+  key:"volcano", name:"Ember Caldera", seed:31337, destructibles:{count:5,color:"#5a463a"},
   grid:{N:121,ES:2.5},
   spawn:SPAWN, peak:PEAK,
   theme:{ fog:["#4a2a22",80,330], sky:["#2a0f0c","#7a2e1a","#ff8a3a"], hemi:["#ffb08a","#3a1a10",.8], sun:["#ffcf9a",1.6], sunDir:[.5,.6,.3], water:"#ff5a10", waterGlow:true, embers:true },
