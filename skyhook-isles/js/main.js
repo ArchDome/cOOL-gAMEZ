@@ -1039,7 +1039,7 @@ function nameSprite(text,color){
   const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false,transparent:true})); sp.scale.set(2.6*W/256,.65,1); sp.renderOrder=10; return sp;
 }
 function makeAvatar(peer){
-  const color=colorFor(peer), g=new THREE.Group(), body=heroBody.clone(true); g.add(body);
+  const color=colorFor(peer), g=new THREE.Group(), body=heroBody.clone(true); g.add(body); dressBody(body,CLASSIC);
   const torso=body.children[0]; torso.material=new THREE.MeshStandardMaterial({color,roughness:.6}); torso.userData.remote=peer;
   for (const n of ["armL","armR"]) body.getObjectByName(n).getObjectByName("limb").material=torso.material;   // sleeves follow the suit
   const w=wing.clone(true); w.visible=false; g.add(w);
@@ -1106,7 +1106,7 @@ function updateRemotes(dt){
     if (typeof ps.yw==="number" && isFinite(ps.yw)){ let d=ps.yw-a.yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); a.yaw+=d*Math.min(1,10*dt); a.g.rotation.y=a.yaw; }
     a.open += ((ps.g?1:0)-a.open)*Math.min(1,10*dt); a.wing.visible=a.open>.02; a.wing.scale.set(a.open,1,.4+.6*a.open);
     if (a.bat) a.bat.visible=!!ps.bt; if (a.swing>0) a.swing=Math.max(0,a.swing-dt/.28); poseSwing(a.body,a.bat,a.swing,a.swingBat);
-    if (ps.pc!==a.pcSeen){ a.pcSeen=ps.pc; const C=charByKey(typeof ps.pc==="string"?ps.pc:""); if (ps.pc && C!==CLASSIC){ a.torso.material.color.set(C.suit); a.body.children[2].material=new THREE.MeshStandardMaterial({color:C.hat,roughness:.7}); a.g.scale.setScalar(C.scale||1); } }
+    if (ps.pc!==a.pcSeen){ a.pcSeen=ps.pc; const C=charByKey(typeof ps.pc==="string"?ps.pc:""); if (ps.pc && C!==CLASSIC){ dressBody(a.body,C); a.torso.material.color.set(C.suit); a.body.children[2].material=new THREE.MeshStandardMaterial({color:C.hat,roughness:.7}); a.g.scale.setScalar(C.scale||1); } }
     a.phase=(a.phase||0)+Math.hypot(a.nv.x,a.nv.z)*1.4*dt;
     poseArms(a.body, Array.isArray(ps.h)&&ps.h[0]===2?"rope" : ps.g?"glide" : a.nv.y<-14?"fall":"walk", a.phase, Math.min(1,Math.hypot(a.nv.x,a.nv.z)/6));
     a.body.rotation.x = ps.g ? -1.1 : (Array.isArray(ps.h) && ps.h[0]===2 ? -.35 : 0);
@@ -1417,12 +1417,43 @@ const BOT_NAMES=CHARACTERS.map(c=>c.name);
 const CLASSIC={key:"classic",name:"Climber",full:"The Climber",from:"Skyhook",suit:"#f26b3a",hat:"#22314d",scale:1,skin:"#ffd9b8",hair:"#22314d",feature:"goggles",stripes:["#f26b3a","#22314d","#7ce0ff"]};
 const charByKey=k=>CHARACTERS.find(c=>c.key===k)||CLASSIC;
 let myCharKey="classic"; try{ myCharKey=localStorage.getItem("skyhook.char")||"classic"; }catch(e){}
+// character models: one shared body, dressed per character (skin, eyes, signature feature, flag band, legs and boots)
+const dressMats=new Map();
+const dmat=(c,r=.7,metal=0)=>{ const k=c+"|"+r+"|"+metal; if (!dressMats.has(k)) dressMats.set(k,new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:metal})); return dressMats.get(k); };
+const DG={ eye:new THREE.SphereGeometry(.042,8,6), eyeW:new THREE.SphereGeometry(.078,10,8), pupil:new THREE.SphereGeometry(.04,8,6), puff:new THREE.SphereGeometry(.11,8,6),
+  leg:new THREE.CylinderGeometry(.11,.095,.24,8), boot:new THREE.BoxGeometry(.2,.12,.3), band:new THREE.CylinderGeometry(.372,.372,.05,20,1,true),
+  beard:new THREE.SphereGeometry(.25,14,8,0,Math.PI*2,Math.PI*.52,Math.PI*.48), stache:new THREE.BoxGeometry(.26,.055,.07), bangs:new THREE.BoxGeometry(.5,.11,.14),
+  shades:new THREE.BoxGeometry(.46,.1,.1), ring:new THREE.TorusGeometry(.045,.012,6,12), tail:new THREE.SphereGeometry(.13,10,8) };
+function dressBody(body,C){
+  const old=body.getObjectByName("dress"); if (old) body.remove(old);
+  const d=new THREE.Group(); d.name="dress"; body.add(d);
+  const add=(geo,m,x,y,z,sx=1,sy=1,sz=1,rx=0)=>{ const o=new THREE.Mesh(geo,m); o.position.set(x,y,z); o.scale.set(sx,sy,sz); o.rotation.x=rx; o.castShadow=true; d.add(o); return o; };
+  const skin=dmat(C.skin||"#ffd9b8",.8), hair=dmat(C.hair||"#22314d",.75), dark=dmat("#141820",.3);
+  body.children[1].material=skin;
+  for (const n of ["armL","armR"]){ const arm=body.getObjectByName(n); if (arm && arm.children[1]) arm.children[1].material=skin; }
+  body.children[3].visible = C.feature==="goggles";
+  const f=C.feature;
+  if (f==="bigeyes") for (const sx of [-.1,.1]){ add(DG.eyeW,dmat("#ffffff",.3),sx,.7,-.25); add(DG.pupil,dark,sx,.69,-.32); }
+  else if (f!=="goggles" && f!=="shades") for (const sx of [-.1,.1]) add(DG.eye,dark,sx,.71,-.27);
+  if (f==="shades") add(DG.shades,dmat("#0a0a0e",.15,.6),0,.71,-.26);
+  if (f==="mustache") add(DG.stache,hair,0,.6,-.285);
+  if (f==="beard"){ add(DG.beard,hair,0,.66,-.05,1.05,1.1,1); add(DG.stache,hair,0,.6,-.29); }
+  if (f==="bangs"){ add(DG.bangs,hair,0,.84,-.2,1,1,1,.35); add(DG.tail,hair,0,.72,.3); }
+  if (f==="earrings"){ for (const sx of [-.3,.3]){ const r=add(DG.ring,dmat("#f6c040",.25,.9),sx,.58,0); r.rotation.y=Math.PI/2; } add(DG.tail,hair,0,.8,.24,1.3,1.1,1); }
+  if (f==="shaggy") for (const [x,y,z] of [[-.22,.82,-.1],[.22,.82,-.1],[0,.9,-.16],[-.26,.7,.08],[.26,.7,.08],[0,.84,.2],[-.14,.92,.08],[.14,.92,.08]]) add(DG.puff,hair,x,y,z);
+  // a band of the character's flag stripes around the chest
+  const st=C.stripes||["#f26b3a","#22314d","#7ce0ff"]; st.forEach((c,i)=>add(DG.band,dmat(c,.6),0,.3-i*.05,0));
+  // legs and boots, pivoting at the hip so they can swing
+  const legM=dmat(new THREE.Color(C.suit||"#f26b3a").multiplyScalar(.6).getStyle(),.7), bootM=dmat("#26262c",.6);
+  for (const [n,sx] of [["legL",-.16],["legR",.16]]){ const g=new THREE.Group(); g.name=n; g.position.set(sx,-.3,0); d.add(g);
+    const l=new THREE.Mesh(DG.leg,legM); l.position.y=-.1; l.castShadow=true; g.add(l); const b=new THREE.Mesh(DG.boot,bootM); b.position.set(0,-.22,-.04); b.castShadow=true; g.add(b); }
+}
 function applyHeroLook(){
   const C=charByKey(myCharKey);
   heroBody.children[0].material=new THREE.MeshStandardMaterial({color:C.suit,roughness:.6});
   for (const n of ["armL","armR"]) heroBody.getObjectByName(n).getObjectByName("limb").material=heroBody.children[0].material;
   heroBody.children[2].material=new THREE.MeshStandardMaterial({color:C.hat,roughness:.7});
-  hero.scale.setScalar(C.scale||1);
+  hero.scale.setScalar(C.scale||1); dressBody(heroBody,C);
   $("faceName").textContent=C.name;
 }
 { const sel=$("optChar"); for (const C of [CLASSIC,...CHARACTERS]){ const o=document.createElement("option"); o.value=C.key; o.textContent=C.key==="classic"?"The Climber (classic)":`${C.name} · ${C.from}`; sel.append(o); }
@@ -1556,6 +1587,11 @@ function poseArms(body,mode,phase,amt){
   else if (mode==="glide"){ Rr.rotation.set(-2.9,0,-.25); L.rotation.set(-2.9,0,.25); }
   else if (mode==="fall"){ Rr.rotation.set(-2.4+Math.sin(t*18)*.5,0,-.6); L.rotation.set(-2.4+Math.cos(t*18)*.5,0,.6); }
   else { const w=Math.sin(phase*2)*.7*amt; Rr.rotation.set(w,0,-.08); L.rotation.set(-w,0,.08); }
+  const LL=body.getObjectByName("legL"), LR=body.getObjectByName("legR"); if (!LL||!LR) return;
+  if (mode==="walk"){ const w=Math.sin(phase*2)*.75*amt; LL.rotation.set(w,0,0); LR.rotation.set(-w,0,0); }
+  else if (mode==="glide"){ LL.rotation.set(.5,0,.05); LR.rotation.set(.5,0,-.05); }
+  else if (mode==="fall"){ LL.rotation.set(-.4+Math.sin(t*14)*.5,0,.25); LR.rotation.set(-.4+Math.cos(t*14)*.5,0,-.25); }
+  else { LL.rotation.set(-.5,0,.1); LR.rotation.set(.3,0,-.1); }
 }
 // ---------- spark racing ----------
 // Anchors are places a bot can swing to: pillar tops, floating rocks and tree tops.
@@ -1721,7 +1757,7 @@ function updateBots(dt){
     let a=botAvatars.get(key);
     if (!a){ a=makeAvatar(key); const C=CHARACTERS[ch]||CHARACTERS[0]; a.ch=ch; a.C=C;
       a.torso.material.color.set(C.suit); const hat=a.body.children[2]; hat.material=new THREE.MeshStandardMaterial({color:C.hat,roughness:.7});
-      a.g.scale.setScalar(C.scale); a.color="#"+new THREE.Color(C.stripes[0]==="#f4f5f0"?C.stripes[1]:C.stripes[0]).lerp(new THREE.Color("#ffffff"),.45).getHexString(); botAvatars.set(key,a); queueIntro(ch,false); }
+      a.g.scale.setScalar(C.scale); dressBody(a.body,C); a.color="#"+new THREE.Color(C.stripes[0]==="#f4f5f0"?C.stripes[1]:C.stripes[0]).lerp(new THREE.Color("#ffffff"),.45).getHexString(); botAvatars.set(key,a); queueIntro(ch,false); }
     a.name=name; a.dunks=dk; a.sparks=sc; a.falls=fl;
     if (local){ a.disp.copy(pos); }
     else {

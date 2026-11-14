@@ -4,6 +4,16 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14: Character models
+
+- Each cast member is now dressed by `dressBody()` instead of being the same body recolored. They get their own skin tone on the head and hands, eyes, a three-stripe chest band in their flag colors, and legs with boots that swing while walking, kick while falling and trail while gliding.
+- Signature features: Matteo's mustache, Yuki's bangs and ponytail, Lars's beard, Pip's big eyes, Kofi's shades, Valentina's gold hoops and ponytail, and Dylan's shaggy surfer hair. The Climber keeps the goggles.
+- Friends start as the Climber and get re-dressed when their character arrives in presence. Bots are dressed when their avatar is created. Geometry and materials are shared through a cache, so the cost per character is small.
+
+![The cast](img/skyhook-cast-models.png)
+
+---
+
 ## 2026-11-14: Light shafts and softer clouds
 
 - **Light shafts** (High graphics, day maps). A screen-space pass after bloom streaks bright pixels near the sun outward along 40 jittered samples, so anything in front of the sun (pillars, rocks, the player) breaks the light into rays. It fades in when the sun is on screen and out when it's behind you. The jitter turns the sample dots into smooth streaks.
