@@ -58,6 +58,19 @@ const { openGame, checker } = require('./harness');
     });
     c.check('aim assist catches a near miss, and tap-to-hook fires', aim.skip || (aim.direct && aim.assisted !== false && aim.tapped === 'fly'), JSON.stringify(aim));
 
+    // Final spark: spawns 25-55 m from whoever finished, grabbing it scores a bonus and ends a race
+    const fin = await page.evaluate(() => {
+      const d = window.__skyDebug, b = d.body.position, spot = d.finaleSpot({ x: b.x, y: b.y, z: b.z });
+      d.spawnFinale(spot.x, spot.y, spot.z, 'Tester');
+      const r = { dist: Math.hypot(spot.x - b.x, spot.z - b.z), active: d.finale.active };
+      d.body.position.set(spot.x, spot.y, spot.z); d.body.velocity.set(0, 0, 0);
+      return r;
+    });
+    await page.waitForFunction(() => window.__skyDebug.finale.got && window.__fake.mine().fg, null, { timeout: 30000, polling: 50 }).catch(() => {});
+    const fin2 = await page.evaluate(() => { const d = window.__skyDebug, me = d.standings().find(r => r.me); return { got: d.finale.got, by: d.finale.grabbedBy, score: me.score, s: me.s, fg: window.__fake.mine().fg }; });
+    c.check('the final spark spawns nearby and grabbing it scores a bonus', fin.active && fin.dist > 15 && fin.dist < 70 && fin2.got && fin2.score === fin2.s + 5 && fin2.fg && fin2.fg.n >= 1, JSON.stringify([fin, fin2]));
+    await page.evaluate(() => window.__skyDebug.resetFinale());
+
     // Ground punch: swinging at the ground while falling bounces you up; the bat bounces higher
     const punch = await page.evaluate(() => {
       const d = window.__skyDebug, b = d.body, out = {};

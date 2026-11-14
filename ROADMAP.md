@@ -55,7 +55,7 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] HUD standings: clear live ranking (who leads, who's close behind, gap in sparks).
 - [x] Stats per player: sparks, kills, deaths, falls, bat hits, air time, top speed. Show them in results.
 - [x] Custom awards at the end of a cup (Speed Demon, Menace, Survivor, Troll, Most Dramatic Death...).
-- [ ] Final spark: when someone has all normal sparks, a big spark spawns with dramatic music and a light beam. Bonus points. It spawns closer to whoever finished first.
+- [x] Final spark: when someone has all normal sparks, a big spark spawns with dramatic music and a light beam. Bonus points. It spawns closer to whoever finished first.
 - [ ] Map traps players can trigger: junkyard magnet (sticks players for a while), volcano idol (grapple it, throw it in the crater, the volcano erupts), plus one per map, inspired by death-run traps.
 - [ ] Throwable props: grapple an item, pull it close, throw it at people.
 - [ ] Sumo deathmatch mode: knock players into the void. Points for knockoffs, item throws.

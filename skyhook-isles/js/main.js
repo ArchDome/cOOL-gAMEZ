@@ -103,8 +103,9 @@ function updateWeather(dt,camPos){
   if (MAP.theme.lightning){
     nextFlash-=dt;
     if (nextFlash<=0){ flashT=.35; nextFlash=8+Math.random()*16; if (ac) setTimeout(()=>{ noise(1.8,{type:"lowpass",f:260,f2:60,vol:.5}); },600+Math.random()*900); }
-    if (flashT>0){ flashT-=dt; hemi.intensity=hemiBase+(Math.sin(flashT*60)>0?3.2:1.2)*Math.max(0,flashT/.35); } else hemi.intensity=hemiBase;
   }
+  // flashes (lightning, or a big moment like the final spark)
+  if (flashT>0){ flashT-=dt; hemi.intensity=hemiBase+(Math.sin(flashT*60)>0?3.2:1.2)*Math.max(0,Math.min(1,flashT/.35)); } else if (hemi.intensity!==hemiBase) hemi.intensity=hemiBase;
 }
 
 // ---------------- physics world ----------------
@@ -177,6 +178,54 @@ function addSpark(x,y,z){
   const tall=[...trees].sort((a,b)=>b.top-a.top)[0]; if(tall) addSpark(tall.x,tall.top+1.2,tall.z);
   for (const s of spots){ if (sparks.length>=15) break; addSpark(...s); } }
 const TOTAL=sparks.length;
+// ---- final spark: when anyone has every spark, one big spark spawns (closer to whoever finished first) ----
+const FINAL_BONUS=5;
+const finale={active:false,got:false,pos:new THREE.Vector3(),by:"",grabbedBy:"",t:0};
+let finN=0, lastFin=0, finGotN=0, lastFinGot=0; const lastFinSeen=new Map(), lastFinGotSeen=new Map();
+const finaleGrp=new THREE.Group(); finaleGrp.visible=false; scene.add(finaleGrp);
+const finaleCore=new THREE.Mesh(new THREE.OctahedronGeometry(1.5),new THREE.MeshStandardMaterial({color:"#fff2b0",emissive:"#ff9a2e",emissiveIntensity:3,roughness:.2})); finaleGrp.add(finaleCore);
+const finaleShell=new THREE.Mesh(new THREE.IcosahedronGeometry(2.4,1),new THREE.MeshBasicMaterial({color:"#ffd25a",wireframe:true,transparent:true,opacity:.5,toneMapped:false})); finaleGrp.add(finaleShell);
+{ const b=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.1,260,12,1,true),new THREE.MeshBasicMaterial({color:"#ffe28a",transparent:true,opacity:.35,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide})); b.position.y=130; finaleGrp.add(b); }
+const searchlights=["#ff4fd8","#4fe8ff","#ffd25a","#7dff6a"].map((c,i)=>{ const pivot=new THREE.Group(); finaleGrp.add(pivot);
+  const cone=new THREE.Mesh(new THREE.CylinderGeometry(9,.3,140,16,1,true),new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:.16,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide}));
+  cone.position.y=70; const tilt=new THREE.Group(); tilt.rotation.z=.42; tilt.add(cone); pivot.add(tilt); pivot.rotation.y=i*Math.PI/2; return pivot; });
+const finaleLight=new THREE.PointLight("#ffb040",0,60,1.6); finaleGrp.add(finaleLight);
+// somewhere 25-55 m from whoever finished first: close enough to reward them, far enough to race for
+function finaleSpot(near){
+  const cands=[...pillars.map(p=>[p.x,p.top+2.2,p.z]),...rocks.map(r=>[r.x,r.top+2,r.z]),...sparks.map(s=>[s.pos.x,s.pos.y+.5,s.pos.z])];
+  let best=null, bc=1e9; for (const c of cands){ const d=Math.hypot(c[0]-near.x,c[2]-near.z), cost=Math.abs(d-38)+(d<20?50:0); if (cost<bc){ bc=cost; best=c; } }
+  return best ? new THREE.Vector3(...best) : new THREE.Vector3(near.x,near.y+6,near.z);
+}
+function spawnFinale(pos,by,local){
+  if (finale.active || finale.got) return;
+  finale.active=true; finale.got=false; finale.pos.copy(pos); finale.by=by; finale.t=0; finale.grabbedBy="";
+  finaleGrp.position.copy(pos); finaleGrp.visible=true;
+  if (local){ finN++; lastFin={n:finN,p:[r2(pos.x),r2(pos.y),r2(pos.z)],by:String(by).slice(0,16)}; }
+  flashT=.7; shakeT=Math.max(shakeT,.3);
+  [392,523,659,784,1046].forEach((f,i)=>tone(f,.5,"sawtooth",.05,1,i*.09)); tone(55,2.2,"sine",.25,1.5);
+  announce("final","The final spark has appeared!",true);
+  toast("FINAL SPARK!", by===myName() ? "It spawned near you. Go get it!" : by+" found every spark. Race for the big one!");
+}
+function grabFinale(name,local){
+  if (!finale.active) return;
+  finale.active=false; finale.got=true; finale.grabbedBy=name; finaleGrp.visible=false;
+  if (local){ finGotN++; lastFinGot={n:finGotN,by:String(name).slice(0,16)}; }
+  flashT=.5;
+  [523,659,784,1046,1318,1568].forEach((f,i)=>tone(f,.35,"triangle",.07,1,i*.07));
+  const mine=name===myName(); if (mine) faceHappyT=3;
+  announce("finalgot", mine ? "Final spark! What a finish!" : name+" takes the final spark!", true);
+  toast(mine ? "FINAL SPARK!" : name+" got the final spark", "+"+FINAL_BONUS+" bonus");
+}
+function resetFinale(){ finale.active=false; finale.got=false; finale.grabbedBy=""; finaleGrp.visible=false; }
+function updateFinale(dt,t){
+  if (!finale.active) return;
+  finale.t+=dt;
+  finaleCore.rotation.y+=dt*2.5; finaleCore.rotation.x+=dt*1.1; finaleCore.scale.setScalar(1+.18*Math.sin(t*6));
+  finaleShell.rotation.y-=dt*.8; finaleShell.rotation.z+=dt*.5;
+  searchlights.forEach((sl,i)=>{ sl.rotation.y+=dt*(.7+i*.15); sl.children[0].rotation.z=.35+.2*Math.sin(t*.9+i); });
+  finaleLight.intensity=30+15*Math.sin(t*8);
+  finaleGrp.position.y=finale.pos.y+Math.sin(t*1.7)*.4;
+}
 // glider pickups: one at spawn to learn it, one on the peak, the rest on pillars without a spark
 const gliderPickups=[];
 {
@@ -783,7 +832,7 @@ function finishRun(){
 function restartRun(){
   raceLive=false; batTime=0; for (const g of batPickups){ g.cd=0; g.grp.visible=g.beam.visible=true; }
   for (const b of itemBoxes){ b.cd=0; b.mesh.visible=true; }
-  got=0; elapsed=0; finished=false; runState="ready"; splits=[]; splitMeta=[];
+  got=0; elapsed=0; finished=false; runState="ready"; splits=[]; splitMeta=[]; resetFinale();
   for (const sp of sparks){ sp.got=false; sp.mesh.visible=true; sp.beam.visible=true; }
   for (const d of dynamics){ d.body.position.copy(d.p0); d.body.quaternion.copy(d.q0); d.body.velocity.set(0,0,0); d.body.angularVelocity.set(0,0,0); d.body.interpolatedPosition.copy(d.p0); d.body.interpolatedQuaternion.copy(d.q0); d.body.wakeUp(); }
   lastSafe.copy(spawnPos); respawn(null); hook=null;
@@ -896,9 +945,12 @@ function frame(){
       split(); const i=splits.length-1, d = pb && pb[i]!=null ? splits[i]-pb[i] : null;
       const dTxt = d==null ? fmtT(splits[i]) : `${fmtT(splits[i])} · ${fmtD(d)}${splitMeta[i].gold?" · best segment":""}`;
       faceHappyT=1.6;
+      if (got===TOTAL && !finale.active && !finale.got){ const at=finaleSpot(pBody.position); setTimeout(()=>spawnFinale(at,myName(),true),1400); }
       if (got===TOTAL){ const r=finishRun(); toast(r.newPb ? (r.prev==null?"First full run!":"New personal best!") : "Every spark found!", r.prev==null ? fmtT(r.final) : `${fmtT(r.final)} · ${fmtD(r.final-r.prev)} vs PB`); }
       else toast(`Spark ${got} of ${TOTAL}`, got===1 && !pb ? "Follow the light beams to find the rest." : dTxt);
       renderSplits(true); } }
+  updateFinale(dt,t);
+  if (finale.active && running && deadT<=0 && finale.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<(magnetT>0?8:2.8)) grabFinale(myName(),true);
   for (const u of updrafts) u.rings.forEach((r,k)=>{ const ph=((t*.6+k/u.rings.length)%1); r.position.y=ph*34; r.material.opacity=.55*(1-ph); });
   updateDrops(dt);
   for (let i=puffs.length-1;i>=0;i--){ const m=puffs[i]; m.userData.t+=dt; m.position.addScaledVector(m.userData.v,dt); m.material.opacity=.6*(1-m.userData.t/.5); if(m.userData.t>.5){ scene.remove(m); m.geometry.dispose(); m.material.dispose(); puffs.splice(i,1); } }
@@ -948,7 +1000,7 @@ function sendPresence(){
   if (now-presT < (running?50:1000)) return; presT=now;
   const p=pBody.interpolatedPosition, v=pBody.velocity;
   const h = hook ? [hook.phase==="fly"?1:hook.phase==="attached"?2:3, r2(hook.tip.x),r2(hook.tip.y),r2(hook.tip.z), r2(hook.len||0), hook.remote||""] : 0;
-  room.presence({n:myName(), p:[r2(p.x),r2(p.y),r2(p.z)], v:[r2(v.x),r2(v.y),r2(v.z)], yw:r2(hero.rotation.y), g:gliding?1:0, h, s:got, t:Math.round(elapsed*10)/10, rs:runState, ps:running?0:1, mp:MAP.key, pc:myCharKey, sw:swingN, bt:batTime>0?1:0, hit:lastHit, sp:lastSplash, dk:dunks, bots:botsPayload(), bsp:lastBsp, chat:lastChat, bchat:lastBchat, boom:lastBoom, cupS:cupPresence(), st:[stats.deaths,stats.hits,stats.homers,stats.punches,stats.items,Math.round(stats.airTime),Math.round(stats.topSpeed)]}).catch(()=>{});
+  room.presence({n:myName(), p:[r2(p.x),r2(p.y),r2(p.z)], v:[r2(v.x),r2(v.y),r2(v.z)], yw:r2(hero.rotation.y), g:gliding?1:0, h, s:got, t:Math.round(elapsed*10)/10, rs:runState, ps:running?0:1, mp:MAP.key, pc:myCharKey, sw:swingN, bt:batTime>0?1:0, hit:lastHit, sp:lastSplash, dk:dunks, bots:botsPayload(), bsp:lastBsp, chat:lastChat, bchat:lastBchat, boom:lastBoom, cupS:cupPresence(), fin:lastFin, fg:lastFinGot, st:[stats.deaths,stats.hits,stats.homers,stats.punches,stats.items,Math.round(stats.airTime),Math.round(stats.topSpeed)]}).catch(()=>{});
 }
 function nameSprite(text,color){
   const c=document.createElement("canvas"); let x=c.getContext("2d"); const font="700 30px 'Nunito Sans', system-ui, sans-serif";
@@ -999,6 +1051,11 @@ function updateRemotes(dt){
       if (sp && typeof sp.n==="number"){ if (!lastSpSeen.has(pr.peer)) lastSpSeen.set(pr.peer,sp.n); else if (sp.n>lastSpSeen.get(pr.peer)){ lastSpSeen.set(pr.peer,sp.n);
         if (myPeer && sp.by===myPeer){ dunks++; faceHappyT=2; announce("dunk","Dunked! "+a.name+" is swimming."); toast("Dunked "+a.name+"!","Straight into the sea."); }
         else { if (amController && typeof sp.by==="string" && sp.by.startsWith("bot:")) creditBot(sp.by); announce("swim",a.name+" is swimming with the fishes."); } } }
+      const fn=ps.fin;
+      if (fn && typeof fn.n==="number"){ if (!lastFinSeen.has(pr.peer)) lastFinSeen.set(pr.peer,fn.n); else if (fn.n>lastFinSeen.get(pr.peer)){ lastFinSeen.set(pr.peer,fn.n);
+        if (vec3(fn.p)) spawnFinale(new THREE.Vector3(...fn.p),cleanName(fn.by),false); } }
+      const fg=ps.fg;
+      if (fg && typeof fg.n==="number"){ if (!lastFinGotSeen.has(pr.peer)) lastFinGotSeen.set(pr.peer,fg.n); else if (fg.n>lastFinGotSeen.get(pr.peer)){ lastFinGotSeen.set(pr.peer,fg.n); grabFinale(cleanName(fg.by),false); } }
       const bm=ps.boom;
       if (bm && typeof bm.n==="number" && [bm.x,bm.y,bm.z,bm.r,bm.p].every(Number.isFinite)){ if (!lastBoomSeen.has(pr.peer)) lastBoomSeen.set(pr.peer,bm.n); else if (bm.n>lastBoomSeen.get(pr.peer)){ lastBoomSeen.set(pr.peer,bm.n); explode(bm.x,bm.y,bm.z,Math.min(10,bm.r),Math.min(2,bm.p),{peer:pr.peer,name:a.name},false); } }
       const ch=ps.chat;
@@ -1365,16 +1422,22 @@ function fireBotHook(b,aim,P){
 function botRace(b,dt){
   const C=b.C, P=botParams(C), p=b.body.position, v=b.body.velocity;
   if (!ANCHORS) buildAnchors();
-  if (b.target==null || b.got.has(b.target)){ b.target=pickSpark(b,P); b.targetT=0; }
-  if (b.target==null){ if (b.skip && b.skip.size){ b.skip.clear(); b.target=pickSpark(b,P); b.targetT=0; } if (b.target==null) return false; }
-  // give up on a spark we can't reach for now, and come back to it later
-  b.targetT=(b.targetT||0)+dt;
-  if (b.targetT>14){ (b.skip||(b.skip=new Map())).set(b.target,simTime+40); b.target=null; b.hook=null; return true; }
-  const T=sparks[b.target].pos;
-  if (Math.hypot(T.x-p.x,T.y-p.y,T.z-p.z)<(b.magnetT>0?14:2.3)){
-    b.got.add(b.target); b.sparkCount++; b.target=null; if (b.sparkCount>=TOTAL) b.doneT=simTime-raceStartSim;
-    if (b.sparkCount===TOTAL){ toast(b.name+" collected every spark!"); botSay(C,C.taunt,true); }
-    return true;
+  let T;
+  if (finale.active && (b.sparkCount>=TOTAL || finale.pos.distanceTo(p)<35)){
+    T=finale.pos;
+    if (Math.hypot(T.x-p.x,T.y-p.y,T.z-p.z)<(b.magnetT>0?8:2.8)){ b.final=true; grabFinale(b.name,true); botSay(C,C.taunt,true); return true; }
+  } else {
+    if (b.target==null || b.got.has(b.target)){ b.target=pickSpark(b,P); b.targetT=0; }
+    if (b.target==null){ if (b.skip && b.skip.size){ b.skip.clear(); b.target=pickSpark(b,P); b.targetT=0; } if (b.target==null) return false; }
+    // give up on a spark we can't reach for now, and come back to it later
+    b.targetT=(b.targetT||0)+dt;
+    if (b.targetT>14){ (b.skip||(b.skip=new Map())).set(b.target,simTime+40); b.target=null; b.hook=null; return true; }
+    T=sparks[b.target].pos;
+    if (Math.hypot(T.x-p.x,T.y-p.y,T.z-p.z)<(b.magnetT>0?14:2.3)){
+      b.got.add(b.target); b.sparkCount++; b.target=null; if (b.sparkCount>=TOTAL) b.doneT=simTime-raceStartSim;
+      if (b.sparkCount===TOTAL){ toast(b.name+" collected every spark!"); botSay(C,C.taunt,true); if (!finale.active && !finale.got) spawnFinale(finaleSpot(p),b.name,true); }
+      return true;
+    }
   }
   const dx=T.x-p.x, dz=T.z-p.z, hd=Math.hypot(dx,dz)||1, ux=dx/hd, uz=dz/hd;
   b.wish.set(ux,0,uz); b.speed=11*C.speed;
@@ -1652,13 +1715,14 @@ function standings(){
   if (!amController) for (const a of botAvatars.values()) rows.push({name:a.name,bot:true,s:a.sparks||0,t:null,k:a.dunks||0,d:a.falls||0,color:a.color});
   for (const a of avatars.values()){ const ps=a.pres||{}, st=Array.isArray(ps.st)?ps.st:[]; rows.push({name:a.name,s:Number(ps.s)||0,t:ps.rs==="done"?Number(ps.t)||null:null,k:Math.max(0,Number(ps.dk)||0),d:Math.max(0,Number(st[0])||0),color:a.color,
     st:{deaths:Number(st[0])||0,hits:Number(st[1])||0,homers:Number(st[2])||0,punches:Number(st[3])||0,items:Number(st[4])||0,airTime:Number(st[5])||0,topSpeed:Number(st[6])||0,dunks:Math.max(0,Number(ps.dk)||0)}}); }
-  rows.sort((x,y)=>y.s-x.s || (x.t??1e9)-(y.t??1e9));
+  for (const r of rows){ r.fin = !!finale.grabbedBy && r.name===finale.grabbedBy; r.score=r.s+(r.fin?FINAL_BONUS:0); }
+  rows.sort((x,y)=>y.score-x.score || (x.t??1e9)-(y.t??1e9));
   return rows;
 }
 function checkRaceEnd(){
   if (!raceLive || raceOver || raceCount>0) return;
   const t=simTime-raceStartSim, rows=standings();
-  if (rows.some(r=>r.s>=TOTAL) || t>=ROUND_TIME) endRace(rows,t);
+  if (finale.got || t>=ROUND_TIME) endRace(rows,t);
 }
 function endRace(rows){
   raceOver=true; raceLive=false;
@@ -1671,7 +1735,7 @@ function standingsTable(rows,withPoints){
   const tb=$("resTable"); tb.replaceChildren();
   const hd=document.createElement("div"); hd.className="hd"; for (const t of ["#","Racer","Sparks","Time","K/D",withPoints?"Pts":""]){ const s=document.createElement("span"); s.textContent=t; hd.append(s); } tb.append(hd);
   rows.forEach((r,i)=>{ const row=document.createElement("div"); if (r.me) row.className="me";
-    const cells=[String(i+1), r.name+(r.me?" (you)":r.bot?" · bot":""), r.s+"/"+TOTAL, r.t!=null?fmt(r.t):"–", (r.k||0)+"/"+(r.d||0), withPoints?String(r.pts??POINTS[i]??0):""];
+    const cells=[String(i+1), r.name+(r.me?" (you)":r.bot?" · bot":""), r.s+"/"+TOTAL+(r.fin?" ★":""), r.t!=null?fmt(r.t):"–", (r.k||0)+"/"+(r.d||0), withPoints?String(r.pts??POINTS[i]??0):""];
     for (const c of cells){ const s=document.createElement("span"); s.textContent=c; row.append(s); } tb.append(row); });
 }
 function showResults(rows,inCup,d){
@@ -2015,7 +2079,8 @@ function mStab(t,root,open){
   for (const iv of [0,3,7,12]){ const o=ac.createOscillator(); o.type="sawtooth"; o.frequency.value=hz(root+24+iv)*(1+(Math.random()-.5)*.006); o.connect(fl); o.start(t); o.stop(t+.34); }
 }
 function playStep(i,t){
-  const s16=i%16, bar=Math.floor(i/16), part=PARTS[Math.floor(bar/8)%PARTS.length], barInPart=bar%8, root=ROOTS[bar%4];
+  const s16=i%16, bar=Math.floor(i/16), part=finale.active?3:PARTS[Math.floor(bar/8)%PARTS.length], barInPart=finale.active?bar%4+4:bar%8, root=ROOTS[bar%4];
+  if (finale.active && s16%2===0){ const arp=[0,3,7,10,12,15,19,22][(s16/2+bar)%8]; tone(hz(root+24+arp),STEP*1.6,"square",.035,1,Math.max(0,t-ac.currentTime),musicBus); }
   const kick = part!==3 || barInPart>=7 && s16>=8;
   if (kick && s16%4===0) mKick(t);
   if (s16%4===2) noise(part>=1?.16:.05,{type:"highpass",f:7500,vol:part>=1?.12:.08,at:t,bus:musicBus});
@@ -2041,7 +2106,7 @@ function saveAudio(){ audioOpts.music=$("optMusic").value; audioOpts.sfx=$("optS
 
 // races: whoever presses Start race bumps a number in their presence; everyone who sees it restarts with a countdown
 function beginRace(id,byName){
-  raceId=id; restartRun(); buildTowers(); heldItem=null; raceLive=true; raceOver=false; raceStartSim=simTime+3; raceCount=3; for (const b of bots){ b.got.clear(); b.sparkCount=0; b.target=null; b.hook=null; } announce("race","Race starting!",true);
+  raceId=id; restartRun(); buildTowers(); heldItem=null; raceLive=true; raceOver=false; raceStartSim=simTime+3; raceCount=3; for (const b of bots){ b.got.clear(); b.sparkCount=0; b.target=null; b.hook=null; b.final=false; } announce("race","Race starting!",true);
   for (const a of botAvatars.values()) queueIntro(a.ch,true); tone(440,.15,"square",.05);
   toast("3", byName ? byName+" started a race" : "Race starting for everyone on the island");
 }
@@ -2061,16 +2126,16 @@ function renderRibbon(){
   $("ribbon").hidden=$("rank").hidden=!show; if (!show){ ribbonKey=""; return; }
   const mi=rows.findIndex(r=>r.me), me=rows[mi];
   // ties share a place
-  const place=i=>1+rows.findIndex(r=>r.s===rows[i].s && (r.t??1e9)===(rows[i].t??1e9));
+  const place=i=>1+rows.findIndex(r=>r.score===rows[i].score && (r.t??1e9)===(rows[i].t??1e9));
   let pick=[0,1,2].filter(i=>i<rows.length); if (!pick.includes(mi)){ pick=[0,mi-1,mi].filter((x,j,a)=>x>=0 && a.indexOf(x)===j); }
-  const key=pick.map(i=>rows[i].name+rows[i].s+"|"+place(i)).join(",")+"#"+mi+"/"+rows.length; if (key===ribbonKey) return; ribbonKey=key;
+  const key=pick.map(i=>rows[i].name+rows[i].score+"|"+place(i)).join(",")+"#"+mi+"/"+rows.length; if (key===ribbonKey) return; ribbonKey=key;
   $("ribbon").replaceChildren(...pick.map(i=>{ const r=rows[i], d=document.createElement("div"); d.className=(r.me?"me ":"")+(place(i)===1?"lead":"");
     const em=document.createElement("em"); em.textContent=ordinal(place(i)); const dot=document.createElement("i"); dot.style.background=r.color||"#c9d3df";
-    const n=document.createElement("span"); n.textContent=r.me?"You":r.name; const b=document.createElement("b"); b.textContent=r.s;
+    const n=document.createElement("span"); n.textContent=r.me?"You":r.name; const b=document.createElement("b"); b.textContent=r.score+(r.fin?"★":"");
     d.append(em,dot,n,b);
-    if (!r.me){ const g=r.s-me.s, sm=document.createElement("small"); sm.textContent=g===0?"tied":(g>0?"+"+g:String(g)); sm.className=g>0?"behind":g<0?"ahead":""; d.append(sm); }
+    if (!r.me){ const g=r.score-me.score, sm=document.createElement("small"); sm.textContent=g===0?"tied":(g>0?"+"+g:String(g)); sm.className=g>0?"behind":g<0?"ahead":""; d.append(sm); }
     return d; }));
-  const pos=place(mi); $("rankPos").textContent=ordinal(pos); const best=Math.max(...rows.filter(r=>!r.me).map(r=>r.s)), gap=me.s-best;
+  const pos=place(mi); $("rankPos").textContent=ordinal(pos); const best=Math.max(...rows.filter(r=>!r.me).map(r=>r.score)), gap=me.score-best;
   $("rankOf").textContent="of "+rows.length+(gap>0?` · ${gap} ahead`:gap<0?` · ${-gap} behind`:" · tied");
   $("rank").className="rank "+(pos===1?"":pos===2?"p2":pos===3?"p3":"pn");
 }
@@ -2100,7 +2165,9 @@ if (GFX_SET.bloom>0){
       const c=new EffectComposer(renderer,rt); c.setPixelRatio(renderer.getPixelRatio()); c.setSize(innerWidth,innerHeight);
       c.addPass(new RenderPass(scene,camera));
       // ambient occlusion at High only: soft contact shading where things meet (too heavy for tablets)
-      if (gtao && gtao.GTAOPass){ try{ const ao=new gtao.GTAOPass(scene,camera,innerWidth,innerHeight); ao.updateGtaoMaterial({radius:1.6,distanceExponent:1.2,thickness:2,scale:1.1,samples:12}); ao.blendIntensity=.85; c.addPass(ao); aoOn=true; }catch(e){ aoOn=false; } }
+      if (gtao && gtao.GTAOPass){ try{ const ao=new gtao.GTAOPass(scene,camera,innerWidth,innerHeight); const ov=ao.overrideVisibility.bind(ao);
+        // see-through glows (beams, searchlights, splashes) shouldn't cast occlusion; the pass only skips points and lines
+        ao.overrideVisibility=function(){ ov(); scene.traverse(o=>{ if (o.visible && (o.isSprite || (o.isMesh && o.material && o.material.transparent && o.material.depthWrite===false))) o.visible=false; }); }; ao.updateGtaoMaterial({radius:1.6,distanceExponent:1.2,thickness:2,scale:1.1,samples:12}); ao.blendIntensity=.85; c.addPass(ao); aoOn=true; }catch(e){ aoOn=false; } }
       const night=MAP.theme.night||MAP.theme.waterGlow;
       const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth*GFX_SET.bloom,innerHeight*GFX_SET.bloom), night?.85:.45, .5, night?.6:.9);
       c.addPass(bloom); c.addPass(new OutputPass());
@@ -2120,5 +2187,5 @@ $("deathGo").addEventListener("click",e=>{ e.preventDefault(); respawn(null); })
 // interpolated poses start at the origin until the first physics step
 for (const b of world.bodies){ b.interpolatedPosition.copy(b.position); b.interpolatedQuaternion.copy(b.quaternion); }
 // small hook for automated testing; not used by the game itself
-window.__skyDebug={ gliderPickupsList:()=>gliderPickups, renderInfo:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,meshes:(()=>{ let n=0; scene.traverse(o=>{ if(o.isMesh) n++; }); return n; })()}), headlessStart:(nBots=1)=>{ simFrozen=true; wantBots=nBots; running=true; $("start").hidden=true; for (const C of CHARACTERS) introSeen.add(C.key); introQ.length=0; }, botItems:(b,dt)=>botItems(b,dt), gfx:()=>({GFX,composer:!!composer,ao:aoOn}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, cupAwards:()=>cupAwards(), showCupFinal:()=>showCupFinal(cupDef()), forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); for (const g of [...gliderPickups,...batPickups]) if (g.cd>0) g.cd-=1/60; for (const b of itemBoxes) if (b.cd>0) b.cd-=1/60; } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded, settings, applyInputUI, setInput:t=>setInput(t), inputTouch:()=>isTouch, castAim:d=>castAim(d), assistAim:(d,l)=>assistAim(d,l), tapHook:(x,y)=>tapHook(x,y), camera, camTarget, hand, hookUp:()=>hookUp(), death:()=>({deadT,DEATH_SECS}), respawnNow:()=>respawn(null), setDeathSecs:n=>{ DEATH_SECS=n; }, stats:()=>JSON.parse(JSON.stringify(stats)), drops:()=>drops.length, groundPunch:b=>groundPunch(b), setOnGround:v=>{ onGround=v; } };
+window.__skyDebug={ gliderPickupsList:()=>gliderPickups, renderInfo:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,meshes:(()=>{ let n=0; scene.traverse(o=>{ if(o.isMesh) n++; }); return n; })()}), headlessStart:(nBots=1)=>{ simFrozen=true; wantBots=nBots; running=true; $("start").hidden=true; for (const C of CHARACTERS) introSeen.add(C.key); introQ.length=0; }, botItems:(b,dt)=>botItems(b,dt), gfx:()=>({GFX,composer:!!composer,ao:aoOn}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, cupAwards:()=>cupAwards(), showCupFinal:()=>showCupFinal(cupDef()), forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); for (const g of [...gliderPickups,...batPickups]) if (g.cd>0) g.cd-=1/60; for (const b of itemBoxes) if (b.cd>0) b.cd-=1/60; } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded, finale, spawnFinale:(x,y,z,by)=>spawnFinale(new THREE.Vector3(x,y,z),by||myName(),true), finaleSpot:p=>finaleSpot(p), grabFinale:n=>grabFinale(n,true), resetFinale:()=>resetFinale(), finaleGrp, searchlights, standings:()=>standings(), settings, applyInputUI, setInput:t=>setInput(t), inputTouch:()=>isTouch, castAim:d=>castAim(d), assistAim:(d,l)=>assistAim(d,l), tapHook:(x,y)=>tapHook(x,y), camera, camTarget, hand, hookUp:()=>hookUp(), death:()=>({deadT,DEATH_SECS}), respawnNow:()=>respawn(null), setDeathSecs:n=>{ DEATH_SECS=n; }, stats:()=>JSON.parse(JSON.stringify(stats)), drops:()=>drops.length, groundPunch:b=>groundPunch(b), setOnGround:v=>{ onGround=v; } };
 frame();

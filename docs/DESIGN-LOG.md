@@ -4,6 +4,19 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14: The final spark
+
+- When anyone (you, a friend or a bot) collects all 15 sparks, a **final spark** appears about 25–55 m from them (aiming for 38 m on a pillar, rock or spark spot). That's a head start for whoever finished first, but still a race.
+- **The fuss:** a big spinning gold core in a wireframe shell, a tall light pillar, four colored searchlights sweeping the sky, a pulsing light, a screen flash, a fanfare, and the announcer (`final` and `finalgot` lines added to `tools/voice/LINES.md`). The music jumps to its hardest section with a climbing alarm arpeggio until someone grabs it.
+- **Scoring:** the final spark is worth +5. Standings, the ribbon and the position badge use that score, and results mark the grabber with ★. A race now ends when the final spark is taken (or on the 4-minute clock), not at 15 sparks.
+- **Bots** go for it once they have all 15, or if it spawns within 35 m of them.
+- **Multiplayer:** spawn and grab are numbered presence events (`fin`, `fg`), applied once, like hits.
+- **Fix:** at High graphics the ambient occlusion pass drew cloud sprites and see-through glows as solid dark rectangles in the sky. It now skips sprites and depth-less transparent meshes. This was live from the AO publish until now.
+
+![Final spark](img/skyhook-final-spark.png)
+
+---
+
 ## 2026-11-14: Death cam, ground punch, live standings, touch overhaul
 
 The owner's new batch of ideas, along with the design principles behind them, is in `docs/DESIGN-PRINCIPLES.md` and in the roadmap. This entry covers the first part.

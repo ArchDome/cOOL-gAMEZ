@@ -16,5 +16,7 @@ Record each line as its own file and name it with the key (e.g. `homerun.m4a`). 
 | `enemybat` | A friend grabs a bat | "They've got the bat. RUN!" |
 | `finish` | You collect every spark | "Race complete!" |
 | `pb` | New personal best | "New personal best!" |
+| `final` | The final spark appears | "THE FINAL SPARK HAS APPEARED!" |
+| `finalgot` | Someone grabs the final spark | "What a finish!" |
 
 Missing clips fall back to the synthetic voice, so record as many or as few as you like. Names are shown on screen, so the clips don't need them.
