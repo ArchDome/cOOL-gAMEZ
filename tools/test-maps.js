@@ -29,6 +29,13 @@ const { openGame, checker } = require('./harness');
     c.check(`${key}: spawn is on dry ground`, r.ground > .5, `ground ${r.ground.toFixed(1)} m`);
     c.check(`${key}: walking is smooth`, r.standing > .8 && r.vmin > -12 && r.vmax < 12, `standing ${(r.standing * 100).toFixed(0)}%, vy ${r.vmin.toFixed(1)}..${r.vmax.toFixed(1)}`);
     c.check(`${key}: bots spawn and move`, r.bots === 2 && r.botMoves > 3, `bots ${r.bots}, moved ${r.botMoves.toFixed(1)} m`);
+    // no tunnelling: slamming into the ground at full speed never leaves you inside the terrain
+    const tun = await page.evaluate(() => { const d = window.__skyDebug, b = d.body; let worst = -99;
+      for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2, x = Math.cos(a) * 30, z = Math.sin(a) * 30, g = d.probe({ x, y: 400, z })[0]; if (g < 3) continue;
+        b.position.set(x, g + 6, z); b.velocity.set(-Math.cos(a) * 45, -90, -Math.sin(a) * 45);
+        for (let i = 0; i < 30; i++) { d.tick(1); worst = Math.max(worst, d.probe({ x: b.position.x, y: 400, z: b.position.z })[0] - b.position.y); } }
+      b.velocity.set(0, 0, 0); return worst; });
+    c.check(`${key}: high-speed impacts don't tunnel into the ground`, tun < -.3, `body centre ${(-tun).toFixed(2)} m above the surface at worst`);
     // every map has a trap players can set off
     const tr = await page.evaluate(() => { const d = window.__skyDebug; document.getElementById('optBots').value = '0'; document.getElementById('optBots').dispatchEvent(new Event('change'));
       const T = d.traps[0]; if (!T) return { none: true };

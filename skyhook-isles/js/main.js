@@ -624,6 +624,27 @@ function groundBelow(p){
   if (rayRes.hasHit && rayRes.hitPointWorld.y>gy){ gy=rayRes.hitPointWorld.y; ny=rayRes.hitNormalWorld.y; }
   return [gy,ny];
 }
+// anti-tunnelling: at swing and dive speeds a body can move more than its own size in one step and skip through
+// the terrain surface (or a thin pillar). Before each step, clip velocity that would end inside the terrain or a
+// static body; after it, lift anything that still ended up under the surface. Player only: the bots' trained
+// swing settings were tuned without it (the bench dropped from 129 to 115-124 with it on bots).
+function hfAt(x,z){ const lx=x+HALF, ly=HALF-z; if (lx<0||ly<0||lx>S||ly>S) return -Infinity; return terrainHF.getHeightAt(lx,ly,true); }
+const ccdN=new THREE.Vector3(), ccdFrom=new CANNON.Vec3(), ccdTo=new CANNON.Vec3(), ccdRes=new CANNON.RaycastResult();
+function hfNormal(x,z,out){ const e=.8, dx=(hfAt(x+e,z)-hfAt(x-e,z))/(2*e), dz=(hfAt(x,z+e)-hfAt(x,z-e))/(2*e); return out.set(-dx,1,-dz).normalize(); }
+function clipInto(v,n){ const vn=v.x*n.x+v.y*n.y+v.z*n.z; if (vn<0){ v.x-=n.x*vn; v.y-=n.y*vn; v.z-=n.z*vn; } }
+function antiTunnelPre(body,dt,r){
+  const v=body.velocity, p=body.position;
+  const nx=p.x+v.x*dt, ny=p.y+v.y*dt, nz=p.z+v.z*dt, g=hfAt(nx,nz);
+  if (g>-Infinity && ny<g+r*.9) clipInto(v,hfNormal(nx,nz,ccdN));
+  const sp=Math.hypot(v.x,v.y,v.z);
+  if (sp>15){ const L=sp*dt+r; ccdFrom.set(p.x,p.y,p.z); ccdTo.set(p.x+v.x/sp*L,p.y+v.y/sp*L,p.z+v.z/sp*L); ccdRes.reset();
+    world.raycastClosest(ccdFrom,ccdTo,{collisionFilterMask:1,skipBackfaces:true},ccdRes);
+    if (ccdRes.hasHit && ccdRes.body!==body && ccdRes.body.mass===0){ const n=ccdRes.hitNormalWorld; ccdN.set(n.x,n.y,n.z); clipInto(v,ccdN); } }
+}
+function antiTunnelPost(body,r){
+  const p=body.position, g=hfAt(p.x,p.z); if (!(g>-Infinity) || p.y>g+r*.5) return false;
+  p.y=g+r*.9; clipInto(body.velocity,hfNormal(p.x,p.z,ccdN)); return true;
+}
 world.addEventListener("preStep",()=>{
   const dt=world.dt||1/60;
   ropeStep(dt);
@@ -650,6 +671,7 @@ world.addEventListener("preStep",()=>{
     const v=pBody.velocity, target = inUpdraft ? 9 : glideSink;
     v.y += 26*dt; v.y += (target - v.y)*(1-Math.exp(-4*dt));
   }
+  if (deadT<=0) antiTunnelPre(pBody,dt,.5);
   magnetStep(pBody,meMag,dt,true); if (traps.length && deadT<=0) trapForces(pBody,dt,true,null);
   // fast enough and you go straight through a wall
   { const v=pBody.velocity, sp=Math.hypot(v.x,v.y,v.z); if (sp>21 && towers.length){ const p=pBody.position;
@@ -657,6 +679,7 @@ world.addEventListener("preStep",()=>{
   botsPreStep(dt);
 });
 world.addEventListener("postStep",()=>{
+  if (deadT<=0) antiTunnelPost(pBody,.5);
   let g=false, best=0;
   for (const c of world.contacts){
     let ny=null; if (c.bi===pBody) ny=-c.ni.y; else if (c.bj===pBody) ny=c.ni.y;

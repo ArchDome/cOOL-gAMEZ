@@ -4,6 +4,15 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-14: No more going through the mountain
+
+- **Bug (owner):** at high speed you could pass through the terrain. At 45 m/s sideways plus a 90 m/s dive, a body moves more than its own width per 1/60 s step, and the test measured the body's centre up to 0.8 m *below* the surface before the fix.
+- **Fix (player):** before each step, any velocity that would end inside the terrain heightfield is clipped against the slope normal. Above 15 m/s, a ray along the motion does the same for static bodies (pillars, rocks, buildings). After the step, anything that still ended up under the surface is lifted back on top. Worst case is now 0.45 m above the surface on every map.
+- **Bots** don't get it: their trained swing settings were tuned without it, and the benchmark fell from 129 to 115 with the full fix on bots (124 with only the lift-out). It's back to 129 with player-only.
+- **Test:** each map slams the player into slopes from 8 directions at full speed and checks the centre stays above the surface. (Neon's centre is flat, so the check is trivial there.)
+
+---
+
 ## 2026-11-14: The French announcer is back
 
 - The owner liked a French woman's announcer voice from earlier. The code never chose one on purpose: the announcer asked for the artifact TTS "rounded" voice and otherwise fell back to whatever the browser offered, so it was most likely a French device voice reading the English lines.
