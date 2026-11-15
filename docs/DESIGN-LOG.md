@@ -4,6 +4,15 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-15: Wider look range; a steerable straight-down dive
+
+- **Look further up and down:** camera pitch now goes from -1.1 to 1.45 rad (was -0.55 to 1.25), for mouse, touch and gyro, so you can aim at anchors high above or below you. It's in `tuning.js` → `camera.pitchMin/pitchMax`.
+- **Dive, reworked (owner):** holding dive (Shift, Reel, or swipe down and hold) now points you **straight down** at up to 50 m/s. Movement keys or the joystick tip the dive up to 55° in that direction, relative to the camera (`glider.diveTilt`). Letting go swoops you out along your heading: 75% of your speed goes forward (capped at 34) and up to 45% goes into the climb (`pullOut`, `pullUp`). Measured: 49.9 m/s straight down with 0.8 m/s drift, holding W tilts it to 34.6 m/s forward, and release swoops at 33.7 m/s forward and 17.5 m/s up.
+- **Dive animation:** you go head-first along the dive line (the body rotates to match the tilt), arms stretched over your head, legs together, wing folded to 22%, with a white speed trail behind you. Friends see the dive pose (`dv` in presence). A dive bomb hit adds a shockwave ring and embers.
+- The in-game hints and the controls list describe the new dive.
+
+---
+
 ## 2026-11-15: Two ropes on PC
 
 - Two ropes used to exist only in the touch Swing scheme. On PC, **left mouse / E** is still the main hook, and **right mouse / X** now fires a second hook at the crosshair. Hold it to stay attached, release to let go. With both on fixed anchors, hold Shift to reel in until you hang almost straight and they merge into a tightrope. Before this, right mouse was just another button for the main hook.

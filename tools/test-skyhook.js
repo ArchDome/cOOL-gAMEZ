@@ -163,11 +163,19 @@ const { openGame, checker } = require('./harness');
     const vol = await page.evaluate(() => { const el = document.getElementById('optVolume'); el.value = '0.3'; el.dispatchEvent(new Event('input')); const r = { set: window.__skyDebug.settings.volume, master: window.__skyDebug.masterVol(), label: document.getElementById('volVal').textContent }; el.value = '0.8'; el.dispatchEvent(new Event('input')); return r; });
     c.check('volume slider sets the master volume', vol.set === 0.3 && Math.abs(vol.master - 0.3) < 1e-6 && vol.label === '30%', JSON.stringify(vol));
 
-    // Glider dive: hold to dive and build speed, let go to pull up into a climb
-    const gd = await page.evaluate(() => { const d = window.__skyDebug, b = d.body; d.calm(); d.setGlider(30); b.position.set(0, 160, 0); b.velocity.set(15, -2, 0); d.view(-Math.PI / 2, .3);
-      d.keys.add(' '); d.tick(3); const g0 = d.glider(); d.setTouchDive(true); d.tick(90); const sp = Math.hypot(b.velocity.x, b.velocity.z), g1 = d.glider();
-      d.setTouchDive(false); d.tick(2); const vy = b.velocity.y; d.keys.delete(' '); d.setGlider(0); return { g0, g1, sp: +sp.toFixed(1), vy: +vy.toFixed(1) }; });
-    c.check('glider dive builds speed, and letting go pulls you up', gd.g0.gliding && gd.g1.diving && gd.sp > 35 && gd.vy > 8, JSON.stringify(gd));
+    // Glider dive: straight down by default, movement tilts it, letting go swoops you out and up
+    const gd = await page.evaluate(() => { const d = window.__skyDebug, b = d.body; d.calm(); d.setGlider(30); b.position.set(0, 240, 0); b.velocity.set(10, -2, 0); d.view(-Math.PI / 2, .3);
+      d.keys.add(' '); d.tick(3); const g0 = d.glider(); d.setTouchDive(true); d.tick(70);
+      const straight = { vy: +b.velocity.y.toFixed(1), hs: +Math.hypot(b.velocity.x, b.velocity.z).toFixed(1) };
+      return new Promise(res => requestAnimationFrame(() => requestAnimationFrame(() => { straight.tilt = +d.heroTilt().toFixed(2); res(); }))).then(() => {
+      d.keys.add('w'); d.tick(50); const tilted = { vy: +b.velocity.y.toFixed(1), hs: +Math.hypot(b.velocity.x, b.velocity.z).toFixed(1) }; d.keys.delete('w');
+      d.setTouchDive(false); d.tick(2); const out = { vy: +b.velocity.y.toFixed(1), hs: +Math.hypot(b.velocity.x, b.velocity.z).toFixed(1) };
+      d.keys.delete(' '); d.setGlider(0); return { g0, straight, tilted, out }; }); });
+    c.check('glider dive: straight down by default, movement tilts it, letting go swoops you out and up', gd.g0.gliding && gd.straight.vy < -35 && gd.straight.hs < 6 && gd.straight.tilt < -2.6 && gd.tilted.hs > 15 && gd.out.vy > 8 && gd.out.hs > 15, JSON.stringify(gd));
+
+    // Look range: further up and down than before
+    const pr = await page.evaluate(() => { const d = window.__skyDebug; d.view(Math.PI, 0); for (let i = 0; i < 20; i++) d.lookBy(0, 200); const hi = d.pitch(); for (let i = 0; i < 40; i++) d.lookBy(0, -200); const lo = d.pitch(); d.view(Math.PI * .75, .28); return { hi: +hi.toFixed(2), lo: +lo.toFixed(2) }; });
+    c.check('look further up and down (pitch -1.1 to 1.45)', pr.hi === 1.45 && pr.lo === -1.1, JSON.stringify(pr));
 
     // Tightrope: a merged rope is walkable; two straight reeled-in ropes merge; it vanishes after 10 s with nobody on it
     const tr = await page.evaluate(() => { const d = window.__skyDebug, b = d.body; d.calm();

@@ -16,7 +16,7 @@ export const TUNE = {
   hook:    { range: 75, speed: 150, reel: 16 },         // grapple reach, hook flight speed, reel-in speed (was 24)
   rope:    { correct: 30, stretch: 1.5 },                // rope tension: correction per metre of stretch; extra kick when overstretched (was 4: the big release speeds)
   gate:    { radius: 4, lift: 2.2 },                     // race gates: fly within this radius of the centre; raised above their perch
-  glider:  { time: 30, respawn: 15, diveSink: 26, diveSpeed: 50, pullUp: .45, pullUpMax: 22 },   // dive: sink rate and top speed; pull-up: share of speed turned into climb
+  glider:  { time: 30, respawn: 15, diveSpeed: 50, diveTilt: 55, pullUp: .45, pullUpMax: 22, pullOut: .75 },   // dive: speed, max tilt from straight down (deg); pull-up: share of speed into climb / forward
   bat:     { time: 30, respawn: 20, sumoRespawn: 8, knock: 40, up: 16, stun: 1.3 },
   shove:   { knock: 10, up: 5, stun: .45 },
   blast:   { knock: 38, up: 15, upMin: 5, stun: 1.6 },   // explosions: per unit of power, scaled by closeness
@@ -28,7 +28,7 @@ export const TUNE = {
   slowmo:  { secs: 3 },
   boost:   { hold: 1.4, grip: 1.2 },
   tightrope: { life: 10, climbReel: 22 },               // vanishes after `life` s empty; hooking it hauls you up at climbReel m/s                              // a merged rope vanishes after this many seconds with nobody on it                     // speed strips: low ground grip for `hold` s, so you keep the launch speed
-  camera:  { fov: 65, fovMax: 80, fovFrom: 14, fovTo: 44 },  // field of view widens from 14 to 44 m/s: the feeling of speed                                   // match-end slow motion (time drops to 20%)
+  camera:  { fov: 65, fovMax: 80, fovFrom: 14, fovTo: 44, pitchMin: -1.1, pitchMax: 1.45 },  // look range (radians; was -0.55 to 1.25)  // field of view widens from 14 to 44 m/s: the feeling of speed                                   // match-end slow motion (time drops to 20%)
   // bot skill levels: multipliers on running speed, time between swings, dodge chance, knockback; hesitate = chance to dither
   botSkill: {
     easy:   { speed: .78, cd: 1.9, dodge: .3, power: .8,  hesitate: .4 },

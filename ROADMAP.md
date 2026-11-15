@@ -108,6 +108,10 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] Tightrope: grapple straight onto it and climb on.
 - [x] Pulling doesn't lock you: while pulling someone or something, your footing stays on (stay on the tightrope, keep walking).
 
+### Owner's batch 10, 2026-11-15
+- [x] Look further up and down (wider camera pitch).
+- [x] Dive: straight down by default, movement input tilts the dive angle; a proper dive pose and trail; a dive-bomb impact effect.
+
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.
