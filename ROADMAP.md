@@ -84,6 +84,10 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] Mega power-up: a cruise missile that spawns every few minutes and makes a fuss (beam, siren, announcer).
 - [x] Bigger explosions: a real blast effect, and ragdoll tumbling that launches you farther.
 
+### Owner's batch 5, 2026-11-15
+- [x] Touch: taps on the left half fire hooks (the joystick only starts when you drag), plus a Joystick on/off setting.
+- [x] Data pass: every gameplay number in one data file (`js/tuning.js`) so a future port (e.g. Godot) can reuse the tuning.
+
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.

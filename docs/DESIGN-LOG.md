@@ -4,6 +4,14 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-15: Taps on the left half hook; joystick toggle; all tuning in one file
+
+- **Bug (owner):** in the Swing scheme you couldn't hook anything on the left half of the screen, because any touch there started the joystick. Now a finger on the left only becomes the joystick once it drags more than 12 px. A quick tap there fires a hook like anywhere else. **Settings → Controls → Joystick** turns the joystick off entirely, making the whole screen for tapping and looking (you then move by swinging and jumping).
+- **Data pass:** every gameplay number now lives in `skyhook-isles/js/tuning.js`, in metres and seconds with comments: gravity; player ride height, speeds, grip, air and rope steering, jumps, rope-jump boost, speed cap; hook range, flight and reel speeds; glider; bat, shove and blast knockback, lift and stun; sniper; cruise missile timing; race and sumo round rules and points; death cam; slow motion; and the four bot skill levels. The engine reads it, and the values are unchanged (the benchmark is exactly 129 again). Together with `maps/*.js` (layouts) and `js/bot-params.js` (trained bot technique), this is the tuning a port to another engine (e.g. Godot) can reuse as-is.
+- Tests: a left-half tap doesn't start the joystick, a drag does, and with the joystick off a drag doesn't. Two order-dependent map tests were made robust (Sumo waits for sparks to hide, and the stalemate test isolates the two bots).
+
+---
+
 ## 2026-11-14: Two-rope swinging on touch, medals, live standings, cruise missile, big blasts
 
 - **Swing scheme for touch** (now the default on touch, with a one-time switch for existing settings):

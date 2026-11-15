@@ -115,7 +115,7 @@ const { openGame, checker } = require('./harness');
     await page.waitForFunction(() => window.__skyDebug, null, { timeout: 30000 });
     await page.evaluate(() => { localStorage.removeItem('skyhook.cup.v1'); });
     await page.selectOption('#optMode', 'sumo'); await page.selectOption('#optBots', '3'); await page.click('#go');
-    await page.waitForFunction(() => window.__skyDebug.race().raceLive || window.__skyDebug.race().raceCount > 0, null, { timeout: 60000 }).catch(() => {});
+    await page.waitForFunction(() => (window.__skyDebug.race().raceLive || window.__skyDebug.race().raceCount > 0) && window.__skyDebug.sparks.every(s => !s.mesh.visible), null, { timeout: 60000 }).catch(() => {});
     const su = await page.evaluate(() => { const d = window.__skyDebug; return { mode: d.mode(), live: d.race().raceLive || d.race().raceCount > 0, sparksShown: d.sparks.filter(s => s.mesh.visible).length, splitsHidden: getComputedStyle(document.getElementById('splits')).display === 'none', label: document.getElementById('sparksLbl').textContent }; });
     c.check('sumo: Play starts a round with sparks out of play', su.mode === 'sumo' && su.live && su.sparksShown === 0 && su.splitsHidden, JSON.stringify(su));
     await page.waitForFunction(() => window.__skyDebug.bots().length === 3 && window.__skyDebug.race().raceCount <= 0, null, { timeout: 60000 }).catch(() => {});
@@ -130,7 +130,9 @@ const { openGame, checker } = require('./harness');
     // tactics: a bot stuck in a long stalemate switches target or goes to bait at the edge
     const tac = await page.evaluate(() => { const d = window.__skyDebug, b = d.bots()[0]; if (!b) return { skip: 1 };
       b.introT = 0; b.eng = { peer: 'bot:999', t: 999, limit: 7, dk: b.dunks || 0 }; b.bait = null; b.avoid && b.avoid.clear();
-      const other = d.bots()[1]; other.body.position.set(b.body.position.x + 2, b.body.position.y, b.body.position.z); b.eng.peer = 'bot:' + other.id;
+      const other = d.bots()[1]; other.introT = 0; other.body.position.set(b.body.position.x + 2, b.body.position.y, b.body.position.z); b.eng.peer = 'bot:' + other.id;
+      // nobody else nearby, so the stalemate opponent really is the nearest
+      d.body.position.set(b.body.position.x + 60, b.body.position.y + 30, b.body.position.z); for (const o of d.bots().slice(2)) o.body.position.set(b.body.position.x - 60, b.body.position.y + 30, b.body.position.z);
       d.botThink(b, 1 / 60); return { switched: !!(b.avoid && b.avoid.size), bait: !!b.bait }; });
     const md = await page.evaluate(() => { const d = window.__skyDebug, bs = d.bots(); bs.forEach((b, i) => { b.dunks = 5 - i; }); return bs.length; });
     const medals = await page.waitForFunction(() => window.__skyDebug.medals().others.filter(o => o[1] > 0).length >= 2, null, { timeout: 30000 }).then(() => page.evaluate(() => window.__skyDebug.medals()), () => page.evaluate(() => window.__skyDebug.medals()));

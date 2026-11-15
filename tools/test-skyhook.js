@@ -146,6 +146,14 @@ const { openGame, checker } = require('./harness');
     }
     c.check('swing scheme: two ropes from two taps, swipe down reels in, swipe up lets go', swing.skip || (swing.h0[0] === 'attached' && swing.h0[1] === 'attached' && swing.h1[2] < swing.h0[2] && swing.h1[3] < swing.h0[3] && swing.h2[0] === 'retract' && swing.h2[1] === 'retract'), JSON.stringify([sw0, swing]));
 
+    // Touch: a quick tap on the left half is a tap (hook), not the joystick; dragging there starts the joystick
+    const js = await page.evaluate(() => { const d = window.__skyDebug; d.settings.controls = 'simple';
+      d.touchSim('down', 100, 300, 11); const tap = d.touchSim('up', 100, 300, 11);
+      d.touchSim('down', 100, 300, 12); const drag = d.touchSim('move', 140, 300, 12); d.touchSim('up', 140, 300, 12);
+      d.settings.joystick = false; d.touchSim('down', 100, 300, 13); const off = d.touchSim('move', 140, 300, 13); d.touchSim('up', 140, 300, 13);
+      d.settings.joystick = true; d.settings.controls = 'classic'; return { tap, drag, off }; });
+    c.check('touch: taps on the left hook, drags there move, and the joystick can be turned off', !js.tap.joy && !js.tap.pending && js.drag.joy && !js.off.joy, JSON.stringify(js));
+
     // Live leaderboard: hold Tab to see it
     await page.keyboard.down('Tab');
     const lb1 = await page.waitForFunction(() => !document.getElementById('liveBoard').hidden && document.querySelectorAll('#lbTable div').length >= 2, null, { timeout: 20000 }).then(() => true, () => false);
