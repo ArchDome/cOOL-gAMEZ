@@ -484,6 +484,13 @@ canvas.addEventListener("pointerdown",e=>{
 });
 canvas.addEventListener("pointermove",e=>{
   if (e.pointerType==="touch"){ touchMoveH(e); return; }
+  // pressing or releasing another mouse button while one is already held doesn't fire pointerdown/up; it arrives here
+  if (e.pointerType==="mouse" && e.button>=0 && running){
+    const down=!!(e.buttons & (e.button===0?1:e.button===2?2:4));
+    if (e.button===2) down ? hook2Down() : hook2Up();
+    else if (e.button===0 && locked) down ? hookDown() : hookUp();
+    else if (e.button===1 && down) attack();
+  }
   if (locked){ look(e.movementX,e.movementY); return; }
   if (dragLook && e.pointerId===dragLook.id){ look(e.clientX-dragLook.x,e.clientY-dragLook.y); dragLook.x=e.clientX; dragLook.y=e.clientY; }
 });
@@ -1180,7 +1187,7 @@ function frame(){
     if (g.cd>0){ g.cd-=simFrozen?0:dt; g.grp.visible=g.beam.visible=g.cd<=0; continue; }
     g.grp.rotation.y+=dt*1.5; g.grp.position.y=g.pos.y+Math.sin(t*2.3+g.pos.z)*.25;
     if (running && g.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<2.2){ g.cd=GLIDER_RESPAWN; g.grp.visible=g.beam.visible=false; gliderTime=GLIDE_TIME;
-      [523,784,1046].forEach((f,i)=>tone(f,.16,"sine",.07,1,i*.06)); faceHappyT=1.6; announce("glider","Glider online."); toast("Glider!", isTouch?"Hold Jump while falling to glide · 30 s":"Hold Space while falling to glide · 30 s"); }
+      [523,784,1046].forEach((f,i)=>tone(f,.16,"sine",.07,1,i*.06)); faceHappyT=1.6; announce("glider","Glider online."); toast("Glider!", (isTouch?"Hold Jump while falling to glide":"Hold Space while falling to glide")+" · "+GLIDE_TIME+" s"); }
   }
   // baseball bat
   if (running){ if (hitCd>0) hitCd-=dt; if (batTime>0){ batTime=Math.max(0,batTime-dt); if (!batTime) toast("Bat's gone","Find another red pickup."); } }
@@ -1440,6 +1447,8 @@ function attack(){
     landed=true; stats.hits++; if (bat) stats.homers++;
     if (bat){ crack(); shakeT=.25; announce("homerun","Home run!"); toast("HOME RUN!","You launched "+a.name); } else { thud(); toast("Shoved "+a.name); }
   }
+  for (const pr of projectiles){ if (pr.kind!=="bomb") continue; const b=pr.body, dx=b.position.x-p.x, dy=b.position.y-p.y, dz=b.position.z-p.z, d=Math.hypot(dx,dz)||1;
+    if (d<range+.9 && Math.abs(dy)<2.5 && (dx*fx+dz*fz)/d>.1){ const sp=bat?30:16; b.velocity.set(fx*sp,bat?9:6,fz*sp); pr.by={peer:myPeer||"me",name:myName()}; addThrown(b); if (!landed){ bat?crack():thud(); landed=true; } toast(bat?"Batted it back!":"Knocked it away!"); } }
   for (const dyn of dynamics){
     const b=dyn.body, dx=b.position.x-p.x, dy=b.position.y-p.y, dz=b.position.z-p.z, d=Math.hypot(dx,dz)||1;
     if (d<range+.7 && Math.abs(dy)<2.5 && (dx*fx+dz*fz)/d>.2){ const f=(bat?90:20)*Math.min(1,b.mass/2); b.wakeUp(); b.applyImpulse(new CANNON.Vec3(dx/d*f,f*.45,dz/d*f)); if (bat) addThrown(b); claimIdol(b); if (!landed){ bat?crack():thud(); landed=true; } }
@@ -1493,7 +1502,7 @@ function yeet(b){
   const d=new THREE.Vector3(); camera.getWorldDirection(d);
   const sp=Math.min(40,20+40/Math.max(1,b.mass)); b.wakeUp();
   b.velocity.set(d.x*sp,d.y*sp+5,d.z*sp); b.angularVelocity.set(Math.random()*8-4,Math.random()*8-4,Math.random()*8-4);
-  addThrown(b); claimIdol(b); whoosh(true); swingN++; swingAnim=1; swingBat=false; stats.throws++;
+  addThrown(b); claimIdol(b); claimBomb(b); whoosh(true); swingN++; swingAnim=1; swingBat=false; stats.throws++;
   if (!stats.yeetToast){ stats.yeetToast=1; toast("YEET!","Hook something loose, then Hit to throw it."); }
 }
 function updateThrown(dt){
@@ -1552,6 +1561,7 @@ function trapTrigger(x,z,color="#ff3a2a",ht=2.2){
 }
 function claimIdol(b){ for (const T of traps) if (T.idol && T.idol.body===b) T.lastTouch={peer:myPeer||"me",name:myName()}; }
 function onHookBite(h){
+  if (h.body) claimBomb(h.body);
   const tr=h.obj && h.obj.userData.trap; if (tr!=null) triggerTrap(tr,{peer:myPeer||"me",name:myName()},true);
   if (h.body) claimIdol(h.body);
 }
@@ -2581,6 +2591,28 @@ function fireMissile(){
   const v=pBody.velocity; v.x-=dir.x*8; v.y-=dir.y*8; v.z-=dir.z*8;
   announce("missileaway","Missile away!",true); toast("MISSILE AWAY!", target ? "Locked on "+target.name : "No lock: flying straight");
 }
+// bombs: a 4 s fuse with a colour countdown (green, yellow, red, blinking faster); hook one to pull it in and throw it
+// (or bat it) back. Whoever handled it last owns the blast.
+function makeBomb(pos,vel,by){
+  const mat=new THREE.MeshStandardMaterial({color:"#1a1a20",metalness:.4,roughness:.4,emissive:"#40ff60",emissiveIntensity:.2});
+  const m=new THREE.Mesh(new THREE.SphereGeometry(.4,14,10),mat); const f=new THREE.Mesh(new THREE.SphereGeometry(.13,6,4),new THREE.MeshBasicMaterial({color:"#40ff60",toneMapped:false})); f.position.y=.42; m.add(f); scene.add(m);
+  const pick=new THREE.Mesh(new THREE.SphereGeometry(.9,8,6),new THREE.MeshBasicMaterial({visible:false})); m.add(pick);   // a bigger target so it's easy to hook
+  const b=new CANNON.Body({mass:1,shape:new CANNON.Sphere(.4),collisionFilterGroup:16,collisionFilterMask:1|4|16,linearDamping:.1});
+  b.position.set(pos.x,pos.y,pos.z); b.velocity.set(vel.x,vel.y,vel.z); world.addBody(b);
+  m.userData.body=b; pick.userData.body=b; grappleables.push(pick);
+  const pr={kind:"bomb",mesh:m,body:b,t:TUNE.bomb.fuse,fuse:TUNE.bomb.fuse,by,mat,fuseMesh:f,pick,beep:0}; projectiles.push(pr); return pr;
+}
+// handling a bomb (hooking, pulling, throwing, batting) makes it yours
+function claimBomb(body){ for (const pr of projectiles) if (pr.kind==="bomb" && pr.body===body) pr.by={peer:myPeer||"me",name:myName()}; }
+const bombCol=new THREE.Color();
+function updateBombLook(pr,dt){
+  const k=Math.max(0,pr.t/pr.fuse);   // 1 = just lit, 0 = boom
+  bombCol.setRGB(k>.5?(1-k)*2:1, k>.5?1:k*2, .1);   // green -> yellow -> red
+  const rate=2+(1-k)*14, on=Math.sin(simTime*rate*Math.PI*2)>0 || k>.75;
+  pr.mat.emissive.copy(bombCol); pr.mat.emissiveIntensity=on?1.4:.15; pr.fuseMesh.material.color.copy(bombCol);
+  pr.mesh.scale.setScalar(1+(k<.25?(.25-k)*1.6:0)+(on&&k<.5?.05:0));
+  pr.beep-=dt; if (pr.beep<=0){ pr.beep=Math.max(.08,.6*k); if (camera.position.distanceTo(pr.mesh.position)<40) tone(900+(1-k)*900,.05,"square",.03); }
+}
 function useItem(){
   if (!running || raceCount>0 || !heldItem) return;
   if (heldItem==="missile"){ audioOn(); heldItem=null; stats.items++; fireMissile(); return; }
@@ -2591,10 +2623,7 @@ function useItem(){
   else if (it==="shield"){ shieldT=8; toast("Shield bubble","8 seconds of safety"); tone(880,.3,"sine",.06,1.5); }
   else if (it==="magnet"){ magnetT=6; toast("Spark magnet","Sparks within 14 m come to you"); tone(440,.3,"triangle",.06,2); }
   else if (it==="bomb"){
-    const m=new THREE.Mesh(new THREE.SphereGeometry(.4,14,10),bombMat); const f=new THREE.Mesh(new THREE.SphereGeometry(.12,6,4),fuseMat); f.position.y=.42; m.add(f); scene.add(m);
-    const b=new CANNON.Body({mass:1,shape:new CANNON.Sphere(.4),collisionFilterGroup:16,collisionFilterMask:1|4|16,linearDamping:.1});
-    b.position.set(p.x+fwd.x*1.2,p.y+.8,p.z+fwd.z*1.2); b.velocity.set(v.x+fwd.x*18,v.y+7,v.z+fwd.z*18); world.addBody(b);
-    projectiles.push({kind:"bomb",mesh:m,body:b,t:1.8}); tone(300,.15,"square",.05,.6); toast("Bomb away!");
+    makeBomb({x:p.x+fwd.x*1.2,y:p.y+.8,z:p.z+fwd.z*1.2},{x:v.x+fwd.x*18,y:v.y+7,z:v.z+fwd.z*18},{peer:myPeer||"me",name:myName()}); tone(300,.15,"square",.05,.6); toast("Bomb away!");
   }
   else if (it==="comet"){
     const T=leaderTarget(); if (!T){ toast("No one to chase","The comet fizzles."); return; }
@@ -2661,7 +2690,9 @@ function updateItems(dt,itemDt=simFrozen?0:dt){
   }
   for (let i=projectiles.length-1;i>=0;i--){
     const pr=projectiles[i]; pr.t-=dt;
-    if (pr.kind==="bomb"){ pr.mesh.position.copy(pr.body.position); if (pr.t<=0){ const q=pr.body.position; explode(q.x,q.y,q.z,7,1,pr.by||{peer:myPeer||"me",name:myName()},true); scene.remove(pr.mesh); world.removeBody(pr.body); projectiles.splice(i,1); } }
+    if (pr.kind==="bomb"){ pr.mesh.position.copy(pr.body.interpolatedPosition); pr.mesh.quaternion.copy(pr.body.interpolatedQuaternion); updateBombLook(pr,dt);
+      if (pr.t<=0){ const q=pr.body.position; if (hook && hook.body===pr.body) hook=null; if (hook2 && hook2.body===pr.body) hook2=null; const gi=grappleables.indexOf(pr.pick); if (gi>=0) grappleables.splice(gi,1);
+        explode(q.x,q.y,q.z,7,1,pr.by||{peer:myPeer||"me",name:myName()},true); scene.remove(pr.mesh); world.removeBody(pr.body); projectiles.splice(i,1); } }
     else if (pr.kind==="comet"){
       const tp=pr.target.pos(), m=pr.mesh, to=tmpV.set(tp.x-m.position.x,tp.y+.3-m.position.y,tp.z-m.position.z), d=to.length();
       if (pr.t<5.5){ to.normalize().multiplyScalar(48); pr.vel.lerp(to,1-Math.exp(-4*dt)); } else pr.vel.y-=10*dt;
@@ -2705,10 +2736,7 @@ function botItems(b,dt){
   else if (b.item==="boost" && b.standing && b.wish.lengthSq()>0 && b.target!=null && (()=>{ const T=sparks[b.target].pos, hd=Math.hypot(T.x-p.x,T.z-p.z); return hd>25 && !waterBetween(p,T) && H(p.x+b.wish.x*25,p.z+b.wish.z*25)>0; })()){ const v=b.body.velocity; v.x+=b.wish.x*24; v.z+=b.wish.z*24; v.y=Math.max(v.y,0)+8; b.jumpT=simTime; used=true; }
   else if (b.item==="bomb" && near && near.d<(C.aggr>.5?22:12)){
     const dir=tmpV.set(near.pos.x-p.x,0,near.pos.z-p.z).normalize();
-    const m=new THREE.Mesh(new THREE.SphereGeometry(.4,14,10),bombMat); const f=new THREE.Mesh(new THREE.SphereGeometry(.12,6,4),fuseMat); f.position.y=.42; m.add(f); scene.add(m);
-    const bb=new CANNON.Body({mass:1,shape:new CANNON.Sphere(.4),collisionFilterGroup:16,collisionFilterMask:1|4|16,linearDamping:.1});
-    const sp=Math.min(20,near.d*.9+4); bb.position.set(p.x+dir.x*1.2,p.y+.8,p.z+dir.z*1.2); bb.velocity.set(dir.x*sp,7,dir.z*sp); world.addBody(bb);
-    projectiles.push({kind:"bomb",mesh:m,body:bb,t:1.8,by}); used=true;
+    const sp=Math.min(20,near.d*.9+4); makeBomb({x:p.x+dir.x*1.2,y:p.y+.8,z:p.z+dir.z*1.2},{x:dir.x*sp,y:7,z:dir.z*sp},by); used=true;
     if (Math.random()<.5) botSay(C,C.taunt);
   }
   else if (b.item==="comet"){
@@ -2991,5 +3019,5 @@ $("deathGo").addEventListener("click",e=>{ e.preventDefault(); respawn(null); })
 // interpolated poses start at the origin until the first physics step
 for (const b of world.bodies){ b.interpolatedPosition.copy(b.position); b.interpolatedQuaternion.copy(b.quaternion); }
 // small hook for automated testing; not used by the game itself
-window.__skyDebug={ gliderPickupsList:()=>gliderPickups, renderInfo:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,meshes:(()=>{ let n=0; scene.traverse(o=>{ if(o.isMesh) n++; }); return n; })()}), headlessStart:(nBots=1)=>{ simFrozen=true; wantBots=nBots; running=true; $("start").hidden=true; for (const C of CHARACTERS) introSeen.add(C.key); introQ.length=0; }, botItems:(b,dt)=>botItems(b,dt), gfx:()=>({GFX,composer:!!composer,ao:aoOn,shafts:!!shafts}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, cupAwards:()=>cupAwards(), showCupFinal:()=>showCupFinal(cupDef()), forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,raceOver,slowmo:!!slowmo,timeScale:lastTimeScale,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); for (const g of [...gliderPickups,...batPickups]) if (g.cd>0) g.cd-=1/60; for (const b of itemBoxes) if (b.cd>0) b.cd-=1/60; } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded, pitch:()=>pitch, lookBy:(dx,dy)=>look(dx,dy), heroTilt:()=>heroBody.rotation.x, hook2Down:()=>hook2Down(), hook2Up:()=>hook2Up(), climb:()=>climbOntoRope(), pulling:()=>pullingNow(), swinging:()=>swingingNow(), camDist:()=>camDist, ropes, makeRope:(a,b)=>{ trN++; return !!makeRope('me',a,b,trN); }, tryMerge:()=>tryMergeRopes(), setReel:v=>{ reelHeld=v; if(v) lastReelT=simTime; }, setHook2:h=>{ hook2=h; }, glider:()=>({gliding,diving,gliderTime}), setGlider:t=>{ gliderTime=t; }, setTouchDive:v=>{ touchDive=v; }, pickChar:k=>pickChar(k,true), masterVol:()=>masterVol&&masterVol.gain.value, boosts, fov:()=>camera.fov, touchSim:(type,x,y,id=7)=>{ const e={pointerId:id,clientX:x,clientY:y,pointerType:'touch'}; if(type==='down') touchDown(e); else if(type==='move') touchMoveH(e); else touchUp(e); return {joy:!!joy,pending:!!joyPending,hooks:[hook&&hook.phase,hook2&&hook2.phase]}; }, hooks:()=>[hook&&hook.phase,hook2&&hook2.phase,hook&&hook.len!=null?+hook.len.toFixed(2):null,hook2&&hook2.len!=null?+hook2.len.toFixed(2):null], swipe:(dx,dy)=>{ if(!lookT) lookT={id:-1,x:0,y:0,x0:0,y0:0,t0:0}; const r=swingGesture(dx,dy); return r; }, endSwipe:()=>{ lookT=null; }, mega, spawnMega:i=>spawnMega(i,true), takeMega:()=>takeMega(myName(),true), medals:()=>({me:heroMedal.visible?medalMats.indexOf(heroMedal.material)+1:0, others:[...avatars.values(),...botAvatars.values()].map(a=>[a.name,a.medal&&a.medal.visible?medalMats.indexOf(a.medal.material)+1:0])}), setBoard:v=>{ boardOpen=v; renderLiveBoard(); }, ragdoll:()=>simTime<ragdollUntil, boomFx:()=>boomFx.length, killMe:n=>killMe({peer:'x',name:n||'Sniper'}), killBot:(k)=>killBot(k,{peer:myPeer||'me',name:myName()}), botDiff:()=>botDiff(), isRunning:()=>running, speedText:()=>[$("speed").textContent,$("speedLbl").textContent], setClock:(t)=>setClock($("timer"),t), rules:()=>({...RULES,ROUND_TIME,SUMO_TIME,SUMO_KOS,MODE}), customDraft:()=>customDraft, setPull:v=>{ pullHeld=v; }, ropeStep:dt=>ropeStep(dt), setHook:h=>{ hook=h; }, edgeFrom:(x,z)=>edgeFrom(x,z), botThink:(b,dt)=>botThink(b,dt), mapInfo:()=>({key:MAP.key,sumoOnly:!!MAP.sumoOnly,narrow:!!MAP.narrow}), pickFrenchVoice, mode:()=>MODE, setMode:m=>setMode(m), startRound:()=>startRound(), checkRaceEnd:()=>checkRaceEnd(), sniper:()=>({spinAcc,sniperCharge,held:heldItem}), traps, projectiles, sunDir:SUN_DIR, camInfo:()=>({cam:camera.position.toArray().map(n=>+n.toFixed(2)),body:pBody.position.toArray().map(n=>+n.toFixed(2)),flashT,hemi:hemi.intensity,camCur}), triggerTrap:(i,n)=>triggerTrap(i,{peer:'x',name:n||'Tester'},true), meMag, yeet:b=>yeet(b), thrown, dynamics, finale, spawnFinale:(x,y,z,by)=>spawnFinale(new THREE.Vector3(x,y,z),by||myName(),true), finaleSpot:p=>finaleSpot(p), grabFinale:n=>grabFinale(n,true), resetFinale:()=>resetFinale(), finaleGrp, searchlights, standings:()=>standings(), settings, applyInputUI, setInput:t=>setInput(t), inputTouch:()=>isTouch, castAim:d=>castAim(d), assistAim:(d,l)=>assistAim(d,l), tapHook:(x,y)=>tapHook(x,y), camera, camTarget, hand, hookUp:()=>hookUp(), death:()=>({deadT,DEATH_SECS}), respawnNow:()=>respawn(null), setDeathSecs:n=>{ DEATH_SECS=n; }, stats:()=>JSON.parse(JSON.stringify(stats)), drops:()=>drops.length, groundPunch:b=>groundPunch(b), setOnGround:v=>{ onGround=v; } };
+window.__skyDebug={ gliderPickupsList:()=>gliderPickups, renderInfo:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,meshes:(()=>{ let n=0; scene.traverse(o=>{ if(o.isMesh) n++; }); return n; })()}), headlessStart:(nBots=1)=>{ simFrozen=true; wantBots=nBots; running=true; $("start").hidden=true; for (const C of CHARACTERS) introSeen.add(C.key); introQ.length=0; }, botItems:(b,dt)=>botItems(b,dt), gfx:()=>({GFX,composer:!!composer,ao:aoOn,shafts:!!shafts}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, cupAwards:()=>cupAwards(), showCupFinal:()=>showCupFinal(cupDef()), forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,raceOver,slowmo:!!slowmo,timeScale:lastTimeScale,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); for (const g of [...gliderPickups,...batPickups]) if (g.cd>0) g.cd-=1/60; for (const b of itemBoxes) if (b.cd>0) b.cd-=1/60; } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded, makeBomb:(x,y,z)=>{ const pr=makeBomb({x,y,z},{x:0,y:0,z:0},{peer:'bot:1',name:'Lars'}); return pr.body; }, bombs:()=>projectiles.filter(p=>p.kind==='bomb').map(p=>({t:+p.t.toFixed(2),by:p.by&&p.by.name,col:'#'+p.mat.emissive.getHexString()})), hook2State:()=>hook2&&hook2.phase, pitch:()=>pitch, lookBy:(dx,dy)=>look(dx,dy), heroTilt:()=>heroBody.rotation.x, hook2Down:()=>hook2Down(), hook2Up:()=>hook2Up(), climb:()=>climbOntoRope(), pulling:()=>pullingNow(), swinging:()=>swingingNow(), camDist:()=>camDist, ropes, makeRope:(a,b)=>{ trN++; return !!makeRope('me',a,b,trN); }, tryMerge:()=>tryMergeRopes(), setReel:v=>{ reelHeld=v; if(v) lastReelT=simTime; }, setHook2:h=>{ hook2=h; }, glider:()=>({gliding,diving,gliderTime}), setGlider:t=>{ gliderTime=t; }, setTouchDive:v=>{ touchDive=v; }, pickChar:k=>pickChar(k,true), masterVol:()=>masterVol&&masterVol.gain.value, boosts, fov:()=>camera.fov, touchSim:(type,x,y,id=7)=>{ const e={pointerId:id,clientX:x,clientY:y,pointerType:'touch'}; if(type==='down') touchDown(e); else if(type==='move') touchMoveH(e); else touchUp(e); return {joy:!!joy,pending:!!joyPending,hooks:[hook&&hook.phase,hook2&&hook2.phase]}; }, hooks:()=>[hook&&hook.phase,hook2&&hook2.phase,hook&&hook.len!=null?+hook.len.toFixed(2):null,hook2&&hook2.len!=null?+hook2.len.toFixed(2):null], swipe:(dx,dy)=>{ if(!lookT) lookT={id:-1,x:0,y:0,x0:0,y0:0,t0:0}; const r=swingGesture(dx,dy); return r; }, endSwipe:()=>{ lookT=null; }, mega, spawnMega:i=>spawnMega(i,true), takeMega:()=>takeMega(myName(),true), medals:()=>({me:heroMedal.visible?medalMats.indexOf(heroMedal.material)+1:0, others:[...avatars.values(),...botAvatars.values()].map(a=>[a.name,a.medal&&a.medal.visible?medalMats.indexOf(a.medal.material)+1:0])}), setBoard:v=>{ boardOpen=v; renderLiveBoard(); }, ragdoll:()=>simTime<ragdollUntil, boomFx:()=>boomFx.length, killMe:n=>killMe({peer:'x',name:n||'Sniper'}), killBot:(k)=>killBot(k,{peer:myPeer||'me',name:myName()}), botDiff:()=>botDiff(), isRunning:()=>running, speedText:()=>[$("speed").textContent,$("speedLbl").textContent], setClock:(t)=>setClock($("timer"),t), rules:()=>({...RULES,ROUND_TIME,SUMO_TIME,SUMO_KOS,MODE}), customDraft:()=>customDraft, setPull:v=>{ pullHeld=v; }, ropeStep:dt=>ropeStep(dt), setHook:h=>{ hook=h; }, edgeFrom:(x,z)=>edgeFrom(x,z), botThink:(b,dt)=>botThink(b,dt), mapInfo:()=>({key:MAP.key,sumoOnly:!!MAP.sumoOnly,narrow:!!MAP.narrow}), pickFrenchVoice, mode:()=>MODE, setMode:m=>setMode(m), startRound:()=>startRound(), checkRaceEnd:()=>checkRaceEnd(), sniper:()=>({spinAcc,sniperCharge,held:heldItem}), traps, projectiles, sunDir:SUN_DIR, camInfo:()=>({cam:camera.position.toArray().map(n=>+n.toFixed(2)),body:pBody.position.toArray().map(n=>+n.toFixed(2)),flashT,hemi:hemi.intensity,camCur}), triggerTrap:(i,n)=>triggerTrap(i,{peer:'x',name:n||'Tester'},true), meMag, yeet:b=>yeet(b), thrown, dynamics, finale, spawnFinale:(x,y,z,by)=>spawnFinale(new THREE.Vector3(x,y,z),by||myName(),true), finaleSpot:p=>finaleSpot(p), grabFinale:n=>grabFinale(n,true), resetFinale:()=>resetFinale(), finaleGrp, searchlights, standings:()=>standings(), settings, applyInputUI, setInput:t=>setInput(t), inputTouch:()=>isTouch, castAim:d=>castAim(d), assistAim:(d,l)=>assistAim(d,l), tapHook:(x,y)=>tapHook(x,y), camera, camTarget, hand, hookUp:()=>hookUp(), death:()=>({deadT,DEATH_SECS}), respawnNow:()=>respawn(null), setDeathSecs:n=>{ DEATH_SECS=n; }, stats:()=>JSON.parse(JSON.stringify(stats)), drops:()=>drops.length, groundPunch:b=>groundPunch(b), setOnGround:v=>{ onGround=v; } };
 frame();

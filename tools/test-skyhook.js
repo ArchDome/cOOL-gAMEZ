@@ -26,7 +26,7 @@ const { openGame, checker } = require('./harness');
 
     // Glider
     await page.waitForFunction(() => { const d = window.__skyDebug, g = d.gliderPickups[0]; d.body.position.set(g.pos.x, g.pos.y, g.pos.z); d.body.velocity.set(0, 0, 0); return d.glide().gliderTime > 0; }, null, { timeout: 15000, polling: 100 }).catch(() => {});
-    c.check('glider pickup grants time', (await page.evaluate(() => window.__skyDebug.glide().gliderTime)) > 25);
+    c.check('glider pickup grants 60 s', (await page.evaluate(() => window.__skyDebug.glide().gliderTime)) > 55);
 
     // Bat pickup
     await page.waitForFunction(() => { const d = window.__skyDebug, g = d.batPickups[0]; d.body.position.set(g.pos.x, g.pos.y, g.pos.z); d.body.velocity.set(0, 0, 0); return d.bat() > 0; }, null, { timeout: 15000, polling: 100 }).catch(() => {});
@@ -242,6 +242,25 @@ const { openGame, checker } = require('./harness');
       h2 = { att, after: await page.evaluate(() => window.__skyDebug.hooks()[1]) };
     }
     c.check('PC: a second rope on right mouse / X', h2.skip || (h2.att && (h2.after === 'retract' || h2.after === null)), JSON.stringify(h2));
+    // PC: holding left mouse then pressing right (a chorded press arrives as pointermove) fires the second rope
+    let ch = { skip: h2a.skip };
+    if (!h2a.skip) {
+      await page.evaluate(() => { const d = window.__skyDebug; d.setHook2(null); });
+      await page.waitForFunction(() => window.__skyDebug.aim() != null, null, { timeout: 20000 }).catch(() => {});
+      await page.evaluate(() => document.querySelector('canvas').dispatchEvent(new PointerEvent('pointermove', { pointerType: 'mouse', button: 2, buttons: 3, bubbles: true })));
+      const fired = await page.waitForFunction(() => window.__skyDebug.hook2State() === 'attached' || window.__skyDebug.hook2State() === 'fly', null, { timeout: 20000 }).then(() => true, () => false);
+      await page.evaluate(() => document.querySelector('canvas').dispatchEvent(new PointerEvent('pointermove', { pointerType: 'mouse', button: 2, buttons: 1, bubbles: true })));
+      ch = { fired, after: await page.evaluate(() => window.__skyDebug.hook2State()) };
+    }
+    c.check('PC: right mouse pressed while left is held fires the second rope (chorded buttons)', ch.skip || (ch.fired && (ch.after === 'retract' || ch.after === null)), JSON.stringify(ch));
+
+    // Bombs: 4 s fuse with a green -> red countdown; throwing one back makes it yours
+    const bm0 = await page.evaluate(() => { const d = window.__skyDebug, p = d.body.position; d.makeBomb(p.x + 8, p.y + 2, p.z); return d.bombs().slice(-1)[0]; });
+    const bmBody = await page.evaluate(() => true);
+    await page.evaluate(() => { const d = window.__skyDebug, pr = d.projectiles.filter(p => p.kind === 'bomb').slice(-1)[0]; d.yeet(pr.body); });
+    const bm1 = await page.evaluate(() => window.__skyDebug.bombs().slice(-1)[0]);
+    const red = await page.waitForFunction(() => { const b = window.__skyDebug.bombs().slice(-1)[0]; return b && b.t < .9 && parseInt(b.col.slice(3, 5), 16) < 140 && parseInt(b.col.slice(1, 3), 16) > 200; }, null, { timeout: 30000, polling: 50 }).then(() => true, () => false);
+    c.check('bombs: 4 s fuse, green to red countdown, and throwing one back makes it yours', bm0.t > 3.5 && parseInt(bm0.col.slice(3, 5), 16) > 200 && bm1.by === 'Tester' && red, JSON.stringify({ bm0, bm1, red }));
 
     // Live leaderboard: hold Tab to see it
     await page.keyboard.down('Tab');

@@ -112,6 +112,12 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] Look further up and down (wider camera pitch).
 - [x] Dive: straight down by default, movement input tilts the dive angle; a proper dive pose and trail; a dive-bomb impact effect.
 
+### Owner's batch 11, 2026-11-15
+- [x] PC: two hooks at once actually works with both mouse buttons held (chorded button presses).
+- [x] Bombs: grapple them, pull, throw or bat them back; longer fuse; colour countdown (green, yellow, red, blinking faster).
+
+- [x] Glider lasts 60 s.
+
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.

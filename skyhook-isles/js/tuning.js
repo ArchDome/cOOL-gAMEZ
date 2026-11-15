@@ -16,10 +16,11 @@ export const TUNE = {
   hook:    { range: 75, speed: 150, reel: 16 },         // grapple reach, hook flight speed, reel-in speed (was 24)
   rope:    { correct: 30, stretch: 1.5 },                // rope tension: correction per metre of stretch; extra kick when overstretched (was 4: the big release speeds)
   gate:    { radius: 4, lift: 2.2 },                     // race gates: fly within this radius of the centre; raised above their perch
-  glider:  { time: 30, respawn: 15, diveSpeed: 50, diveTilt: 55, pullUp: .45, pullUpMax: 22, pullOut: .75 },   // dive: speed, max tilt from straight down (deg); pull-up: share of speed into climb / forward
+  glider:  { time: 60, respawn: 15, diveSpeed: 50, diveTilt: 55, pullUp: .45, pullUpMax: 22, pullOut: .75 },   // dive: speed, max tilt from straight down (deg); pull-up: share of speed into climb / forward
   bat:     { time: 30, respawn: 20, sumoRespawn: 8, knock: 40, up: 16, stun: 1.3 },
   shove:   { knock: 10, up: 5, stun: .45 },
   blast:   { knock: 38, up: 15, upMin: 5, stun: 1.6 },   // explosions: per unit of power, scaled by closeness
+  bomb:    { fuse: 4 },                                   // seconds from throw to boom (was 1.8)
   sniper:  { charge: 3.2, range: 160 },
   mega:    { every: 150, first: 60 },                    // cruise missile drops
   race:    { roundTime: 240, points: [10, 8, 6, 5, 4, 3, 2, 1], finalBonus: 5 },

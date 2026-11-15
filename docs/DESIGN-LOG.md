@@ -4,6 +4,18 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-15: Left and right mouse together, throwable bombs, a 60 s glider
+
+- **Bug (owner): left and right mouse couldn't both hook.** Browsers don't fire `pointerdown` for a second mouse button pressed while another is held (a "chorded" press). It arrives as a `pointermove` whose `button` names the changed button and whose `buttons` mask says whether it's now down. The canvas now handles those for all three buttons (left = main hook when the mouse is captured, right = second rope, middle = attack). Left + X already worked, because keys aren't chorded. Test: a chorded right press with left held fires the second rope, and the chorded release lets it go.
+- **Bombs can be grappled and thrown back.** Each bomb has an easy-to-hit 0.9 m hook target. Hook it, Pull it in, then Hit to throw it, or just bat or shove it away. Whoever handled it last owns the blast. Bot bombs work the same way. (Bombs exist in the world of the person who threw them, plus the bot runner's for bot bombs, so in multiplayer you can catch your own and the bots' bombs. A friend's bomb only arrives as its explosion.)
+- **Longer fuse with a colour countdown:** the fuse is 4 s (was 1.8; `tuning.js` → `bomb.fuse`). The bomb's glow goes green, yellow, red, blinking faster as it runs down, with an accelerating beep when you're within 40 m, and it swells in the last second. Player and bot bombs now share one `makeBomb()`.
+- **Glider lasts 60 s** (was 30; `glider.time`), and the pickup toast shows the real duration.
+- Bot benchmark: 132 (was 130). Bots also get the longer glider.
+
+![Bomb countdown: fresh (green) and about to blow (red)](img/skyhook-bomb-fuse.png)
+
+---
+
 ## 2026-11-15: Wider look range; a steerable straight-down dive
 
 - **Look further up and down:** camera pitch now goes from -1.1 to 1.45 rad (was -0.55 to 1.25), for mouse, touch and gyro, so you can aim at anchors high above or below you. It's in `tuning.js` → `camera.pitchMin/pitchMax`.
