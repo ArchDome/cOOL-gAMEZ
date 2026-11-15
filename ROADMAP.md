@@ -118,6 +118,9 @@ This file is the work queue for Claude sessions, including unattended and schedu
 
 - [x] Glider lasts 60 s.
 
+### Owner's batch 12, 2026-11-15
+- [x] Sync bombs in multiplayer: friends see your bombs and can grab and throw them back (ownership handoff).
+
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.

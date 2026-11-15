@@ -4,6 +4,16 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-15: Bombs in multiplayer: catch a friend's bomb and throw it back
+
+- **Ownership handoff:** every bomb has an id and one owner, who simulates its physics and shares it in presence (`bm`: id, position, velocity, fuse left, last thrower; up to 6). Everyone else draws it as a remote bomb (smoothed, with gravity extrapolation) with the same colour countdown and a hook target.
+- **Claiming:** hooking a friend's bomb (main rope or second rope), batting it or shoving it claims it. It becomes a real physics bomb in your game at the same position and speed, with the same remaining fuse, and the hook latches onto it. You announce the claim (`bcl`), and the old owner drops their copy. For 4 s afterwards neither side redraws a stale copy of a claimed id.
+- **Blast:** the owner when the fuse runs out sets it off. That goes through the existing shared explosion event, so everyone gets the blast, holes and knockback, and the last thrower gets the credit.
+- Bot bombs belong to the player running the bots, so friends can catch those too. A friend leaving or switching maps takes their bombs with them.
+- Test (with the scripted fake friend): their bomb appears, claiming it makes it mine and announces the claim, it isn't redrawn as theirs, and when they claim one of mine it leaves my world. Presence is still small (322 bytes).
+
+---
+
 ## 2026-11-15: Left and right mouse together, throwable bombs, a 60 s glider
 
 - **Bug (owner): left and right mouse couldn't both hook.** Browsers don't fire `pointerdown` for a second mouse button pressed while another is held (a "chorded" press). It arrives as a `pointermove` whose `button` names the changed button and whose `buttons` mask says whether it's now down. The canvas now handles those for all three buttons (left = main hook when the mouse is captured, right = second rope, middle = attack). Left + X already worked, because keys aren't chorded. Test: a chorded right press with left held fires the second rope, and the chorded release lets it go.

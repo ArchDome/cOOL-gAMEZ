@@ -396,6 +396,21 @@ const { openGame, checker } = require('./harness');
     const trG = await page.waitForFunction(() => !window.__skyDebug.ropes.has('fr1end00peer0000'), null, { timeout: 20000 }).then(() => true, () => false);
     c.check("a friend's tightrope is shared (appears and disappears)", trF && trG);
 
+    // Bombs in multiplayer: a friend's bomb shows up, hooking it claims it (it becomes mine and I tell them), and
+    // when they claim one of mine it leaves my world
+    await friendAt({ bm: [['fr:1', me[0] + 5, me[1] + 1, me[2], 0, 0, 0, 3.5, 'Friend']] });
+    const rbSeen = await page.waitForFunction(() => window.__skyDebug.remoteBombs.has('fr:1'), null, { timeout: 20000 }).then(() => true, () => false);
+    const cl = await page.evaluate(() => { const d = window.__skyDebug, ok = d.claimRemoteBomb('fr:1'); return { ok, mine: d.myBombs().map(b => b[0]), bcl: d.bcl(), remote: d.remoteBombs.has('fr:1') }; });
+    await page.waitForTimeout(600);
+    const stillMine = await page.evaluate(() => ({ remote: window.__skyDebug.remoteBombs.has('fr:1'), mine: window.__skyDebug.myBombs().some(b => b[0] === 'fr:1') }));
+    // now the friend claims a bomb of mine
+    const myId = await page.evaluate(() => { const d = window.__skyDebug, p = d.body.position; d.makeBomb(p.x + 3, p.y + 1, p.z); return d.myBombs().slice(-1)[0][0]; });
+    await friendAt({ bm: 0, bcl: { n: 1, id: 'x' } }); await page.waitForTimeout(400);
+    await friendAt({ bm: 0, bcl: { n: 2, id: myId } });
+    const bGone = await page.waitForFunction((id) => !window.__skyDebug.myBombs().some(b => b[0] === id), myId, { timeout: 20000 }).then(() => true, () => false);
+    c.check('bombs sync: see a friend\'s bomb, hook it to take it over, and lose yours when they take it', rbSeen && cl.ok && cl.mine.includes('fr:1') && cl.bcl.id === 'fr:1' && !cl.remote && !stillMine.remote && stillMine.mine && bGone, JSON.stringify({ rbSeen, cl, stillMine, bGone }));
+    await friendAt({ bm: 0 });
+
     // Falling in the sea after being hit credits the friend
     const sp0 = await page.evaluate(() => { const sp = window.__fake.mine().sp; return sp ? sp.n : 0; });
     await page.evaluate(() => { const b = window.__skyDebug.body; b.position.set(0, -4, -116); b.velocity.set(0, 0, 0); }); // out over the sea
