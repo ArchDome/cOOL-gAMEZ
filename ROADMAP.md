@@ -104,6 +104,10 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] A race map with many floating grapple points spread well apart.
 - [x] Race mode: big gates to fly through instead of small sparks.
 
+### Owner's batch 9, 2026-11-15
+- [x] Tightrope: grapple straight onto it and climb on.
+- [x] Pulling doesn't lock you: while pulling someone or something, your footing stays on (stay on the tightrope, keep walking).
+
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.

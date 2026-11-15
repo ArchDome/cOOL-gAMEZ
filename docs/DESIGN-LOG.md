@@ -4,6 +4,13 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-15: Grapple onto tightropes; pulling keeps your footing
+
+- **Getting on a tightrope:** the rope now has an invisible 0.5 m sleeve that the hook bites easily. Hooking it hauls you up at 22 m/s (`tuning.js` → `tightrope.climbReel`), and within 2.6 m you climb on top of it at the nearest point. Tested: from 8 m below you're standing on it in about a third of a second.
+- **Pulling doesn't lock you:** a hook used to count as "swinging" whatever it was on, which switched off your footing (the ground hover controller and walking). Now, while you hold Pull on a person or a loose object, you keep your footing: you stay on the tightrope (or the ground), can walk, and reel them up to you. Swinging from fixed anchors is unchanged (`swingingNow()` vs `anyAttached()`). Tested: standing on a tightrope, a crate pulled from 12 m to 1.9 m, and you never left the rope.
+
+---
+
 ## 2026-11-15: Gates instead of sparks, calmer swing physics, Sky Reach, pinch zoom
 
 - **Race gates:** every race checkpoint is now a big golden ring (about 4 m radius, slowly spinning, with a faint glowing disc) raised 2.2 m above its perch. Passing within 4 m of the centre counts, where the old sparks needed 1.9 m. The final spark is now the **final gate**, a giant ring around the core (grab radius 5 m). The HUD, splits, toasts, results and awards say "Gates" (the Spark Hoarder award is now Gate Crasher). Tuning: `tuning.js` → `gate`.

@@ -200,6 +200,26 @@ const { openGame, checker } = require('./harness');
     c.check('speed cap and air drag keep flings in check (34 m/s cap, drag toward 22)', sl.v1 <= 34.5 && sl.v1 > 30 && sl.v2 < 27 && sl.v2 > 20, JSON.stringify(sl));
     await page.evaluate(() => window.__skyDebug.respawnNow());
 
+    // Tightrope: hook it from below to get hauled up and climb on; then pull a crate up without leaving the rope
+    const tc = await page.evaluate(() => { const d = window.__skyDebug, b = d.body; d.calm(); d.respawnNow(); d.keys.clear(); d.setPull(false); d.setHook(null); d.setHook2(null);
+      const x = -55, z = 45, g = d.probe({ x, y: 400, z })[0], y = g + 12;
+      d.makeRope([x - 10, y, z], [x + 10, y, z]); const r = d.ropes.get('me');
+      b.position.set(x + 1, y - 8, z); b.velocity.set(0, 0, 0);
+      const A = d.camera.position.clone().set(x + 1, y, z);
+      d.setHook({ phase: 'attached', tip: A.clone(), body: null, point: A.clone(), len: 8, miss: false, remote: null, obj: r.sleeve });
+      let climbed = false; for (let i = 0; i < 150 && !climbed; i++) { d.tick(1); climbed = d.climb(); }
+      d.tick(30); const on = { climbed, standing: d.ground().standing, dy: +(b.position.y - y).toFixed(2) };
+      // pull a crate up from the rope
+      const dyn = d.dynamics.find(o => o.body.mass > 0 && o.body.mass < 10); if (!dyn) return { on, skip: 'no crate' };
+      const cb = dyn.body; cb.position.set(x + 4, g + 1, z); cb.velocity.set(0, 0, 0); cb.wakeUp(); const V = b.position.constructor;
+      d.setHook({ phase: 'attached', tip: d.camera.position.clone().set(x + 4, g + 1, z), body: cb, local: new V(0, 0, 0), point: d.camera.position.clone(), len: 12, miss: false, remote: null, obj: null });
+      d.setPull(true); const c0 = cb.position.distanceTo(b.position); let minDy = 9;
+      for (let i = 0; i < 70; i++) { d.tick(1); minDy = Math.min(minDy, b.position.y - y); }
+      const c1 = cb.position.distanceTo(b.position); d.setPull(false); d.setHook(null);
+      return { on, pull: { c0: +c0.toFixed(1), c1: +c1.toFixed(1), stayed: minDy > .3 } }; });
+    c.check('tightrope: grapple onto it and climb on; pull things up to you without leaving the rope', tc.on.climbed && tc.on.standing && tc.on.dy > .3 && tc.on.dy < 1.2 && (tc.skip || (tc.pull.c1 < tc.pull.c0 - 4 && tc.pull.stayed)), JSON.stringify(tc));
+    await page.evaluate(() => window.__skyDebug.respawnNow());
+
     // Live leaderboard: hold Tab to see it
     await page.keyboard.down('Tab');
     const lb1 = await page.waitForFunction(() => !document.getElementById('liveBoard').hidden && document.querySelectorAll('#lbTable div').length >= 2, null, { timeout: 20000 }).then(() => true, () => false);

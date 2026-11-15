@@ -27,7 +27,7 @@ export const TUNE = {
   deathCam:{ secs: 10 },
   slowmo:  { secs: 3 },
   boost:   { hold: 1.4, grip: 1.2 },
-  tightrope: { life: 10 },                              // a merged rope vanishes after this many seconds with nobody on it                     // speed strips: low ground grip for `hold` s, so you keep the launch speed
+  tightrope: { life: 10, climbReel: 22 },               // vanishes after `life` s empty; hooking it hauls you up at climbReel m/s                              // a merged rope vanishes after this many seconds with nobody on it                     // speed strips: low ground grip for `hold` s, so you keep the launch speed
   camera:  { fov: 65, fovMax: 80, fovFrom: 14, fovTo: 44 },  // field of view widens from 14 to 44 m/s: the feeling of speed                                   // match-end slow motion (time drops to 20%)
   // bot skill levels: multipliers on running speed, time between swings, dodge chance, knockback; hesitate = chance to dither
   botSkill: {
