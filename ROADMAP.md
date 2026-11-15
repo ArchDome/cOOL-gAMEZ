@@ -97,6 +97,13 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] Tightrope: with two hooks attached and both reeled in, the ropes merge into a tight rope between the anchors. Walk on it, others can jump on and shove you off, and you can hook and pull someone up. It vanishes after 10 s with nobody on it. Synced to friends.
 - [x] Master volume slider.
 
+### Owner's batch 8, 2026-11-15
+- [x] Pinch to zoom the camera on touch.
+- [x] Scrap the Sky Speedway map (too narrow).
+- [x] Physics: much less speed from grapple releases (rope correction energy, reel speed, jump-off boost), air drag at high speed, lower cap. Tunable.
+- [x] A race map with many floating grapple points spread well apart.
+- [x] Race mode: big gates to fly through instead of small sparks.
+
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.

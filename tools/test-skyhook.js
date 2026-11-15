@@ -184,6 +184,22 @@ const { openGame, checker } = require('./harness');
     c.check('tightrope: walkable, two straight reeled ropes merge into one, and it vanishes when left empty', tr.stand.standing && tr.stand.dy > .3 && tr.stand.dy < 1.2 && tr.merged && tr.rope && gone, JSON.stringify({ tr, gone }));
     await page.evaluate(() => window.__skyDebug.respawnNow());
 
+    // Pinch to zoom: spreading two fingers brings the camera in
+    const pz = await page.evaluate(() => { const d = window.__skyDebug, c0 = d.camDist();
+      d.touchSim('down', 500, 300, 21); d.touchSim('down', 600, 300, 22); d.touchSim('move', 700, 300, 22); const c1 = d.camDist(); d.touchSim('up', 700, 300, 22); d.touchSim('up', 500, 300, 21);
+      return { c0: +c0.toFixed(2), c1: +c1.toFixed(2) }; });
+    c.check('pinch to zoom the camera', pz.c1 < pz.c0 - 1, JSON.stringify(pz));
+
+    // Gates: big rings you only have to pass near (4 m), not tiny sparks
+    const gt = await page.evaluate(() => { const d = window.__skyDebug, s = d.sparks.find(x => !x.got); if (!s) return { none: 1 }; d.body.position.set(s.pos.x + 3.4, s.pos.y, s.pos.z); d.body.velocity.set(0, 0, 0); return { got0: s.got }; });
+    const gotIt = await page.waitForFunction(() => window.__skyDebug.sparks.some(x => x.got), null, { timeout: 20000 }).then(() => true, () => false);
+    c.check('race gates count when you pass within 4 m', !gt.none && gotIt, JSON.stringify(gt));
+
+    // Speed limits: a fling far over the cap is bled off by air drag and the cap
+    const sl = await page.evaluate(() => { const d = window.__skyDebug, b = d.body; d.calm(); b.position.set(0, 160, 0); b.velocity.set(0, 0, 0); d.tick(12); b.velocity.set(60, 0, 0); d.tick(2); const v1 = Math.hypot(b.velocity.x, b.velocity.z); d.tick(120); const v2 = Math.hypot(b.velocity.x, b.velocity.z); return { v1: +v1.toFixed(1), v2: +v2.toFixed(1) }; });
+    c.check('speed cap and air drag keep flings in check (34 m/s cap, drag toward 22)', sl.v1 <= 34.5 && sl.v1 > 30 && sl.v2 < 27 && sl.v2 > 20, JSON.stringify(sl));
+    await page.evaluate(() => window.__skyDebug.respawnNow());
+
     // Live leaderboard: hold Tab to see it
     await page.keyboard.down('Tab');
     const lb1 = await page.waitForFunction(() => !document.getElementById('liveBoard').hidden && document.querySelectorAll('#lbTable div').length >= 2, null, { timeout: 20000 }).then(() => true, () => false);

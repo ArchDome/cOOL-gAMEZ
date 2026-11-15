@@ -51,10 +51,6 @@ const { openGame, checker } = require('./harness');
       return r; });
     c.check(`${key}: has a trap players can trigger`, !tr.none && (tr.ok || (tr.active && tr.triggers >= 1 && (tr.kind !== 'boulder' || tr.rolled > 8))), JSON.stringify(tr));
     if (r.sumoOnly) { const ed = await page.evaluate(() => { const d = window.__skyDebug, b = d.body.position; return d.edgeFrom(b.x, b.z).d; }); c.check(`${key}: arena is narrow (edge within a few metres of spawn)`, ed <= 8, `edge ${ed} m`); }
-    if (key === 'speedway') { const sw = await page.evaluate(() => { const d = window.__skyDebug, b = d.body, s0 = d.boosts[0]; if (!s0) return { none: 1 }; d.respawnNow(); d.calm();
-        b.position.set(s0.x - s0.dir[0] * 2, s0.y + .7, s0.z - s0.dir[1] * 2); b.velocity.set(0, 0, 0); d.tick(6); const v = b.velocity, sp = Math.hypot(v.x, v.z); d.tick(30); const sp2 = Math.hypot(b.velocity.x, b.velocity.z);
-        const sk = d.sparks.map(s => s.pos.x); return { strips: d.boosts.length, sp: +sp.toFixed(1), sp2: +sp2.toFixed(1), ordered: sk.every((x, i) => i === 0 || x > sk[i - 1]) }; });
-      c.check('speedway: speed strips launch you and the launch carries; sparks run in course order', !sw.none && sw.strips >= 5 && sw.sp > 25 && sw.sp2 > 15 && sw.ordered, JSON.stringify(sw)); }
     if (key === 'neon') { const cr = await page.evaluate(() => window.__skyDebug.rocks.length); c.check('neon: tower cranes with hook blocks to swing on', cr >= 5, `${cr} hook blocks`); }
     if (key === 'junkyard') {
       await page.evaluate(() => { const d = window.__skyDebug; document.getElementById('optBots').value = '0'; document.getElementById('optBots').dispatchEvent(new Event('change')); d.triggerTrap(0, 'Friend'); });

@@ -4,6 +4,24 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-15: Gates instead of sparks, calmer swing physics, Sky Reach, pinch zoom
+
+- **Race gates:** every race checkpoint is now a big golden ring (about 4 m radius, slowly spinning, with a faint glowing disc) raised 2.2 m above its perch. Passing within 4 m of the centre counts, where the old sparks needed 1.9 m. The final spark is now the **final gate**, a giant ring around the core (grab radius 5 m). The HUD, splits, toasts, results and awards say "Gates" (the Spark Hoarder award is now Gate Crasher). Tuning: `tuning.js` → `gate`.
+- **Physics (owner: "insane speed that lets me skip over the entire map"):**
+  - Rope over-stretch kick 4 → 1.5 (`rope.stretch`): this was the main source of the huge release speeds.
+  - Reel speed 24 → 16, rope jump-off boost 1.12× → 1× and kick 8 → 5.
+  - Speed cap 45 → 34 m/s, and new air drag above 22 m/s (sheds 50% of the excess per second, not while glider-diving).
+  - Measured: a 60 m/s fling drops to 33.9 m/s at once and 26 m/s after 2 s. Release from a long reel-in swing peaked at 37 m/s instead of 45.
+  - Bots use their own rope code, so the bot benchmark is unaffected: 130 (was 129).
+- **Sky Speedway removed** (too narrow). The engine features it introduced stay: speed strips, map-ordered sparks and the speed-based field of view.
+- **New map, Sky Reach:** six small islands over a 400 m sea, about 100 floating mossy rocks on a sparse jittered grid (about 32 m apart, 26–60 m up), ten sea stacks, updrafts over four islands, and a storm horn. Routes are chains of swings, and the gates sit on rocks and stacks across the whole map.
+- **Pinch to zoom** on touch: two fingers zoom the camera between 3.5 and 15 m, the same range as the mouse wheel. A pinch never counts as a tap or look.
+- Tests: pinch zoom, gate radius, speed cap and drag (with the coyote ground-grace window allowed to lapse first). Sky Reach goes through the full per-map suite.
+
+![Sky Reach and its gates](img/skyhook-reach-gates.png)
+
+---
+
 ## 2026-11-15: Glider dive, character select, tightropes, volume
 
 - **Glider dive (Arkham-style):** while gliding, hold Shift (or Reel, or swipe down and hold on touch) to plunge at a 26 m/s sink and build speed toward 50 m/s (the speed cap rises while diving). Let go to pull up: up to 45% of your speed turns into a climb (max 22 m/s), keeping 85% of the horizontal speed. Ramming someone at over 28 m/s mid-dive is a **dive bomb** (a bat-strength hit). The test measured 45 m/s after a 1.5 s dive and a 17 m/s climb on release. Tuning is in `tuning.js` → `glider`.

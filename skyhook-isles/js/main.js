@@ -167,11 +167,16 @@ MAP.build({THREE,CANNON,scene,world,R,H,slopeAt,lerp,S,HALF,SPAWN,PEAK,groundMat
 
 // ---------------- sparks ----------------
 const sparks=[];
-const sparkGeo=new THREE.OctahedronGeometry(.6);
+// race checkpoints are big gates you fly through (they spin slowly, so any approach works)
+const sparkGeo=new THREE.TorusGeometry(TUNE.gate.radius*.82,.26,10,36);
+const gateCoreGeo=new THREE.CircleGeometry(TUNE.gate.radius*.8,32);
+const gateCoreMat=new THREE.MeshBasicMaterial({color:"#ffd25a",transparent:true,opacity:.12,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending});
 const sparkMat=new THREE.MeshStandardMaterial({color:"#ffd25a",emissive:"#ffb02e",emissiveIntensity:1.6,roughness:.3});
 const beamMat=new THREE.MeshBasicMaterial({color:"#ffd36a",transparent:true,opacity:.22,depthWrite:false,blending:THREE.AdditiveBlending});
 function addSpark(x,y,z){
-  const m=new THREE.Mesh(sparkGeo,sparkMat); m.position.set(x,y,z); scene.add(m);
+  y+=TUNE.gate.lift;
+  const m=new THREE.Mesh(sparkGeo,sparkMat); m.position.set(x,y,z); m.rotation.y=Math.atan2(x,z); scene.add(m);
+  const core=new THREE.Mesh(gateCoreGeo,gateCoreMat); m.add(core);
   const beam=new THREE.Mesh(new THREE.CylinderGeometry(.16,.16,90,6,1,true),beamMat); beam.position.set(x,y+45,z); scene.add(beam);
   sparks.push({pos:new THREE.Vector3(x,y,z),mesh:m,beam,got:false});
 }
@@ -190,6 +195,7 @@ const finale={active:false,got:false,pos:new THREE.Vector3(),by:"",grabbedBy:"",
 let finN=0, lastFin=0, finGotN=0, lastFinGot=0; const lastFinSeen=new Map(), lastFinGotSeen=new Map();
 const finaleGrp=new THREE.Group(); finaleGrp.visible=false; scene.add(finaleGrp);
 const finaleCore=new THREE.Mesh(new THREE.OctahedronGeometry(1.5),new THREE.MeshStandardMaterial({color:"#fff2b0",emissive:"#ff9a2e",emissiveIntensity:3,roughness:.2})); finaleGrp.add(finaleCore);
+{ const ring=new THREE.Mesh(new THREE.TorusGeometry(5,.45,12,44),new THREE.MeshStandardMaterial({color:"#ffe28a",emissive:"#ffb02e",emissiveIntensity:2.2})); ring.name="finalRing"; finaleGrp.add(ring); }
 const finaleShell=new THREE.Mesh(new THREE.IcosahedronGeometry(2.4,1),new THREE.MeshBasicMaterial({color:"#ffd25a",wireframe:true,transparent:true,opacity:.5,toneMapped:false})); finaleGrp.add(finaleShell);
 { const b=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.1,260,12,1,true),new THREE.MeshBasicMaterial({color:"#ffe28a",transparent:true,opacity:.35,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide})); b.position.y=130; finaleGrp.add(b); }
 const searchlights=["#ff4fd8","#4fe8ff","#ffd25a","#7dff6a"].map((c,i)=>{ const pivot=new THREE.Group(); finaleGrp.add(pivot);
@@ -209,8 +215,8 @@ function spawnFinale(pos,by,local){
   if (local){ finN++; lastFin={n:finN,p:[r2(pos.x),r2(pos.y),r2(pos.z)],by:String(by).slice(0,16)}; }
   flashT=.7; shakeT=Math.max(shakeT,.3);
   [392,523,659,784,1046].forEach((f,i)=>tone(f,.5,"sawtooth",.05,1,i*.09)); tone(55,2.2,"sine",.25,1.5);
-  announce("final","The final spark has appeared!",true);
-  toast("FINAL SPARK!", by===myName() ? "It spawned near you. Go get it!" : by+" found every spark. Race for the big one!");
+  announce("final","The final gate is open!",true);
+  toast("FINAL GATE!", by===myName() ? "It opened near you. Go!" : by+" cleared every gate. Race for the big one!");
 }
 function grabFinale(name,local){
   if (!finale.active) return;
@@ -219,15 +225,15 @@ function grabFinale(name,local){
   flashT=.5;
   [523,659,784,1046,1318,1568].forEach((f,i)=>tone(f,.35,"triangle",.07,1,i*.07));
   const mine=name===myName(); if (mine) faceHappyT=3;
-  announce("finalgot", mine ? "Final spark! What a finish!" : name+" takes the final spark!", true);
-  toast(mine ? "FINAL SPARK!" : name+" got the final spark", "+"+FINAL_BONUS+" bonus");
+  announce("finalgot", mine ? "Final gate! What a finish!" : name+" takes the final gate!", true);
+  toast(mine ? "FINAL GATE!" : name+" took the final gate", "+"+FINAL_BONUS+" bonus");
 }
 function resetFinale(){ finale.active=false; finale.got=false; finale.grabbedBy=""; finaleGrp.visible=false; }
 function updateFinale(dt,t){
   if (!finale.active) return;
   finale.t+=dt;
   finaleCore.rotation.y+=dt*2.5; finaleCore.rotation.x+=dt*1.1; finaleCore.scale.setScalar(1+.18*Math.sin(t*6));
-  finaleShell.rotation.y-=dt*.8; finaleShell.rotation.z+=dt*.5;
+  finaleShell.rotation.y-=dt*.8; finaleShell.rotation.z+=dt*.5; const fr=finaleGrp.getObjectByName("finalRing"); if (fr) fr.rotation.y+=dt*.6;
   searchlights.forEach((sl,i)=>{ sl.rotation.y+=dt*(.7+i*.15); sl.children[0].rotation.z=.35+.2*Math.sin(t*.9+i); });
   finaleLight.intensity=30+15*Math.sin(t*8);
   finaleGrp.position.y=finale.pos.y+Math.sin(t*1.7)*.4;
@@ -503,13 +509,18 @@ document.addEventListener("pointerlockchange",()=>{
 // touch: left side moves, right side looks
 let joy=null, lookT=null;
 // left side: a finger only becomes the joystick once it drags; a quick tap there is a tap (hook) like anywhere else
-let joyPending=null;
+let joyPending=null; const tpts=new Map(); let pinch=null;
+function pinchDist(){ const [a,b]=[...tpts.values()]; return Math.hypot(a.x-b.x,a.y-b.y); }
 function touchDown(e){
+  tpts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if (tpts.size===2 && !joy){ pinch={d0:pinchDist(),c0:camDist}; joyPending=null; if (lookT) lookT.t0=-1e9; return; }
   if (settings.joystick!==false && e.clientX<innerWidth*.45 && !joy && !joyPending){ joyPending={id:e.pointerId,x0:e.clientX,y0:e.clientY,t0:performance.now()}; return; }
   if (!lookT) lookT={id:e.pointerId,x:e.clientX,y:e.clientY,x0:e.clientX,y0:e.clientY,t0:performance.now()};
 }
 function startJoy(jp){ joy={id:jp.id,x0:jp.x0,y0:jp.y0}; joyPending=null; const j=$("joy"); j.hidden=false; j.style.left=jp.x0+"px"; j.style.top=jp.y0+"px"; $("joyKnob").style.transform=""; }
 function touchMoveH(e){
+  if (tpts.has(e.pointerId)) tpts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if (pinch && tpts.size>=2){ camDist=Math.min(15,Math.max(3.5,pinch.c0*pinch.d0/Math.max(20,pinchDist()))); return; }
   if (joyPending && e.pointerId===joyPending.id){ if (Math.hypot(e.clientX-joyPending.x0,e.clientY-joyPending.y0)>12) startJoy(joyPending); else return; }
   if (joy && e.pointerId===joy.id){ let dx=e.clientX-joy.x0, dy=e.clientY-joy.y0; const L=Math.hypot(dx,dy), m=55; if(L>m){ dx*=m/L; dy*=m/L; }
     touchMove.x=dx/m; touchMove.y=-dy/m; $("joyKnob").style.transform=`translate(${dx}px,${dy}px)`; }
@@ -517,6 +528,7 @@ function touchMoveH(e){
     if (!(settings.controls==="simple" && swingGesture(dx,dy))) look(dx*2.4,dy*2.4); lookT.x=e.clientX; lookT.y=e.clientY; }
 }
 function touchUp(e){
+  tpts.delete(e.pointerId); if (pinch && tpts.size<2){ pinch=null; if (lookT && lookT.id===e.pointerId) lookT=null; else if (lookT) lookT.t0=-1e9; }
   if (lookT && e.pointerId===lookT.id) touchDive=false;
   if (joyPending && e.pointerId===joyPending.id){ const quick=performance.now()-joyPending.t0<320; joyPending=null; if (quick && settings.controls==="simple") tapHook(e.clientX,e.clientY); return; }
   if (joy && e.pointerId===joy.id){ joy=null; touchMove.x=touchMove.y=0; $("joy").hidden=true; } if (lookT && e.pointerId===lookT.id){ const tap=Math.hypot(e.clientX-lookT.x0,e.clientY-lookT.y0)<14 && performance.now()-lookT.t0<320; lookT=null; if (tap && settings.controls==="simple") tapHook(e.clientX,e.clientY); } }
@@ -685,7 +697,7 @@ function ropeConstraint(h,dt){
   const rel=(v.x-vax)*nx+(v.y-vay)*ny+(v.z-vaz)*nz; // + is towards anchor
   const err=dist-h.len;
   const mp=pBody.mass, mb=dyn?dyn.mass:Infinity, share = dyn ? mb/(mp+mb) : 1;
-  let dv = Math.max(0,-rel) + err*30*dt + (err>.3 ? err*4 : 0)*dt*10;
+  let dv = Math.max(0,-rel) + err*TUNE.rope.correct*dt + (err>.3 ? err*TUNE.rope.stretch : 0)*dt*10;
   const j=dv*share;
   v.x+=nx*j; v.y+=ny*j; v.z+=nz*j;
   if (dyn){ const imp=dv*(mp*mb/(mp+mb)); dyn.applyImpulse(new CANNON.Vec3(-nx*imp,-ny*imp,-nz*imp),new CANNON.Vec3(A.x-dyn.position.x,A.y-dyn.position.y,A.z-dyn.position.z)); }
@@ -860,6 +872,8 @@ function controls(dt){
     let nx=v.x/hsp+(dx/dl-v.x/hsp)*k, nz=v.z/hsp+(dz/dl-v.z/hsp)*k; const nl=Math.hypot(nx,nz)||1;
     v.x=nx/nl*spd; v.z=nz/nl*spd;
   }
+  // air drag above a cruising speed: you can still fly fast, but not skip across the whole map
+  if (!onGround && !diving){ const hs0=Math.hypot(v.x,v.z); if (hs0>TP.dragFrom){ const k=1-TP.drag*dt*(hs0-TP.dragFrom)/hs0; v.x*=k; v.z*=k; } }
   const cap = diving ? TUNE.glider.diveSpeed+5 : TP.maxHorizontal;
   const hs=Math.hypot(v.x,v.z); if (hs>cap){ v.x*=cap/hs; v.z*=cap/hs; }
   if (!gliding) diving=false;
@@ -1027,7 +1041,7 @@ function renderSplits(force){
   const ol=$("splitList"); ol.replaceChildren();
   for (let i=from;i<Math.min(TOTAL,from+5);i++){
     const li=document.createElement("li"); const name=document.createElement("span"), dl=document.createElement("span"), tm=document.createElement("span");
-    name.textContent="Spark "+(i+1);
+    name.textContent="Gate "+(i+1);
     if (i<splits.length){ tm.textContent=fmtT(splits[i]);
       if (pb && pb[i]!=null){ const d=splits[i]-pb[i]; dl.textContent=fmtD(d); dl.className = splitMeta[i]&&splitMeta[i].gold ? "gold" : d<0 ? "ahead" : "behind"; } }
     else { tm.textContent = pb && pb[i]!=null ? fmtT(pb[i]) : "–"; li.className = i===splits.length && runState!=="done" ? "cur" : "next"; if (i===splits.length) dl.id="liveDelta"; }
@@ -1131,25 +1145,25 @@ function frame(){
       faceHappyT=1.6; tone(220,.2,"square",.06); tone(330,.25,"square",.05,1,.08); announce("bat","Bat acquired. Go get 'em."); toast("Baseball bat!", isTouch?"Tap Hit to swing · 30 s":"Press F to swing · 30 s"); }
   }
   // sparks
-  for (const s of sparks){ if (s.got) continue; if (MODE==="sumo"){ if (s.mesh.visible) s.mesh.visible=s.beam.visible=false; continue; } else if (!s.mesh.visible){ s.mesh.visible=s.beam.visible=true; } s.mesh.rotation.y+=dt*2; s.mesh.position.y=s.pos.y+Math.sin(t*2+s.pos.x)*.2;
-    if (running && s.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<(magnetT>0?14:1.9)){ s.got=true; s.mesh.visible=false; s.beam.visible=false; got++;
+  for (const s of sparks){ if (s.got) continue; if (MODE==="sumo"){ if (s.mesh.visible) s.mesh.visible=s.beam.visible=false; continue; } else if (!s.mesh.visible){ s.mesh.visible=s.beam.visible=true; } s.mesh.rotation.y+=dt*.5; s.mesh.position.y=s.pos.y+Math.sin(t*2+s.pos.x)*.2;
+    if (running && s.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<(magnetT>0?14:TUNE.gate.radius)){ s.got=true; s.mesh.visible=false; s.beam.visible=false; got++;
       [880,1108,1318].forEach((f,i)=>tone(f,.18,"triangle",.07,1,i*.07));
       if (runState==="ready") runState="running";
       split(); const i=splits.length-1, d = pb && pb[i]!=null ? splits[i]-pb[i] : null;
       const dTxt = d==null ? fmtT(splits[i]) : `${fmtT(splits[i])} · ${fmtD(d)}${splitMeta[i].gold?" · best segment":""}`;
       faceHappyT=1.6;
       if (got===TOTAL && RULES.final && !finale.active && !finale.got){ const at=finaleSpot(pBody.position); setTimeout(()=>spawnFinale(at,myName(),true),1400); }
-      if (got===TOTAL){ const r=finishRun(); toast(r.newPb ? (r.prev==null?"First full run!":"New personal best!") : "Every spark found!", r.prev==null ? fmtT(r.final) : `${fmtT(r.final)} · ${fmtD(r.final-r.prev)} vs PB`); }
-      else toast(`Spark ${got} of ${TOTAL}`, got===1 && !pb ? "Follow the light beams to find the rest." : dTxt);
+      if (got===TOTAL){ const r=finishRun(); toast(r.newPb ? (r.prev==null?"First full run!":"New personal best!") : "Every gate cleared!", r.prev==null ? fmtT(r.final) : `${fmtT(r.final)} · ${fmtD(r.final-r.prev)} vs PB`); }
+      else toast(`Gate ${got} of ${TOTAL}`, got===1 && !pb ? "Follow the light beams to find the rest." : dTxt);
       renderSplits(true); } }
   updateFinale(dt,t); updateMega(dt,t); if (running) tryMergeRopes(); updateRopes(); updateTraps(simFrozen?0:dt); updateThrown(dt);
-  if (finale.active && running && deadT<=0 && finale.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<(magnetT>0?8:2.8)) grabFinale(myName(),true);
+  if (finale.active && running && deadT<=0 && finale.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<(magnetT>0?8:5)) grabFinale(myName(),true);
   for (const u of updrafts) u.rings.forEach((r,k)=>{ const ph=((t*.6+k/u.rings.length)%1); r.position.y=ph*34; r.material.opacity=.55*(1-ph); });
   updateDrops(dt); updateBoomFx(dt);
   for (let i=puffs.length-1;i>=0;i--){ const m=puffs[i]; m.userData.t+=dt; m.position.addScaledVector(m.userData.v,dt); m.material.opacity=.6*(1-m.userData.t/.5); if(m.userData.t>.5){ scene.remove(m); m.geometry.dispose(); m.material.dispose(); puffs.splice(i,1); } }
   hudT+=dt;
   if (hudT>.1){ hudT=0;
-    $("sparks").textContent = MODE==="sumo" ? String(dunks) : `${got}/${TOTAL}`; $("sparksLbl").textContent = MODE==="sumo" ? "KOs" : "Sparks"; renderSplits(false); $("speed").textContent=Math.round(speedOut(Math.hypot(v.x,v.y,v.z))); if ($("speedLbl").textContent!==speedUnit()) $("speedLbl").textContent=speedUnit(); $("glider").textContent = gliderTime>0 ? Math.ceil(gliderTime)+"s" : "–"; $("bat").textContent = batTime>0 ? Math.ceil(batTime)+"s" : "–"; updateMusic();
+    $("sparks").textContent = MODE==="sumo" ? String(dunks) : `${got}/${TOTAL}`; $("sparksLbl").textContent = MODE==="sumo" ? "KOs" : "Gates"; renderSplits(false); $("speed").textContent=Math.round(speedOut(Math.hypot(v.x,v.y,v.z))); if ($("speedLbl").textContent!==speedUnit()) $("speedLbl").textContent=speedUnit(); $("glider").textContent = gliderTime>0 ? Math.ceil(gliderTime)+"s" : "–"; $("bat").textContent = batTime>0 ? Math.ceil(batTime)+"s" : "–"; updateMusic();
     $("where").textContent=MAP.name+" · "+placeName(p); renderPlayers(); renderRibbon(); updateMedals(); renderLiveBoard();
     if (running && deadT<=0){ if (!onGround && !attached) stats.airTime+=.1; stats.topSpeed=Math.max(stats.topSpeed,Math.hypot(v.x,v.y,v.z)); }
     if (!isTouch){ const h=$("hint");
@@ -1911,7 +1925,7 @@ function botRace(b,dt){
   let T;
   if (finale.active && (b.sparkCount>=TOTAL || finale.pos.distanceTo(p)<35)){
     T=finale.pos;
-    if (Math.hypot(T.x-p.x,T.y-p.y,T.z-p.z)<(b.magnetT>0?8:2.8)){ b.final=true; grabFinale(b.name,true); botSay(C,C.taunt,true); return true; }
+    if (Math.hypot(T.x-p.x,T.y-p.y,T.z-p.z)<(b.magnetT>0?8:5)){ b.final=true; grabFinale(b.name,true); botSay(C,C.taunt,true); return true; }
   } else {
     if (b.target==null || b.got.has(b.target)){ b.target=pickSpark(b,P); b.targetT=0; }
     if (b.target==null){ if (b.skip && b.skip.size){ b.skip.clear(); b.target=pickSpark(b,P); b.targetT=0; } if (b.target==null) return false; }
@@ -1919,7 +1933,7 @@ function botRace(b,dt){
     b.targetT=(b.targetT||0)+dt;
     if (b.targetT>14){ (b.skip||(b.skip=new Map())).set(b.target,simTime+40); b.target=null; b.hook=null; return true; }
     T=sparks[b.target].pos;
-    if (Math.hypot(T.x-p.x,T.y-p.y,T.z-p.z)<(b.magnetT>0?14:2.3)){
+    if (Math.hypot(T.x-p.x,T.y-p.y,T.z-p.z)<(b.magnetT>0?14:TUNE.gate.radius)){
       b.got.add(b.target); b.sparkCount++; b.target=null; if (b.sparkCount>=TOTAL) b.doneT=simTime-raceStartSim;
       if (b.sparkCount===TOTAL){ botSay(C,C.taunt,true); if (RULES.final && !finale.active && !finale.got) spawnFinale(finaleSpot(p),b.name,true); }
       return true;
@@ -2264,7 +2278,7 @@ function endRace(rows){
 }
 function standingsTable(rows,withPoints){
   const tb=$("resTable"); tb.replaceChildren();
-  const hd=document.createElement("div"); hd.className="hd"; for (const t of (MODE==="sumo" ? ["#","Fighter","KOs","Falls","Hits",withPoints?"Pts":""] : ["#","Racer","Sparks","Time","K/D",withPoints?"Pts":""])){ const s=document.createElement("span"); s.textContent=t; hd.append(s); } tb.append(hd);
+  const hd=document.createElement("div"); hd.className="hd"; for (const t of (MODE==="sumo" ? ["#","Fighter","KOs","Falls","Hits",withPoints?"Pts":""] : ["#","Racer","Gates","Time","K/D",withPoints?"Pts":""])){ const s=document.createElement("span"); s.textContent=t; hd.append(s); } tb.append(hd);
   rows.forEach((r,i)=>{ const row=document.createElement("div"); if (r.me) row.className="me";
     const cells= MODE==="sumo" ? [String(i+1), r.name+(r.me?" (you)":r.bot?" · bot":""), String(r.k||0), String(r.d||0), r.st?String(r.st.hits||0):"–", withPoints?String(r.pts??POINTS[i]??0):""] : [String(i+1), r.name+(r.me?" (you)":r.bot?" · bot":""), r.s+"/"+TOTAL+(r.fin?" ★":""), r.t!=null?fmt(r.t):"–", (r.k||0)+"/"+(r.d||0), withPoints?String(r.pts??POINTS[i]??0):""];
     for (const c of cells){ const s=document.createElement("span"); s.textContent=c; row.append(s); } tb.append(row); });
@@ -2319,7 +2333,7 @@ function addCupStats(rows){
     a.s+=r.s||0; a.k+=r.k||0; a.d+=r.d||0; const st=r.st; if (st){ a.hits+=st.hits||0; a.homers+=st.homers||0; a.punches+=st.punches||0; a.items+=st.items||0; a.traps=(a.traps||0)+(st.traps||0); a.throws=(a.throws||0)+(st.throws||0); a.smashes=(a.smashes||0)+(st.smashes||0); a.snipes=(a.snipes||0)+(st.snipes||0); a.air+=st.airTime||0; a.top=Math.max(a.top,st.topSpeed||0); } }
 }
 const AWARDS=[
-  {k:"s",   t:"Spark Hoarder",   d:v=>`${v} sparks in the cup`},
+  {k:"s",   t:"Gate Crasher",    d:v=>`${v} gates in the cup`},
   {k:"k",   t:"Menace",          d:v=>`${v} dunk${v>1?"s":""}: knocked people into the drink`},
   {k:"homers",t:"Home Run Derby",d:v=>`${v} bat hit${v>1?"s":""}`},
   {k:"hits",t:"Hands On",        d:v=>`${v} shoves and swings that landed`},
@@ -2928,5 +2942,5 @@ $("deathGo").addEventListener("click",e=>{ e.preventDefault(); respawn(null); })
 // interpolated poses start at the origin until the first physics step
 for (const b of world.bodies){ b.interpolatedPosition.copy(b.position); b.interpolatedQuaternion.copy(b.quaternion); }
 // small hook for automated testing; not used by the game itself
-window.__skyDebug={ gliderPickupsList:()=>gliderPickups, renderInfo:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,meshes:(()=>{ let n=0; scene.traverse(o=>{ if(o.isMesh) n++; }); return n; })()}), headlessStart:(nBots=1)=>{ simFrozen=true; wantBots=nBots; running=true; $("start").hidden=true; for (const C of CHARACTERS) introSeen.add(C.key); introQ.length=0; }, botItems:(b,dt)=>botItems(b,dt), gfx:()=>({GFX,composer:!!composer,ao:aoOn,shafts:!!shafts}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, cupAwards:()=>cupAwards(), showCupFinal:()=>showCupFinal(cupDef()), forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,raceOver,slowmo:!!slowmo,timeScale:lastTimeScale,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); for (const g of [...gliderPickups,...batPickups]) if (g.cd>0) g.cd-=1/60; for (const b of itemBoxes) if (b.cd>0) b.cd-=1/60; } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded, ropes, makeRope:(a,b)=>{ trN++; return !!makeRope('me',a,b,trN); }, tryMerge:()=>tryMergeRopes(), setReel:v=>{ reelHeld=v; if(v) lastReelT=simTime; }, setHook2:h=>{ hook2=h; }, glider:()=>({gliding,diving,gliderTime}), setGlider:t=>{ gliderTime=t; }, setTouchDive:v=>{ touchDive=v; }, pickChar:k=>pickChar(k,true), masterVol:()=>masterVol&&masterVol.gain.value, boosts, fov:()=>camera.fov, touchSim:(type,x,y,id=7)=>{ const e={pointerId:id,clientX:x,clientY:y,pointerType:'touch'}; if(type==='down') touchDown(e); else if(type==='move') touchMoveH(e); else touchUp(e); return {joy:!!joy,pending:!!joyPending,hooks:[hook&&hook.phase,hook2&&hook2.phase]}; }, hooks:()=>[hook&&hook.phase,hook2&&hook2.phase,hook&&hook.len!=null?+hook.len.toFixed(2):null,hook2&&hook2.len!=null?+hook2.len.toFixed(2):null], swipe:(dx,dy)=>{ if(!lookT) lookT={id:-1,x:0,y:0,x0:0,y0:0,t0:0}; const r=swingGesture(dx,dy); return r; }, endSwipe:()=>{ lookT=null; }, mega, spawnMega:i=>spawnMega(i,true), takeMega:()=>takeMega(myName(),true), medals:()=>({me:heroMedal.visible?medalMats.indexOf(heroMedal.material)+1:0, others:[...avatars.values(),...botAvatars.values()].map(a=>[a.name,a.medal&&a.medal.visible?medalMats.indexOf(a.medal.material)+1:0])}), setBoard:v=>{ boardOpen=v; renderLiveBoard(); }, ragdoll:()=>simTime<ragdollUntil, boomFx:()=>boomFx.length, killMe:n=>killMe({peer:'x',name:n||'Sniper'}), killBot:(k)=>killBot(k,{peer:myPeer||'me',name:myName()}), botDiff:()=>botDiff(), isRunning:()=>running, speedText:()=>[$("speed").textContent,$("speedLbl").textContent], setClock:(t)=>setClock($("timer"),t), rules:()=>({...RULES,ROUND_TIME,SUMO_TIME,SUMO_KOS,MODE}), customDraft:()=>customDraft, setPull:v=>{ pullHeld=v; }, ropeStep:dt=>ropeStep(dt), setHook:h=>{ hook=h; }, edgeFrom:(x,z)=>edgeFrom(x,z), botThink:(b,dt)=>botThink(b,dt), mapInfo:()=>({key:MAP.key,sumoOnly:!!MAP.sumoOnly,narrow:!!MAP.narrow}), pickFrenchVoice, mode:()=>MODE, setMode:m=>setMode(m), startRound:()=>startRound(), checkRaceEnd:()=>checkRaceEnd(), sniper:()=>({spinAcc,sniperCharge,held:heldItem}), traps, projectiles, sunDir:SUN_DIR, camInfo:()=>({cam:camera.position.toArray().map(n=>+n.toFixed(2)),body:pBody.position.toArray().map(n=>+n.toFixed(2)),flashT,hemi:hemi.intensity,camCur}), triggerTrap:(i,n)=>triggerTrap(i,{peer:'x',name:n||'Tester'},true), meMag, yeet:b=>yeet(b), thrown, dynamics, finale, spawnFinale:(x,y,z,by)=>spawnFinale(new THREE.Vector3(x,y,z),by||myName(),true), finaleSpot:p=>finaleSpot(p), grabFinale:n=>grabFinale(n,true), resetFinale:()=>resetFinale(), finaleGrp, searchlights, standings:()=>standings(), settings, applyInputUI, setInput:t=>setInput(t), inputTouch:()=>isTouch, castAim:d=>castAim(d), assistAim:(d,l)=>assistAim(d,l), tapHook:(x,y)=>tapHook(x,y), camera, camTarget, hand, hookUp:()=>hookUp(), death:()=>({deadT,DEATH_SECS}), respawnNow:()=>respawn(null), setDeathSecs:n=>{ DEATH_SECS=n; }, stats:()=>JSON.parse(JSON.stringify(stats)), drops:()=>drops.length, groundPunch:b=>groundPunch(b), setOnGround:v=>{ onGround=v; } };
+window.__skyDebug={ gliderPickupsList:()=>gliderPickups, renderInfo:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,meshes:(()=>{ let n=0; scene.traverse(o=>{ if(o.isMesh) n++; }); return n; })()}), headlessStart:(nBots=1)=>{ simFrozen=true; wantBots=nBots; running=true; $("start").hidden=true; for (const C of CHARACTERS) introSeen.add(C.key); introQ.length=0; }, botItems:(b,dt)=>botItems(b,dt), gfx:()=>({GFX,composer:!!composer,ao:aoOn,shafts:!!shafts}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, cupAwards:()=>cupAwards(), showCupFinal:()=>showCupFinal(cupDef()), forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,raceOver,slowmo:!!slowmo,timeScale:lastTimeScale,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); for (const g of [...gliderPickups,...batPickups]) if (g.cd>0) g.cd-=1/60; for (const b of itemBoxes) if (b.cd>0) b.cd-=1/60; } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded, camDist:()=>camDist, ropes, makeRope:(a,b)=>{ trN++; return !!makeRope('me',a,b,trN); }, tryMerge:()=>tryMergeRopes(), setReel:v=>{ reelHeld=v; if(v) lastReelT=simTime; }, setHook2:h=>{ hook2=h; }, glider:()=>({gliding,diving,gliderTime}), setGlider:t=>{ gliderTime=t; }, setTouchDive:v=>{ touchDive=v; }, pickChar:k=>pickChar(k,true), masterVol:()=>masterVol&&masterVol.gain.value, boosts, fov:()=>camera.fov, touchSim:(type,x,y,id=7)=>{ const e={pointerId:id,clientX:x,clientY:y,pointerType:'touch'}; if(type==='down') touchDown(e); else if(type==='move') touchMoveH(e); else touchUp(e); return {joy:!!joy,pending:!!joyPending,hooks:[hook&&hook.phase,hook2&&hook2.phase]}; }, hooks:()=>[hook&&hook.phase,hook2&&hook2.phase,hook&&hook.len!=null?+hook.len.toFixed(2):null,hook2&&hook2.len!=null?+hook2.len.toFixed(2):null], swipe:(dx,dy)=>{ if(!lookT) lookT={id:-1,x:0,y:0,x0:0,y0:0,t0:0}; const r=swingGesture(dx,dy); return r; }, endSwipe:()=>{ lookT=null; }, mega, spawnMega:i=>spawnMega(i,true), takeMega:()=>takeMega(myName(),true), medals:()=>({me:heroMedal.visible?medalMats.indexOf(heroMedal.material)+1:0, others:[...avatars.values(),...botAvatars.values()].map(a=>[a.name,a.medal&&a.medal.visible?medalMats.indexOf(a.medal.material)+1:0])}), setBoard:v=>{ boardOpen=v; renderLiveBoard(); }, ragdoll:()=>simTime<ragdollUntil, boomFx:()=>boomFx.length, killMe:n=>killMe({peer:'x',name:n||'Sniper'}), killBot:(k)=>killBot(k,{peer:myPeer||'me',name:myName()}), botDiff:()=>botDiff(), isRunning:()=>running, speedText:()=>[$("speed").textContent,$("speedLbl").textContent], setClock:(t)=>setClock($("timer"),t), rules:()=>({...RULES,ROUND_TIME,SUMO_TIME,SUMO_KOS,MODE}), customDraft:()=>customDraft, setPull:v=>{ pullHeld=v; }, ropeStep:dt=>ropeStep(dt), setHook:h=>{ hook=h; }, edgeFrom:(x,z)=>edgeFrom(x,z), botThink:(b,dt)=>botThink(b,dt), mapInfo:()=>({key:MAP.key,sumoOnly:!!MAP.sumoOnly,narrow:!!MAP.narrow}), pickFrenchVoice, mode:()=>MODE, setMode:m=>setMode(m), startRound:()=>startRound(), checkRaceEnd:()=>checkRaceEnd(), sniper:()=>({spinAcc,sniperCharge,held:heldItem}), traps, projectiles, sunDir:SUN_DIR, camInfo:()=>({cam:camera.position.toArray().map(n=>+n.toFixed(2)),body:pBody.position.toArray().map(n=>+n.toFixed(2)),flashT,hemi:hemi.intensity,camCur}), triggerTrap:(i,n)=>triggerTrap(i,{peer:'x',name:n||'Tester'},true), meMag, yeet:b=>yeet(b), thrown, dynamics, finale, spawnFinale:(x,y,z,by)=>spawnFinale(new THREE.Vector3(x,y,z),by||myName(),true), finaleSpot:p=>finaleSpot(p), grabFinale:n=>grabFinale(n,true), resetFinale:()=>resetFinale(), finaleGrp, searchlights, standings:()=>standings(), settings, applyInputUI, setInput:t=>setInput(t), inputTouch:()=>isTouch, castAim:d=>castAim(d), assistAim:(d,l)=>assistAim(d,l), tapHook:(x,y)=>tapHook(x,y), camera, camTarget, hand, hookUp:()=>hookUp(), death:()=>({deadT,DEATH_SECS}), respawnNow:()=>respawn(null), setDeathSecs:n=>{ DEATH_SECS=n; }, stats:()=>JSON.parse(JSON.stringify(stats)), drops:()=>drops.length, groundPunch:b=>groundPunch(b), setOnGround:v=>{ onGround=v; } };
 frame();

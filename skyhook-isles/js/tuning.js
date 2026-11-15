@@ -9,10 +9,13 @@ export const TUNE = {
     grip: 14, iceGrip: 2.6,                            // how fast ground speed snaps to input (ice maps keep momentum)
     airAccel: 11, ropeAccel: 18,                       // steering in the air / while hanging on a rope
     jump: 11, airJump: 9.5,                            // jump speed; one double jump per air time
-    ropeJumpUp: 8, ropeJumpBoost: 1.12,                // jumping off a rope: upward kick, horizontal speed multiplier
-    maxHorizontal: 45,                                 // speed cap (also a cap on velocity pile-ups)
+    ropeJumpUp: 5, ropeJumpBoost: 1,                   // jumping off a rope: upward kick, horizontal speed multiplier (was 8, 1.12)
+    maxHorizontal: 34,                                 // speed cap (was 45)
+    dragFrom: 22, drag: .5,                            // air drag above 22 m/s (fraction of the excess shed per second): stops swings flinging you across the map
   },
-  hook:    { range: 75, speed: 150, reel: 24 },         // grapple reach, hook flight speed, reel-in speed
+  hook:    { range: 75, speed: 150, reel: 16 },         // grapple reach, hook flight speed, reel-in speed (was 24)
+  rope:    { correct: 30, stretch: 1.5 },                // rope tension: correction per metre of stretch; extra kick when overstretched (was 4: the big release speeds)
+  gate:    { radius: 4, lift: 2.2 },                     // race gates: fly within this radius of the centre; raised above their perch
   glider:  { time: 30, respawn: 15, diveSink: 26, diveSpeed: 50, pullUp: .45, pullUpMax: 22 },   // dive: sink rate and top speed; pull-up: share of speed turned into climb
   bat:     { time: 30, respawn: 20, sumoRespawn: 8, knock: 40, up: 16, stun: 1.3 },
   shove:   { knock: 10, up: 5, stun: .45 },
