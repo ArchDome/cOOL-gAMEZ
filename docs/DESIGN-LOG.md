@@ -4,6 +4,13 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-15: Two ropes on PC
+
+- Two ropes used to exist only in the touch Swing scheme. On PC, **left mouse / E** is still the main hook, and **right mouse / X** now fires a second hook at the crosshair. Hold it to stay attached, release to let go. With both on fixed anchors, hold Shift to reel in until you hang almost straight and they merge into a tightrope. Before this, right mouse was just another button for the main hook.
+- Test: aim at a floating rock, fire the second rope, it attaches, and it lets go on release.
+
+---
+
 ## 2026-11-15: Grapple onto tightropes; pulling keeps your footing
 
 - **Getting on a tightrope:** the rope now has an invisible 0.5 m sleeve that the hook bites easily. Hooking it hauls you up at 22 m/s (`tuning.js` → `tightrope.climbReel`), and within 2.6 m you climb on top of it at the nearest point. Tested: from 8 m below you're standing on it in about a third of a second.

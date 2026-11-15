@@ -220,6 +220,21 @@ const { openGame, checker } = require('./harness');
     c.check('tightrope: grapple onto it and climb on; pull things up to you without leaving the rope', tc.on.climbed && tc.on.standing && tc.on.dy > .3 && tc.on.dy < 1.2 && (tc.skip || (tc.pull.c1 < tc.pull.c0 - 4 && tc.pull.stayed)), JSON.stringify(tc));
     await page.evaluate(() => window.__skyDebug.respawnNow());
 
+    // PC: right mouse / X fires a second rope at the crosshair; releasing lets go
+    const h2a = await page.evaluate(() => { const d = window.__skyDebug, b = d.body; d.respawnNow(); d.setHook(null); d.setHook2(null);
+      const rk = d.rocks.map(r => ({ r, dist: Math.hypot(r.x - b.position.x, r.z - b.position.z) })).filter(o => o.dist > 10 && o.dist < 45).sort((a, b) => a.dist - b.dist)[0];
+      if (!rk) return { skip: 1 }; const dx = rk.r.x - b.position.x, dz = rk.r.z - b.position.z, dy = rk.r.y - b.position.y - 1.5;
+      d.view(Math.atan2(-dx, -dz), -Math.atan2(dy, Math.hypot(dx, dz)) * .9); return { ok: 1 }; });
+    let h2 = { skip: h2a.skip };
+    if (!h2a.skip) {
+      await page.waitForFunction(() => window.__skyDebug.aim() != null, null, { timeout: 20000 }).catch(() => {});
+      await page.evaluate(() => window.__skyDebug.hook2Down());
+      const att = await page.waitForFunction(() => window.__skyDebug.hooks()[1] === 'attached', null, { timeout: 20000 }).then(() => true, () => false);
+      await page.evaluate(() => window.__skyDebug.hook2Up());
+      h2 = { att, after: await page.evaluate(() => window.__skyDebug.hooks()[1]) };
+    }
+    c.check('PC: a second rope on right mouse / X', h2.skip || (h2.att && (h2.after === 'retract' || h2.after === null)), JSON.stringify(h2));
+
     // Live leaderboard: hold Tab to see it
     await page.keyboard.down('Tab');
     const lb1 = await page.waitForFunction(() => !document.getElementById('liveBoard').hidden && document.querySelectorAll('#lbTable div').length >= 2, null, { timeout: 20000 }).then(() => true, () => false);
