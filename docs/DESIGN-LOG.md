@@ -4,6 +4,25 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-15: Sky Speedway, a race map built for speed
+
+- **New map, Sky Speedway** (`maps/speedway.js`):
+  - A 356 m ribbon of track, about 14 m wide, winding over the sea and dropping from 62 m at the start to 8 m at the finish, with gentle rollers, so gravity keeps feeding you speed.
+  - Red-and-white kerbs and a dashed centre line, plus cyan and magenta light strips streaming along both edges.
+  - Neon arches every 30 m to swing through without slowing.
+  - Three 12 m gaps with glowing rings overhead to swing across, and an updraft before the middle gap for a high line.
+  - A tailwind horn at the start (a `gust` trap blowing down the course).
+- **Sparks in course order**, like checkpoints. Maps can now provide `sparkSpots()` to place sparks in a set order instead of shuffled.
+- **Speed strips** (new map feature, `api.boosts`): glowing chevrons that launch you to 34 m/s along the track. For 1.4 s afterwards, ground grip drops from 14 to 1.2, so you keep the speed instead of snapping back to running speed. On the downhill, the test measured 33 m/s at launch and 43 m/s half a second later. Bots get launched too. Tuning is in `tuning.js` (`boost`).
+- **Feeling of speed everywhere:** the camera's field of view widens smoothly from 65° to 80° between 14 and 44 m/s (`tuning.js` → `camera`).
+- The terrain grid is finer here (1.5 m cells) so the narrow, winding edges don't stair-step.
+- Tests: the speedway loads, has 15 ordered sparks and anchors, walking is smooth (narrow maps walk along the track), and the strips launch you with the launch carrying. Two Sumo tests were isolated from nearby bots so they're order-independent. The bot benchmark is still 129.
+
+![Sky Speedway](img/skyhook-speedway.png)
+![A gap with swing rings](img/skyhook-speedway-gap.png)
+
+---
+
 ## 2026-11-15: Taps on the left half hook; joystick toggle; all tuning in one file
 
 - **Bug (owner):** in the Swing scheme you couldn't hook anything on the left half of the screen, because any touch there started the joystick. Now a finger on the left only becomes the joystick once it drags more than 12 px. A quick tap there fires a hook like anywhere else. **Settings → Controls → Joystick** turns the joystick off entirely, making the whole screen for tapping and looking (you then move by swinging and jumping).

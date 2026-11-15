@@ -88,6 +88,9 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] Touch: taps on the left half fire hooks (the joystick only starts when you drag), plus a Joystick on/off setting.
 - [x] Data pass: every gameplay number in one data file (`js/tuning.js`) so a future port (e.g. Godot) can reuse the tuning.
 
+### Owner's batch 6, 2026-11-15
+- [x] Racing map: long and narrow, built for speed (downhill track, speed strips, swing arches, gaps), sparks in course order; camera FOV widens with speed.
+
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.

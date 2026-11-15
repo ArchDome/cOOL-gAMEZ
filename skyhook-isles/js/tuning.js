@@ -22,7 +22,9 @@ export const TUNE = {
   race:    { roundTime: 240, points: [10, 8, 6, 5, 4, 3, 2, 1], finalBonus: 5 },
   sumo:    { roundTime: 150, kos: 10, maxDeathCam: 3 },
   deathCam:{ secs: 10 },
-  slowmo:  { secs: 3 },                                   // match-end slow motion (time drops to 20%)
+  slowmo:  { secs: 3 },
+  boost:   { hold: 1.4, grip: 1.2 },                     // speed strips: low ground grip for `hold` s, so you keep the launch speed
+  camera:  { fov: 65, fovMax: 80, fovFrom: 14, fovTo: 44 },  // field of view widens from 14 to 44 m/s: the feeling of speed                                   // match-end slow motion (time drops to 20%)
   // bot skill levels: multipliers on running speed, time between swings, dodge chance, knockback; hesitate = chance to dither
   botSkill: {
     easy:   { speed: .78, cd: 1.9, dodge: .3, power: .8,  hesitate: .4 },

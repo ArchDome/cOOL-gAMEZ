@@ -17,8 +17,8 @@ const { openGame, checker } = require('./harness');
       d.tick(60);
       const g = d.probe(b.position)[0];
       // arenas are narrow: walk 1 s in a direction with solid ground ahead instead of 2 s diagonally
-      const arena = d.mapInfo().sumoOnly; let yw = Math.PI * .75;
-      if (arena) for (let k = 0; k < 16; k++) { const y = k / 16 * Math.PI * 2, okAll = [3, 6, 9].every(r => d.probe({ x: b.position.x - Math.sin(y) * r, y: 300, z: b.position.z - Math.cos(y) * r })[0] > 3); if (okAll) { yw = y; break; } }
+      const arena = d.mapInfo().sumoOnly || d.mapInfo().narrow; let yw = Math.PI * .75;
+      if (arena) for (let k = 0; k < 16; k++) { const y = k / 16 * Math.PI * 2, okAll = [3, 6, 9, 12].every(r => d.probe({ x: b.position.x - Math.sin(y) * r, y: 300, z: b.position.z - Math.cos(y) * r })[0] > 3); if (okAll) { yw = y; break; } }
       const walkN = arena ? 60 : 120;
       d.view(yw, .3); d.keys.add('w'); let vmin = 99, vmax = -99, st = 0;
       for (let i = 0; i < walkN; i++) { d.tick(1); vmin = Math.min(vmin, b.velocity.y); vmax = Math.max(vmax, b.velocity.y); st += d.ground().standing ? 1 : 0; }
@@ -51,6 +51,10 @@ const { openGame, checker } = require('./harness');
       return r; });
     c.check(`${key}: has a trap players can trigger`, !tr.none && (tr.ok || (tr.active && tr.triggers >= 1 && (tr.kind !== 'boulder' || tr.rolled > 8))), JSON.stringify(tr));
     if (r.sumoOnly) { const ed = await page.evaluate(() => { const d = window.__skyDebug, b = d.body.position; return d.edgeFrom(b.x, b.z).d; }); c.check(`${key}: arena is narrow (edge within a few metres of spawn)`, ed <= 8, `edge ${ed} m`); }
+    if (key === 'speedway') { const sw = await page.evaluate(() => { const d = window.__skyDebug, b = d.body, s0 = d.boosts[0]; if (!s0) return { none: 1 }; d.respawnNow(); d.calm();
+        b.position.set(s0.x - s0.dir[0] * 2, s0.y + .7, s0.z - s0.dir[1] * 2); b.velocity.set(0, 0, 0); d.tick(6); const v = b.velocity, sp = Math.hypot(v.x, v.z); d.tick(30); const sp2 = Math.hypot(b.velocity.x, b.velocity.z);
+        const sk = d.sparks.map(s => s.pos.x); return { strips: d.boosts.length, sp: +sp.toFixed(1), sp2: +sp2.toFixed(1), ordered: sk.every((x, i) => i === 0 || x > sk[i - 1]) }; });
+      c.check('speedway: speed strips launch you and the launch carries; sparks run in course order', !sw.none && sw.strips >= 5 && sw.sp > 25 && sw.sp2 > 15 && sw.ordered, JSON.stringify(sw)); }
     if (key === 'neon') { const cr = await page.evaluate(() => window.__skyDebug.rocks.length); c.check('neon: tower cranes with hook blocks to swing on', cr >= 5, `${cr} hook blocks`); }
     if (key === 'junkyard') {
       await page.evaluate(() => { const d = window.__skyDebug; document.getElementById('optBots').value = '0'; document.getElementById('optBots').dispatchEvent(new Event('change')); d.triggerTrap(0, 'Friend'); });
@@ -121,7 +125,9 @@ const { openGame, checker } = require('./harness');
     await page.waitForFunction(() => window.__skyDebug.bots().length === 3 && window.__skyDebug.race().raceCount <= 0, null, { timeout: 60000 }).catch(() => {});
     const sb = await page.evaluate(() => { const d = window.__skyDebug, bs = d.bots(); for (const b of bs) b.introT = 0;
       const a = bs[0], t = bs[1]; t.body.position.set(a.body.position.x + 1.2, a.body.position.y, a.body.position.z); t.body.velocity.set(0, 0, 0); t.C = { ...t.C, dodge: 0 };
-      a.C = { ...a.C, aggr: 1, fear: 0 }; a.cd = 0; const v0 = Math.hypot(t.body.velocity.x, t.body.velocity.z); d.tick(3);
+      a.C = { ...a.C, aggr: 1, fear: 0 }; a.cd = 0; a.eng = null; a.bait = null; a.avoid && a.avoid.clear();
+      d.body.position.set(a.body.position.x + 60, a.body.position.y + 30, a.body.position.z); for (const o of bs.slice(2)) o.body.position.set(a.body.position.x - 60, a.body.position.y + 30, a.body.position.z);
+      const v0 = Math.hypot(t.body.velocity.x, t.body.velocity.z); d.tick(3);
       bs[2].dunks = 10; d.checkRaceEnd();
       return { hitSpeed: Math.hypot(t.body.velocity.x, t.body.velocity.z) - v0 }; });
     await page.waitForFunction(() => !document.getElementById('results').hidden, null, { timeout: 60000 }).catch(() => {});
