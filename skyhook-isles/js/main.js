@@ -404,7 +404,7 @@ let isTouch = matchMedia("(pointer: coarse)").matches || ("ontouchstart" in wind
 const touchMove={x:0,y:0};
 // player settings (saved per device) and input-aware UI: the game follows whatever you last touched
 const SET_KEY="skyhook.settings.v1";
-const settings=Object.assign({joystick:true,botDiff:"normal",units:"imperial",announcer:"french",controls:"classic",assist:isTouch?1:0,sens:1,gyro:false,gyroInv:false,hud:isTouch?"compact":"full"},(()=>{ try{ return JSON.parse(localStorage.getItem(SET_KEY)||"{}")||{}; }catch(e){ return {}; } })());
+const settings=Object.assign({volume:.8,joystick:true,botDiff:"normal",units:"imperial",announcer:"french",controls:"classic",assist:isTouch?1:0,sens:1,gyro:false,gyroInv:false,hud:isTouch?"compact":"full"},(()=>{ try{ return JSON.parse(localStorage.getItem(SET_KEY)||"{}")||{}; }catch(e){ return {}; } })());
 // game mode: "race" (sparks) or "sumo" (knock everyone off; no sparks)
 let MODE="race"; try{ MODE=localStorage.getItem("skyhook.mode")==="sumo"?"sumo":"race"; }catch(e){}
 if (MAP.sumoOnly) MODE="sumo";   // arenas are sumo-only (not saved, so the next map goes back to your choice)
@@ -517,6 +517,7 @@ function touchMoveH(e){
     if (!(settings.controls==="simple" && swingGesture(dx,dy))) look(dx*2.4,dy*2.4); lookT.x=e.clientX; lookT.y=e.clientY; }
 }
 function touchUp(e){
+  if (lookT && e.pointerId===lookT.id) touchDive=false;
   if (joyPending && e.pointerId===joyPending.id){ const quick=performance.now()-joyPending.t0<320; joyPending=null; if (quick && settings.controls==="simple") tapHook(e.clientX,e.clientY); return; }
   if (joy && e.pointerId===joy.id){ joy=null; touchMove.x=touchMove.y=0; $("joy").hidden=true; } if (lookT && e.pointerId===lookT.id){ const tap=Math.hypot(e.clientX-lookT.x0,e.clientY-lookT.y0)<14 && performance.now()-lookT.t0<320; lookT=null; if (tap && settings.controls==="simple") tapHook(e.clientX,e.clientY); } }
 // simple controls: tap where you want to go; the hook fires there and reels you in. Tap again (or Jump) to let go.
@@ -537,11 +538,52 @@ function tapHook(x,y){
   else if (!secondBusy) second();
   else if ((hook.t0||0)<=(hook2.t0||0)) primary(); else second();
 }
+// ---- tightrope: two ropes reeled in until you hang almost in a straight line merge into a walkable tight rope ----
+// The rope is a thin static box between the two anchors, so everyone's hover controller can stand on it. The owner
+// shares it in presence (tr); it vanishes once nobody has stood on it for 10 s.
+const ropes=new Map();   // owner peer ("me" for mine) -> {a,b,mesh,body,n,lastOcc}
+let trN=0, lastReelT=-9;
+const tightMat=new THREE.MeshStandardMaterial({color:"#ffe9a8",emissive:"#ffb02e",emissiveIntensity:.8,roughness:.4});
+function makeRope(owner,a,b,n){
+  removeRope(owner);
+  const A=new THREE.Vector3(...a), B=new THREE.Vector3(...b), mid=A.clone().add(B).multiplyScalar(.5), dir=B.clone().sub(A), L=dir.length(); dir.normalize();
+  const mesh=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,L,8),tightMat); mesh.position.copy(mid); mesh.quaternion.setFromUnitVectors(UP,dir); mesh.castShadow=true; scene.add(mesh);
+  const body=new CANNON.Body({mass:0,material:groundMat}); body.addShape(new CANNON.Box(new CANNON.Vec3(L/2,.1,.26)));
+  const q=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1,0,0),dir); body.quaternion.set(q.x,q.y,q.z,q.w); body.position.set(mid.x,mid.y-.05,mid.z); world.addBody(body);
+  const r={a:A,b:B,mesh,body,n,lastOcc:simTime}; ropes.set(owner,r); return r;
+}
+function removeRope(owner){ const r=ropes.get(owner); if (!r) return; scene.remove(r.mesh); r.mesh.geometry.dispose(); world.removeBody(r.body); ropes.delete(owner); }
+function nearRope(r,p){ const ab=tmpV.subVectors(r.b,r.a), t=Math.max(0,Math.min(1,tmpV2.set(p.x-r.a.x,p.y-r.a.y,p.z-r.a.z).dot(ab)/ab.lengthSq())), cx=r.a.x+ab.x*t, cy=r.a.y+ab.y*t, cz=r.a.z+ab.z*t;
+  return Math.hypot(p.x-cx,p.z-cz)<1.2 && p.y-cy>-.3 && p.y-cy<2.2; }
+function tryMergeRopes(){
+  if (!isAtt(hook) || !isAtt(hook2) || hook.body || hook.remote || hook2.body || simTime-lastReelT>.5) return false;
+  const A=anchorWorld(hook,new THREE.Vector3()), B=anchorWorld(hook2,new THREE.Vector3()), p=pBody.position, ab=A.distanceTo(B);
+  if (ab<5 || ab>70) return false;
+  const pa=Math.hypot(p.x-A.x,p.y-A.y,p.z-A.z), pb=Math.hypot(p.x-B.x,p.y-B.y,p.z-B.z);
+  if (pa+pb>ab*1.12) return false;
+  // merge: the rope runs between the anchors, you land on top of it
+  trN++; makeRope("me",[A.x,A.y,A.z],[B.x,B.y,B.z],trN);
+  const t=Math.max(.1,Math.min(.9,new THREE.Vector3(p.x-A.x,p.y-A.y,p.z-A.z).dot(B.clone().sub(A))/(ab*ab)));
+  pBody.position.set(A.x+(B.x-A.x)*t,A.y+(B.y-A.y)*t+.75,A.z+(B.z-A.z)*t); pBody.velocity.set(0,0,0);
+  hook=null; hook2=null; stats.ropes=(stats.ropes||0)+1;
+  tone(880,.15,"triangle",.06); tone(1320,.2,"triangle",.05,1,.08); toast("TIGHTROPE!","Walk it. Others can jump on and try to push you off.");
+  return true;
+}
+function updateRopes(){
+  const mine=ropes.get("me");
+  if (mine){
+    let occ=running && deadT<=0 && nearRope(mine,pBody.position);
+    if (!occ) for (const a of [...avatars.values(),...botAvatars.values()]) if (nearRope(mine,a.disp)){ occ=true; break; }
+    if (occ) mine.lastOcc=simTime;
+    if (simTime-mine.lastOcc>TUNE.tightrope.life){ removeRope("me"); toast("The tightrope snapped"); }
+  }
+}
 // Swing scheme gestures on the look side: swipe down to reel the ropes in, swipe up to let go, sideways to look
 function swingGesture(dx,dy){
+  if (gliding && !anyAttached()){ if (dy>3) touchDive=true; else if (dy<-3) touchDive=false; look(dx*2.4,0); return true; }
   if (!anyAttached()) return false;
   if (Math.abs(dy)>Math.abs(dx)){
-    if (dy>0){ const k=dy*.09; for (const h of [hook,hook2]) if (isAtt(h)) h.len=Math.max(1.6,h.len-k); }
+    if (dy>0){ const k=dy*.09; lastReelT=simTime; for (const h of [hook,hook2]) if (isAtt(h)) h.len=Math.max(1.6,h.len-k); }
     else { lookT.up=(lookT.up||0)-dy; if (lookT.up>70){ releaseHooks(); lookT.up=-1e9; const v=pBody.velocity; v.y=Math.max(v.y,0)+6; tone(600,.15,"triangle",.06,1.8); } }
   } else look(dx*2.4,0);
   return true;
@@ -559,13 +601,15 @@ holdBtn("tJump",()=>{ if (deadT>0){ respawn(null); return; } jumpQueued=true; ju
 // ---------------- audio ----------------
 // ---------------- audio ----------------
 // Everything is synthesized with Web Audio: no sound files to download.
+let masterVol=null;
 let ac=null, master=null, sfxBus=null, musicBus=null, noiseBuf=null;
 const audioOpts={music:"always",sfx:true,voice:true};
 try{ Object.assign(audioOpts, JSON.parse(localStorage.getItem("skyhook.audio")||"{}")); }catch(e){}
 function audioOn(){
   if (!ac){ try{
     ac=new (window.AudioContext||window.webkitAudioContext)();
-    master=ac.createDynamicsCompressor(); master.threshold.value=-12; master.ratio.value=4; master.connect(ac.destination);
+    master=ac.createDynamicsCompressor(); master.threshold.value=-12; master.ratio.value=4;
+    masterVol=ac.createGain(); masterVol.gain.value=settings.volume; master.connect(masterVol).connect(ac.destination);
     sfxBus=ac.createGain(); sfxBus.gain.value=audioOpts.sfx?1:0; sfxBus.connect(master);
     musicBus=ac.createGain(); musicBus.gain.value=0; musicBus.connect(master);
     noiseBuf=ac.createBuffer(1,ac.sampleRate,ac.sampleRate); const d=noiseBuf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
@@ -632,7 +676,7 @@ function ropeStep(dt){
 function ropeConstraint(h,dt){
   const A=anchorWorld(h,tmpV), p=pBody.position;
   const dx=A.x-p.x, dy=A.y-p.y, dz=A.z-p.z, dist=Math.hypot(dx,dy,dz)||1e-6, nx=dx/dist, ny=dy/dist, nz=dz/dist;
-  if (reelHeld || keys.has("shift")) h.len=Math.max(1.6,h.len-TUNE.hook.reel*dt);
+  if (reelHeld || keys.has("shift")){ h.len=Math.max(1.6,h.len-TUNE.hook.reel*dt); lastReelT=simTime; }
   if (dist<=h.len) return;
   const dyn = h.body && h.body.mass>0 ? h.body : null;
   let vax=0,vay=0,vaz=0;
@@ -802,18 +846,29 @@ function controls(dt){
   const wantGlide = gliderTime>0 && !onGround && !attached && (keys.has(" ")||jumpHeldTouch) && (v.y<0 || gliding);
   if (wantGlide && !gliding){ tone(300,.35,"sawtooth",.035,2.2); }
   gliding = wantGlide;
+  // dive (Shift, Reel, or swipe down and hold on touch): plunge and build speed; let go to pull up into a climb
+  const diveIn = gliding && (keys.has("shift") || reelHeld || touchDive);
+  if (diveIn && !diving){ diving=true; diveT=0; noise(.5,{type:"bandpass",f:500,f2:1800,q:.8,vol:.25}); }
+  if (diving){ diveT+=dt; if (!diveIn){ diving=false; if (gliding && diveT>.35){ const hs=Math.hypot(v.x,v.z); v.y=Math.max(v.y,Math.min(TUNE.glider.pullUpMax,hs*TUNE.glider.pullUp)); v.x*=.85; v.z*=.85; whoosh(true); tone(700,.2,"triangle",.05,1.5); stats.dives=(stats.dives||0)+1; } } }
   if (gliding){
-    const dive=Math.min(1,Math.max(0,(pitch-.15)/.9));
-    glideSink = -(2.2+dive*9);
-    const tgt=15+dive*16, hsp=Math.hypot(v.x,v.z)||.001;
+    const dive=diving ? 1.6 : Math.min(1,Math.max(0,(pitch-.15)/.9));
+    glideSink = diving ? -TUNE.glider.diveSink : -(2.2+dive*9);
+    const tgt=diving ? TUNE.glider.diveSpeed : 15+dive*16, hsp=Math.hypot(v.x,v.z)||.001;
     const spd = hsp>tgt ? hsp-3*dt : hsp+(tgt-hsp)*(1-Math.exp(-1.3*dt));
     const dx=fwd.x+right.x*ix*.7, dz=fwd.z+right.z*ix*.7, dl=Math.hypot(dx,dz)||1;
     const k=1-Math.exp(-2.4*dt);
     let nx=v.x/hsp+(dx/dl-v.x/hsp)*k, nz=v.z/hsp+(dz/dl-v.z/hsp)*k; const nl=Math.hypot(nx,nz)||1;
     v.x=nx/nl*spd; v.z=nz/nl*spd;
   }
-  const hs=Math.hypot(v.x,v.z); if (hs>TP.maxHorizontal){ v.x*=TP.maxHorizontal/hs; v.z*=TP.maxHorizontal/hs; }
+  const cap = diving ? TUNE.glider.diveSpeed+5 : TP.maxHorizontal;
+  const hs=Math.hypot(v.x,v.z); if (hs>cap){ v.x*=cap/hs; v.z*=cap/hs; }
+  if (!gliding) diving=false;
+  // dive bomb: ramming someone while diving fast slams them
+  if (diving && hs>28 && simTime>diveHitCd){ const p=pBody.position, dirH=[r2(v.x/hs),r2(v.z/hs)];
+    for (const a of avatars.values()) if (Math.hypot(a.disp.x-p.x,a.disp.y-p.y,a.disp.z-p.z)<2.2){ hitN++; lastHit={n:hitN,to:a.peer,d:dirH,f:1,m:1.4}; diveHitCd=simTime+1; crack(); shakeT=.4; toast("DIVE BOMB!",a.name+" got flattened"); stats.hits++; break; }
+    for (const [key,a] of botAvatars) if (Math.hypot(a.disp.x-p.x,a.disp.y-p.y,a.disp.z-p.z)<2.2){ if (amController) hitBot(key,dirH,true,myPeer||"me",myName()); else { hitN++; lastHit={n:hitN,to:key,d:dirH,f:1,m:1.4}; } diveHitCd=simTime+1; crack(); shakeT=.4; toast("DIVE BOMB!",a.name+" got flattened"); stats.hits++; break; } }
 }
+let diving=false, diveT=0, diveHitCd=0, touchDive=false;
 
 // ---------------- camera ----------------
 const camTarget=new THREE.Vector3(), camWant=new THREE.Vector3(), lookAtV=new THREE.Vector3();
@@ -956,7 +1011,7 @@ function finishRun(){
 function restartRun(){
   raceLive=false; batTime=0; for (const g of batPickups){ g.cd=0; g.grp.visible=g.beam.visible=true; }
   for (const b of itemBoxes){ b.cd=0; b.mesh.visible=true; }
-  got=0; elapsed=0; finished=false; runState="ready"; splits=[]; splitMeta=[]; resetFinale(); mega.active=false; megaGrp.visible=false; mega.next=MEGA_FIRST;
+  got=0; elapsed=0; finished=false; runState="ready"; splits=[]; splitMeta=[]; resetFinale(); removeRope("me"); mega.active=false; megaGrp.visible=false; mega.next=MEGA_FIRST;
   for (const sp of sparks){ sp.got=false; sp.mesh.visible=true; sp.beam.visible=true; }
   for (const d of dynamics){ d.body.position.copy(d.p0); d.body.quaternion.copy(d.q0); d.body.velocity.set(0,0,0); d.body.angularVelocity.set(0,0,0); d.body.interpolatedPosition.copy(d.p0); d.body.interpolatedQuaternion.copy(d.q0); d.body.wakeUp(); }
   lastSafe.copy(spawnPos); respawn(null); hook=null;
@@ -1087,7 +1142,7 @@ function frame(){
       if (got===TOTAL){ const r=finishRun(); toast(r.newPb ? (r.prev==null?"First full run!":"New personal best!") : "Every spark found!", r.prev==null ? fmtT(r.final) : `${fmtT(r.final)} · ${fmtD(r.final-r.prev)} vs PB`); }
       else toast(`Spark ${got} of ${TOTAL}`, got===1 && !pb ? "Follow the light beams to find the rest." : dTxt);
       renderSplits(true); } }
-  updateFinale(dt,t); updateMega(dt,t); updateTraps(simFrozen?0:dt); updateThrown(dt);
+  updateFinale(dt,t); updateMega(dt,t); if (running) tryMergeRopes(); updateRopes(); updateTraps(simFrozen?0:dt); updateThrown(dt);
   if (finale.active && running && deadT<=0 && finale.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<(magnetT>0?8:2.8)) grabFinale(myName(),true);
   for (const u of updrafts) u.rings.forEach((r,k)=>{ const ph=((t*.6+k/u.rings.length)%1); r.position.y=ph*34; r.material.opacity=.55*(1-ph); });
   updateDrops(dt); updateBoomFx(dt);
@@ -1140,7 +1195,7 @@ function sendPresence(){
   if (now-presT < (running?50:1000)) return; presT=now;
   const p=pBody.interpolatedPosition, v=pBody.velocity;
   const h = hook ? [hook.phase==="fly"?1:hook.phase==="attached"?2:3, r2(hook.tip.x),r2(hook.tip.y),r2(hook.tip.z), r2(hook.len||0), hook.remote||"", pullHeld&&hook.phase==="attached"?1:0] : 0;
-  room.presence({n:myName(), p:[r2(p.x),r2(p.y),r2(p.z)], v:[r2(v.x),r2(v.y),r2(v.z)], yw:r2(hero.rotation.y), g:gliding?1:0, h, s:got, t:Math.round(elapsed*10)/10, rs:runState, ps:running?0:1, mp:MAP.key, pc:myCharKey, sw:swingN, bt:batTime>0?1:0, hit:lastHit, sp:lastSplash, dk:dunks, bots:botsPayload(), bsp:lastBsp, chat:lastChat, bchat:lastBchat, boom:lastBoom, cupS:cupPresence(), fin:lastFin, fg:lastFinGot, trp:lastTrap, mg:lastMega, mgg:lastMegaGot, msl:lastMsl, st:[stats.deaths,stats.hits,stats.homers,stats.punches,stats.items,Math.round(stats.airTime),Math.round(stats.topSpeed),stats.traps,stats.throws,stats.smashes,stats.snipes||0]}).catch(()=>{});
+  room.presence({n:myName(), p:[r2(p.x),r2(p.y),r2(p.z)], v:[r2(v.x),r2(v.y),r2(v.z)], yw:r2(hero.rotation.y), g:gliding?1:0, h, s:got, t:Math.round(elapsed*10)/10, rs:runState, ps:running?0:1, mp:MAP.key, pc:myCharKey, sw:swingN, bt:batTime>0?1:0, hit:lastHit, sp:lastSplash, dk:dunks, bots:botsPayload(), bsp:lastBsp, chat:lastChat, bchat:lastBchat, boom:lastBoom, cupS:cupPresence(), fin:lastFin, fg:lastFinGot, trp:lastTrap, tr:(()=>{ const r=ropes.get("me"); return r ? {n:r.n,a:[r2(r.a.x),r2(r.a.y),r2(r.a.z)],b:[r2(r.b.x),r2(r.b.y),r2(r.b.z)]} : 0; })(), mg:lastMega, mgg:lastMegaGot, msl:lastMsl, st:[stats.deaths,stats.hits,stats.homers,stats.punches,stats.items,Math.round(stats.airTime),Math.round(stats.topSpeed),stats.traps,stats.throws,stats.smashes,stats.snipes||0]}).catch(()=>{});
 }
 function nameSprite(text,color){
   const c=document.createElement("canvas"); let x=c.getContext("2d"); const font="700 30px 'Nunito Sans', system-ui, sans-serif";
@@ -1193,6 +1248,9 @@ function updateRemotes(dt){
       if (sp && typeof sp.n==="number"){ if (!lastSpSeen.has(pr.peer)) lastSpSeen.set(pr.peer,sp.n); else if (sp.n>lastSpSeen.get(pr.peer)){ lastSpSeen.set(pr.peer,sp.n);
         if (myPeer && sp.by===myPeer){ dunks++; faceHappyT=2; if (sp.how==="snipe") toast("Sniped "+a.name+"!","One shot, one KO."); else { announce("dunk","Dunked! "+a.name+" is swimming."); toast("Dunked "+a.name+"!","Straight into the sea."); } }
         else { if (amController && typeof sp.by==="string" && sp.by.startsWith("bot:")) creditBot(sp.by); } } }
+      const tr=ps.tr, rr=ropes.get(pr.peer);
+      if (tr && typeof tr.n==="number" && vec3(tr.a) && vec3(tr.b)){ if (!rr || rr.n!==tr.n) makeRope(pr.peer,tr.a,tr.b,tr.n); }
+      else if (rr) removeRope(pr.peer);
       const mg=ps.mg;
       if (mg && typeof mg.n==="number"){ if (!lastMegaSeen.has(pr.peer)) lastMegaSeen.set(pr.peer,mg.n); else if (mg.n>lastMegaSeen.get(pr.peer)){ lastMegaSeen.set(pr.peer,mg.n); if (Number.isInteger(mg.i)){ mega.next=MEGA_EVERY; spawnMega(mg.i,false); } } }
       const mgg=ps.mgg;
@@ -1583,6 +1641,28 @@ function dressBody(body,C){
   for (const [n,sx] of [["legL",-.16],["legR",.16]]){ const g=new THREE.Group(); g.name=n; g.position.set(sx,-.3,0); d.add(g);
     const l=new THREE.Mesh(DG.leg,legM); l.position.y=-.1; l.castShadow=true; g.add(l); const b=new THREE.Mesh(DG.boot,bootM); b.position.set(0,-.22,-.04); b.castShadow=true; g.add(b); }
 }
+// character select: portrait cards; picking one plays its catchphrase (text bubble and a jingle) with its animation
+function buildCharSelect(){
+  const grid=$("charGrid"); if (!grid) return; grid.replaceChildren();
+  for (const C of [CLASSIC,...CHARACTERS]){
+    drawFace(C,"grin",false); const url=$("face").toDataURL();
+    const b=document.createElement("button"); b.type="button"; b.className="charcard"+(C.key===myCharKey?" on":""); b.dataset.key=C.key; b.setAttribute("aria-label",C.full||C.name);
+    const img=document.createElement("img"); img.src=url; img.alt=""; const n=document.createElement("b"); n.textContent=C.name; const f=document.createElement("small"); f.textContent=C.from;
+    const st=document.createElement("i"); st.className="stripe"; st.style.background=`linear-gradient(90deg,${(C.stripes||[]).join(",")})`;
+    b.append(st,img,n,f); b.addEventListener("click",()=>pickChar(C.key,true)); grid.append(b);
+  }
+  faceMood=""; updateFace(0);
+}
+function pickChar(key,shout){
+  const C=charByKey(key); myCharKey=C.key; try{ localStorage.setItem("skyhook.char",myCharKey); }catch(e){}
+  $("optChar").value=myCharKey; applyHeroLook(); bots.forEach(removeBot); bots=[];
+  for (const el of document.querySelectorAll(".charcard")) el.classList.toggle("on",el.dataset.key===C.key);
+  if (!shout) return;
+  const card=document.querySelector(`.charcard[data-key="${C.key}"]`); if (card){ card.classList.remove(...[...card.classList].filter(c=>c.startsWith("anim-"))); void card.offsetWidth; card.classList.add("anim-"+(C.anim||"bounce")); }
+  const bub=$("charSay"); bub.textContent="“"+(C.intro||C.taunt||"Let's go!")+"”"; bub.hidden=false; bub.classList.remove("pop"); void bub.offsetWidth; bub.classList.add("pop");
+  clearTimeout(pickChar.t); pickChar.t=setTimeout(()=>{ bub.hidden=true; },2600);
+  audioOn(); const base=220*Math.pow(2,((C.key.charCodeAt(0)+C.key.length*3)%12)/12); [1,1.25,1.5,2].forEach((m,i)=>tone(base*m,.16,"square",.05,1,i*.07)); tone(base*2,.35,"triangle",.05,1.5,.3);
+}
 function applyHeroLook(){
   const C=charByKey(myCharKey);
   heroBody.children[0].material=new THREE.MeshStandardMaterial({color:C.suit,roughness:.6});
@@ -1592,8 +1672,9 @@ function applyHeroLook(){
   $("faceName").textContent=C.name;
 }
 { const sel=$("optChar"); for (const C of [CLASSIC,...CHARACTERS]){ const o=document.createElement("option"); o.value=C.key; o.textContent=C.key==="classic"?"The Climber (classic)":`${C.name} · ${C.from}`; sel.append(o); }
-  sel.value=myCharKey; sel.addEventListener("change",()=>{ myCharKey=sel.value; try{ localStorage.setItem("skyhook.char",myCharKey); }catch(e){} applyHeroLook(); bots.forEach(removeBot); bots=[]; }); }
+  sel.value=myCharKey; sel.addEventListener("change",()=>pickChar(sel.value,true)); }
 applyHeroLook();
+setTimeout(buildCharSelect,0);
 let bots=[], botSerial=1, amController=false, wantBots=2, bspN=0, lastBsp=0;
 const botAvatars=new Map(), lastBspSeen=new Map();
 try{ const b=localStorage.getItem("skyhook.bots"); if (b!==null) wantBots=Math.max(0,Math.min(7,+b|0)); }catch(e){}
@@ -2638,11 +2719,11 @@ let frVoice=null; const loadFr=()=>{ try{ frVoice=window.speechSynthesis ? pickF
 if (window.speechSynthesis){ loadFr(); try{ speechSynthesis.addEventListener("voiceschanged",loadFr); }catch(e){} }
 function sayFrench(text){
   const ss=window.speechSynthesis; if (!frVoice) loadFr(); if (!ss || !frVoice) return false;
-  try{ ss.cancel(); const u=new SpeechSynthesisUtterance(text); u.voice=frVoice; u.lang=frVoice.lang; u.pitch=1.1; u.rate=1.05; u.volume=1; ss.speak(u); return true; }catch(e){ return false; }
+  try{ ss.cancel(); const u=new SpeechSynthesisUtterance(text); u.voice=frVoice; u.lang=frVoice.lang; u.pitch=1.1; u.rate=1.05; u.volume=settings.volume; ss.speak(u); return true; }catch(e){ return false; }
 }
 function sayLocal(text,vo){
   const ss=window.speechSynthesis; if (!ss) return;
-  try{ ss.cancel(); const u=new SpeechSynthesisUtterance(text); u.pitch=vo?vo.pitch:.6; u.rate=vo?vo.rate:1.05;
+  try{ ss.cancel(); const u=new SpeechSynthesisUtterance(text); u.pitch=vo?vo.pitch:.6; u.rate=vo?vo.rate:1.05; u.volume=settings.volume;
     const vs=ss.getVoices(), lang=vo&&vo.lang;
     const pick=(lang && vs.find(v=>v.lang.toLowerCase().replace("_","-").startsWith(lang)))
       || (!vo && vs.find(v=>/^en/i.test(v.lang)&&/(male|daniel|alex|fred|david|james)/i.test(v.name))) || vs.find(v=>/^en/i.test(v.lang));
@@ -2836,9 +2917,10 @@ if (GFX_SET.bloom>0){
     el.addEventListener(el.type==="range"?"input":"change",async()=>{ o[key]=conv(el.type==="checkbox"?el.checked:el.value);
       if (key==="gyro" && o.gyro && !(await enableGyro())){ o.gyro=false; el.checked=false; }
       if (key==="sens") $("sensVal").textContent=(+o.sens).toFixed(1)+"×";
+      if (key==="volume"){ $("volVal").textContent=Math.round(o.volume*100)+"%"; if (masterVol) masterVol.gain.value=o.volume; }
       saveSettings(); applyInputUI(); }); };
-  bind("optControls","controls"); bind("optJoy","joystick"); bind("optBotDiff","botDiff"); bind("optUnits","units"); bind("optAnnouncer","announcer"); bind("optAssist","assist",Number); bind("optSens","sens",Number); bind("optHud","hud"); bind("optGyro","gyro"); bind("optGyroInv","gyroInv");
-  $("sensVal").textContent=(+o.sens).toFixed(1)+"×"; }
+  bind("optControls","controls"); bind("optVolume","volume",Number); bind("optJoy","joystick"); bind("optBotDiff","botDiff"); bind("optUnits","units"); bind("optAnnouncer","announcer"); bind("optAssist","assist",Number); bind("optSens","sens",Number); bind("optHud","hud"); bind("optGyro","gyro"); bind("optGyroInv","gyroInv");
+  $("sensVal").textContent=(+o.sens).toFixed(1)+"×"; $("volVal").textContent=Math.round(o.volume*100)+"%"; }
 { const sel=$("optMode"); sel.value=MODE; sel.addEventListener("change",()=>{ setMode(sel.value); restartRun(); toast(MODE==="sumo"?"Sumo mode":"Spark race", MODE==="sumo"?"Knock everyone into the sea. Press Play or Start round.":"Collect sparks. The final spark ends the race."); }); }
 { const sel=$("optDeath"); sel.value=String(DEATH_SECS); if (sel.value!==String(DEATH_SECS)) sel.value="10"; sel.addEventListener("change",()=>{ DEATH_SECS=+sel.value; try{ localStorage.setItem("skyhook.deathcam",sel.value); }catch(e){} }); }
 $("deathGo").addEventListener("click",e=>{ e.preventDefault(); respawn(null); });
@@ -2846,5 +2928,5 @@ $("deathGo").addEventListener("click",e=>{ e.preventDefault(); respawn(null); })
 // interpolated poses start at the origin until the first physics step
 for (const b of world.bodies){ b.interpolatedPosition.copy(b.position); b.interpolatedQuaternion.copy(b.quaternion); }
 // small hook for automated testing; not used by the game itself
-window.__skyDebug={ gliderPickupsList:()=>gliderPickups, renderInfo:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,meshes:(()=>{ let n=0; scene.traverse(o=>{ if(o.isMesh) n++; }); return n; })()}), headlessStart:(nBots=1)=>{ simFrozen=true; wantBots=nBots; running=true; $("start").hidden=true; for (const C of CHARACTERS) introSeen.add(C.key); introQ.length=0; }, botItems:(b,dt)=>botItems(b,dt), gfx:()=>({GFX,composer:!!composer,ao:aoOn,shafts:!!shafts}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, cupAwards:()=>cupAwards(), showCupFinal:()=>showCupFinal(cupDef()), forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,raceOver,slowmo:!!slowmo,timeScale:lastTimeScale,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); for (const g of [...gliderPickups,...batPickups]) if (g.cd>0) g.cd-=1/60; for (const b of itemBoxes) if (b.cd>0) b.cd-=1/60; } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded, boosts, fov:()=>camera.fov, touchSim:(type,x,y,id=7)=>{ const e={pointerId:id,clientX:x,clientY:y,pointerType:'touch'}; if(type==='down') touchDown(e); else if(type==='move') touchMoveH(e); else touchUp(e); return {joy:!!joy,pending:!!joyPending,hooks:[hook&&hook.phase,hook2&&hook2.phase]}; }, hooks:()=>[hook&&hook.phase,hook2&&hook2.phase,hook&&hook.len!=null?+hook.len.toFixed(2):null,hook2&&hook2.len!=null?+hook2.len.toFixed(2):null], swipe:(dx,dy)=>{ if(!lookT) lookT={id:-1,x:0,y:0,x0:0,y0:0,t0:0}; const r=swingGesture(dx,dy); return r; }, endSwipe:()=>{ lookT=null; }, mega, spawnMega:i=>spawnMega(i,true), takeMega:()=>takeMega(myName(),true), medals:()=>({me:heroMedal.visible?medalMats.indexOf(heroMedal.material)+1:0, others:[...avatars.values(),...botAvatars.values()].map(a=>[a.name,a.medal&&a.medal.visible?medalMats.indexOf(a.medal.material)+1:0])}), setBoard:v=>{ boardOpen=v; renderLiveBoard(); }, ragdoll:()=>simTime<ragdollUntil, boomFx:()=>boomFx.length, killMe:n=>killMe({peer:'x',name:n||'Sniper'}), killBot:(k)=>killBot(k,{peer:myPeer||'me',name:myName()}), botDiff:()=>botDiff(), isRunning:()=>running, speedText:()=>[$("speed").textContent,$("speedLbl").textContent], setClock:(t)=>setClock($("timer"),t), rules:()=>({...RULES,ROUND_TIME,SUMO_TIME,SUMO_KOS,MODE}), customDraft:()=>customDraft, setPull:v=>{ pullHeld=v; }, ropeStep:dt=>ropeStep(dt), setHook:h=>{ hook=h; }, edgeFrom:(x,z)=>edgeFrom(x,z), botThink:(b,dt)=>botThink(b,dt), mapInfo:()=>({key:MAP.key,sumoOnly:!!MAP.sumoOnly,narrow:!!MAP.narrow}), pickFrenchVoice, mode:()=>MODE, setMode:m=>setMode(m), startRound:()=>startRound(), checkRaceEnd:()=>checkRaceEnd(), sniper:()=>({spinAcc,sniperCharge,held:heldItem}), traps, projectiles, sunDir:SUN_DIR, camInfo:()=>({cam:camera.position.toArray().map(n=>+n.toFixed(2)),body:pBody.position.toArray().map(n=>+n.toFixed(2)),flashT,hemi:hemi.intensity,camCur}), triggerTrap:(i,n)=>triggerTrap(i,{peer:'x',name:n||'Tester'},true), meMag, yeet:b=>yeet(b), thrown, dynamics, finale, spawnFinale:(x,y,z,by)=>spawnFinale(new THREE.Vector3(x,y,z),by||myName(),true), finaleSpot:p=>finaleSpot(p), grabFinale:n=>grabFinale(n,true), resetFinale:()=>resetFinale(), finaleGrp, searchlights, standings:()=>standings(), settings, applyInputUI, setInput:t=>setInput(t), inputTouch:()=>isTouch, castAim:d=>castAim(d), assistAim:(d,l)=>assistAim(d,l), tapHook:(x,y)=>tapHook(x,y), camera, camTarget, hand, hookUp:()=>hookUp(), death:()=>({deadT,DEATH_SECS}), respawnNow:()=>respawn(null), setDeathSecs:n=>{ DEATH_SECS=n; }, stats:()=>JSON.parse(JSON.stringify(stats)), drops:()=>drops.length, groundPunch:b=>groundPunch(b), setOnGround:v=>{ onGround=v; } };
+window.__skyDebug={ gliderPickupsList:()=>gliderPickups, renderInfo:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,meshes:(()=>{ let n=0; scene.traverse(o=>{ if(o.isMesh) n++; }); return n; })()}), headlessStart:(nBots=1)=>{ simFrozen=true; wantBots=nBots; running=true; $("start").hidden=true; for (const C of CHARACTERS) introSeen.add(C.key); introQ.length=0; }, botItems:(b,dt)=>botItems(b,dt), gfx:()=>({GFX,composer:!!composer,ao:aoOn,shafts:!!shafts}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, cupAwards:()=>cupAwards(), showCupFinal:()=>showCupFinal(cupDef()), forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,raceOver,slowmo:!!slowmo,timeScale:lastTimeScale,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); for (const g of [...gliderPickups,...batPickups]) if (g.cd>0) g.cd-=1/60; for (const b of itemBoxes) if (b.cd>0) b.cd-=1/60; } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded, ropes, makeRope:(a,b)=>{ trN++; return !!makeRope('me',a,b,trN); }, tryMerge:()=>tryMergeRopes(), setReel:v=>{ reelHeld=v; if(v) lastReelT=simTime; }, setHook2:h=>{ hook2=h; }, glider:()=>({gliding,diving,gliderTime}), setGlider:t=>{ gliderTime=t; }, setTouchDive:v=>{ touchDive=v; }, pickChar:k=>pickChar(k,true), masterVol:()=>masterVol&&masterVol.gain.value, boosts, fov:()=>camera.fov, touchSim:(type,x,y,id=7)=>{ const e={pointerId:id,clientX:x,clientY:y,pointerType:'touch'}; if(type==='down') touchDown(e); else if(type==='move') touchMoveH(e); else touchUp(e); return {joy:!!joy,pending:!!joyPending,hooks:[hook&&hook.phase,hook2&&hook2.phase]}; }, hooks:()=>[hook&&hook.phase,hook2&&hook2.phase,hook&&hook.len!=null?+hook.len.toFixed(2):null,hook2&&hook2.len!=null?+hook2.len.toFixed(2):null], swipe:(dx,dy)=>{ if(!lookT) lookT={id:-1,x:0,y:0,x0:0,y0:0,t0:0}; const r=swingGesture(dx,dy); return r; }, endSwipe:()=>{ lookT=null; }, mega, spawnMega:i=>spawnMega(i,true), takeMega:()=>takeMega(myName(),true), medals:()=>({me:heroMedal.visible?medalMats.indexOf(heroMedal.material)+1:0, others:[...avatars.values(),...botAvatars.values()].map(a=>[a.name,a.medal&&a.medal.visible?medalMats.indexOf(a.medal.material)+1:0])}), setBoard:v=>{ boardOpen=v; renderLiveBoard(); }, ragdoll:()=>simTime<ragdollUntil, boomFx:()=>boomFx.length, killMe:n=>killMe({peer:'x',name:n||'Sniper'}), killBot:(k)=>killBot(k,{peer:myPeer||'me',name:myName()}), botDiff:()=>botDiff(), isRunning:()=>running, speedText:()=>[$("speed").textContent,$("speedLbl").textContent], setClock:(t)=>setClock($("timer"),t), rules:()=>({...RULES,ROUND_TIME,SUMO_TIME,SUMO_KOS,MODE}), customDraft:()=>customDraft, setPull:v=>{ pullHeld=v; }, ropeStep:dt=>ropeStep(dt), setHook:h=>{ hook=h; }, edgeFrom:(x,z)=>edgeFrom(x,z), botThink:(b,dt)=>botThink(b,dt), mapInfo:()=>({key:MAP.key,sumoOnly:!!MAP.sumoOnly,narrow:!!MAP.narrow}), pickFrenchVoice, mode:()=>MODE, setMode:m=>setMode(m), startRound:()=>startRound(), checkRaceEnd:()=>checkRaceEnd(), sniper:()=>({spinAcc,sniperCharge,held:heldItem}), traps, projectiles, sunDir:SUN_DIR, camInfo:()=>({cam:camera.position.toArray().map(n=>+n.toFixed(2)),body:pBody.position.toArray().map(n=>+n.toFixed(2)),flashT,hemi:hemi.intensity,camCur}), triggerTrap:(i,n)=>triggerTrap(i,{peer:'x',name:n||'Tester'},true), meMag, yeet:b=>yeet(b), thrown, dynamics, finale, spawnFinale:(x,y,z,by)=>spawnFinale(new THREE.Vector3(x,y,z),by||myName(),true), finaleSpot:p=>finaleSpot(p), grabFinale:n=>grabFinale(n,true), resetFinale:()=>resetFinale(), finaleGrp, searchlights, standings:()=>standings(), settings, applyInputUI, setInput:t=>setInput(t), inputTouch:()=>isTouch, castAim:d=>castAim(d), assistAim:(d,l)=>assistAim(d,l), tapHook:(x,y)=>tapHook(x,y), camera, camTarget, hand, hookUp:()=>hookUp(), death:()=>({deadT,DEATH_SECS}), respawnNow:()=>respawn(null), setDeathSecs:n=>{ DEATH_SECS=n; }, stats:()=>JSON.parse(JSON.stringify(stats)), drops:()=>drops.length, groundPunch:b=>groundPunch(b), setOnGround:v=>{ onGround=v; } };
 frame();

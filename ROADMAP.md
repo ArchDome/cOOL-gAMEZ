@@ -91,6 +91,12 @@ This file is the work queue for Claude sessions, including unattended and schedu
 ### Owner's batch 6, 2026-11-15
 - [x] Racing map: long and narrow, built for speed (downhill track, speed strips, swing arches, gaps), sparks in course order; camera FOV widens with speed.
 
+### Owner's batch 7, 2026-11-15
+- [x] Glider dive (Arkham-style): hold to dive steeply and build speed, release to pull up and convert speed into height; dive into someone to slam them.
+- [x] Character select screen: portraits; picking one plays their catchphrase with an animation.
+- [x] Tightrope: with two hooks attached and both reeled in, the ropes merge into a tight rope between the anchors. Walk on it, others can jump on and shove you off, and you can hook and pull someone up. It vanishes after 10 s with nobody on it. Synced to friends.
+- [x] Master volume slider.
+
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.

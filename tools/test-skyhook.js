@@ -117,6 +117,11 @@ const { openGame, checker } = require('./harness');
     // Bot skill: four levels with different numbers (Normal is the benchmarked default)
     const df = await page.evaluate(() => { const d = window.__skyDebug, out = { def: d.settings.botDiff, opts: [...document.querySelectorAll('#optBotDiff option')].map(o => o.value) };
       for (const k of ['easy', 'normal', 'hard', 'brutal']) { d.settings.botDiff = k; out[k] = d.botDiff().speed; } d.settings.botDiff = 'normal'; return out; });
+    // Character select: clicking a portrait picks them, shows their catchphrase and animates
+    const cs = await page.evaluate(() => { const card = document.querySelector('.charcard[data-key="dylan"]'); if (!card) return { none: 1 }; const n = document.querySelectorAll('.charcard').length; card.click();
+      return { n, chosen: document.getElementById('optChar').value, say: document.getElementById('charSay').textContent, shown: !document.getElementById('charSay').hidden, anim: [...card.classList].some(c => c.startsWith('anim-')), on: card.classList.contains('on') }; });
+    await page.evaluate(() => { const c = document.querySelector('.charcard[data-key="classic"]'); if (c) c.click(); });
+    c.check('character select: portraits, picking one shouts their catchphrase with an animation', !cs.none && cs.n === 8 && cs.chosen === 'dylan' && cs.shown && cs.say.length > 4 && cs.anim && cs.on, JSON.stringify(cs));
     c.check('four bot skill levels, Normal by default', df.def === 'normal' && df.opts.join() === 'easy,normal,hard,brutal' && df.easy < df.normal && df.normal < df.hard && df.hard < df.brutal, JSON.stringify(df));
 
     // Spin sniper is a one-shot KO: on you (death cam on the spot) and on a bot (KO credited)
@@ -154,6 +159,31 @@ const { openGame, checker } = require('./harness');
       d.settings.joystick = true; d.settings.controls = 'classic'; return { tap, drag, off }; });
     c.check('touch: taps on the left hook, drags there move, and the joystick can be turned off', !js.tap.joy && !js.tap.pending && js.drag.joy && !js.off.joy, JSON.stringify(js));
 
+    // Volume slider drives the master volume
+    const vol = await page.evaluate(() => { const el = document.getElementById('optVolume'); el.value = '0.3'; el.dispatchEvent(new Event('input')); const r = { set: window.__skyDebug.settings.volume, master: window.__skyDebug.masterVol(), label: document.getElementById('volVal').textContent }; el.value = '0.8'; el.dispatchEvent(new Event('input')); return r; });
+    c.check('volume slider sets the master volume', vol.set === 0.3 && Math.abs(vol.master - 0.3) < 1e-6 && vol.label === '30%', JSON.stringify(vol));
+
+    // Glider dive: hold to dive and build speed, let go to pull up into a climb
+    const gd = await page.evaluate(() => { const d = window.__skyDebug, b = d.body; d.calm(); d.setGlider(30); b.position.set(0, 160, 0); b.velocity.set(15, -2, 0); d.view(-Math.PI / 2, .3);
+      d.keys.add(' '); d.tick(3); const g0 = d.glider(); d.setTouchDive(true); d.tick(90); const sp = Math.hypot(b.velocity.x, b.velocity.z), g1 = d.glider();
+      d.setTouchDive(false); d.tick(2); const vy = b.velocity.y; d.keys.delete(' '); d.setGlider(0); return { g0, g1, sp: +sp.toFixed(1), vy: +vy.toFixed(1) }; });
+    c.check('glider dive builds speed, and letting go pulls you up', gd.g0.gliding && gd.g1.diving && gd.sp > 35 && gd.vy > 8, JSON.stringify(gd));
+
+    // Tightrope: a merged rope is walkable; two straight reeled-in ropes merge; it vanishes after 10 s with nobody on it
+    const tr = await page.evaluate(() => { const d = window.__skyDebug, b = d.body; d.calm();
+      const x = b.position.x, z = b.position.z, g = d.probe({ x, y: 400, z })[0], y = g + 14;
+      d.makeRope([x - 10, y, z], [x + 10, y, z]); b.position.set(x, y + 1.5, z); b.velocity.set(0, 0, 0); d.tick(60);
+      const stand = { standing: d.ground().standing, dy: +(b.position.y - y).toFixed(2) };
+      // merge: two hooks attached either side, you hanging between, reeling
+      const V = b.position.constructor; const A = d.camera.position.clone().set(x - 12, y + 6, z), B = d.camera.position.clone().set(x + 12, y + 6, z);
+      d.setHook({ phase: 'attached', tip: A.clone(), body: null, point: A.clone(), len: 12, miss: false, remote: null, obj: null }); d.setHook2({ phase: 'attached', tip: B.clone(), body: null, point: B.clone(), len: 12, miss: false, obj: null });
+      b.position.set(x, y + 5.5, z); d.setReel(true); const merged = d.tryMerge(); d.setReel(false);
+      return { stand, merged, rope: d.ropes.has('me') }; });
+    await page.evaluate(() => { const d = window.__skyDebug; d.body.position.set(d.body.position.x + 60, d.body.position.y + 40, d.body.position.z); d.tick(660); });
+    const gone = await page.waitForFunction(() => !window.__skyDebug.ropes.has('me'), null, { timeout: 20000 }).then(() => true, () => false);
+    c.check('tightrope: walkable, two straight reeled ropes merge into one, and it vanishes when left empty', tr.stand.standing && tr.stand.dy > .3 && tr.stand.dy < 1.2 && tr.merged && tr.rope && gone, JSON.stringify({ tr, gone }));
+    await page.evaluate(() => window.__skyDebug.respawnNow());
+
     // Live leaderboard: hold Tab to see it
     await page.keyboard.down('Tab');
     const lb1 = await page.waitForFunction(() => !document.getElementById('liveBoard').hidden && document.querySelectorAll('#lbTable div').length >= 2, null, { timeout: 20000 }).then(() => true, () => false);
@@ -189,8 +219,8 @@ const { openGame, checker } = require('./harness');
     c.check('bots spawn as characters', bots0.n === 2 && bots0.ctrl && bots0.avatars === 2 && bots0.names.join() === 'Matteo,Yuki', JSON.stringify(bots0));
     const intro = await page.evaluate(() => window.__skyDebug.intro());
     c.check('entrance cards play for each character', intro.seen.includes('matteo') && intro.seen.includes('yuki') && (await page.textContent('#introName')).length > 0, JSON.stringify(intro));
-    const chase = await page.evaluate(() => { const d = window.__skyDebug, m = d.bots()[0], me = d.body.position;
-      m.body.position.set(me.x + 20, me.y + 1, me.z); m.body.velocity.set(0, 0, 0); m.introT = 0; d.tick(10);
+    const chase = await page.evaluate(() => { const d = window.__skyDebug, m = d.bots().find(b => b.C.key === 'matteo') || d.bots()[0], me = d.body.position;
+      m.body.position.set(me.x + 20, me.y + 1, me.z); m.body.velocity.set(0, 0, 0); m.introT = 0; m.eng = null; m.bait = null; m.avoid && m.avoid.clear(); m.knockUntil = -9; m.hook = null; d.tick(10);
       const d0 = Math.hypot(m.body.position.x - me.x, m.body.position.z - me.z); d.tick(120);
       return { d0, d1: Math.hypot(m.body.position.x - me.x, m.body.position.z - me.z) }; });
     c.check('aggressive bot chases you', chase.d1 < chase.d0 - 5, `${chase.d0.toFixed(1)} m -> ${chase.d1.toFixed(1)} m`);
@@ -280,6 +310,13 @@ const { openGame, checker } = require('./harness');
     const bk = await page.evaluate(() => { const d = window.__skyDebug, b = d.bots()[0]; if (b) { b.C = { ...b.C, dodge: 1 }; d.hitBot('bot:' + b.id, [1, 0], false, 'fr1end00peer0000', 'Friend'); } const t = document.getElementById('toast'); return { hidden: t.hidden, text: t.textContent }; });
     c.check('no pop-up when other players act on each other', quiet && (bk.hidden || !/grabbed a bat|dodged/.test(bk.text)), JSON.stringify(bk));
     await friendAt({ bt: 0 });
+
+    // A friend's tightrope shows up in my world (and goes when they drop it)
+    await friendAt({ tr: { n: 1, a: [me[0] - 8, me[1] + 6, me[2]], b: [me[0] + 8, me[1] + 6, me[2]] } });
+    const trF = await page.waitForFunction(() => window.__skyDebug.ropes.has('fr1end00peer0000'), null, { timeout: 20000 }).then(() => true, () => false);
+    await friendAt({ tr: 0 });
+    const trG = await page.waitForFunction(() => !window.__skyDebug.ropes.has('fr1end00peer0000'), null, { timeout: 20000 }).then(() => true, () => false);
+    c.check("a friend's tightrope is shared (appears and disappears)", trF && trG);
 
     // Falling in the sea after being hit credits the friend
     const sp0 = await page.evaluate(() => { const sp = window.__fake.mine().sp; return sp ? sp.n : 0; });

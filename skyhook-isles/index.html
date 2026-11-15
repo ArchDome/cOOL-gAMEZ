@@ -156,6 +156,27 @@ body.in-touch .rank{left:calc(50% + 62px);bottom:calc(env(safe-area-inset-bottom
 body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-inset-bottom,0px) + 14px)}
 .liveboard{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 56px);transform:translateX(-50%);width:min(440px,92vw);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px;z-index:6;pointer-events:none;display:grid;gap:8px;backdrop-filter:blur(8px)}
 .standings.lb div{grid-template-columns:3ch 1fr 6ch 5ch}
+.charsel{position:relative}
+.chargrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}
+.charcard{position:relative;display:grid;justify-items:center;gap:2px;padding:8px 4px 6px;border-radius:12px;border:2px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font:inherit;cursor:pointer;overflow:hidden}
+.charcard img{width:56px;height:56px;image-rendering:pixelated;border-radius:10px;background:#1a2438}
+.charcard b{font-size:13px}.charcard small{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.charcard .stripe{position:absolute;left:0;right:0;top:0;height:4px}
+.charcard.on{border-color:var(--hook);background:rgba(124,224,255,.14)}
+.charsay{position:absolute;left:50%;top:-14px;transform:translate(-50%,-100%);background:#fff;color:#1a2438;font-weight:800;font-size:15px;padding:8px 14px;border-radius:14px;white-space:nowrap;max-width:92%;overflow:hidden;text-overflow:ellipsis;box-shadow:0 6px 18px rgba(0,0,0,.35);z-index:3}
+.charsay.pop{animation:sayPop .35s ease-out}
+@keyframes sayPop{0%{transform:translate(-50%,-80%) scale(.6);opacity:0}100%{transform:translate(-50%,-100%) scale(1);opacity:1}}
+.anim-spin{animation:aSpin .7s ease-in-out}@keyframes aSpin{to{transform:rotate(360deg)}}
+.anim-flex{animation:aFlex .7s ease-in-out}@keyframes aFlex{30%{transform:scale(1.18)}60%{transform:scale(.95)}}
+.anim-bounce{animation:aBounce .7s ease-out}@keyframes aBounce{30%{transform:translateY(-12px)}60%{transform:translateY(0)}80%{transform:translateY(-5px)}}
+.anim-wave{animation:aWave .8s ease-in-out}@keyframes aWave{25%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}75%{transform:rotate(-5deg)}}
+.anim-shrug{animation:aShrug .6s ease-in-out}@keyframes aShrug{50%{transform:translateY(-6px) scaleX(1.08)}}
+.anim-bow{animation:aBow .8s ease-in-out}@keyframes aBow{40%{transform:translateY(8px) scaleY(.86)}}
+.anim-cower{animation:aCower .8s ease-in-out}@keyframes aCower{20%,60%{transform:scale(.88) translateX(-3px)}40%,80%{transform:scale(.88) translateX(3px)}}
+.anim-knuckles{animation:aKnuck .6s ease-in-out}@keyframes aKnuck{25%{transform:scale(1.15)}50%{transform:scale(1)}75%{transform:scale(1.12)}}
+.anim-pound{animation:aPound .7s ease-in-out}@keyframes aPound{15%,45%,75%{transform:translateY(4px) scale(1.06)}30%,60%,90%{transform:translateY(-3px)}}
+.anim-shaka{animation:aShaka .9s ease-in-out}@keyframes aShaka{20%{transform:rotate(-10deg) translateY(-4px)}50%{transform:rotate(10deg) translateY(-6px)}80%{transform:rotate(-6deg)}}
+.anim-dance{animation:aDance .8s ease-in-out}@keyframes aDance{20%{transform:translateX(-6px) rotate(-6deg)}40%{transform:translateX(6px) rotate(6deg)}60%{transform:translateX(-4px) rotate(-4deg)}80%{transform:translateX(4px) rotate(4deg)}}
 .toast small{display:block;font-family:var(--body);font-weight:700;font-size:15px;color:var(--ink);margin-top:6px}
 .overlay{position:fixed;inset:0;display:grid;place-items:center;overflow:auto;background:radial-gradient(ellipse at 50% 35%,rgba(20,32,56,.35),rgba(12,18,32,.82));
   padding-block:calc(env(safe-area-inset-top,0px) + 16px) calc(env(safe-area-inset-bottom,0px) + 16px);
@@ -278,6 +299,7 @@ body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-
     <h1>Skyhook <em>Isles</em></h1>
     <p>Grapple, swing and glide across five maps, from floating isles to a neon city in the rain. Race friends and a cast of rivals for 15 sparks, grab ? boxes for bombs and homing comets, and knock everyone into the sea.</p>
 
+    <div class="charsel"><div class="chargrid" id="charGrid" role="group" aria-label="Choose your character"></div><div class="charsay" id="charSay" hidden></div></div>
     <div class="opts">
       <span class="opt"><label for="optMode">Mode</label><select id="optMode"><option value="race">Spark race</option><option value="sumo">Sumo: knock-offs</option></select></span>
       <span class="opt"><label for="optChar">Play as</label><select id="optChar"></select></span>
@@ -285,6 +307,7 @@ body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-
       <span class="opt"><label for="optBots">Bots</label><select id="optBots"><option>0</option><option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></span>
       <span class="opt"><label for="optBotDiff">Bot skill</label><select id="optBotDiff"><option value="easy">Easy</option><option value="normal">Normal</option><option value="hard">Hard</option><option value="brutal">Brutal</option></select></span>
     </div>
+    <button class="go" type="button" id="go">Play</button>
     <details class="settings"><summary>Settings</summary>
       <div class="sgrp"><b>Controls</b>
         <span class="opt"><label for="optControls">Touch scheme</label><select id="optControls"><option value="classic">Classic</option><option value="simple">Swing: tap to hook, swipe to reel</option></select></span>
@@ -301,6 +324,7 @@ body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-
         <span class="opt"><label for="optDeath">Death cam</label><select id="optDeath"><option value="10">10 s</option><option value="5">5 s</option><option value="3">3 s</option><option value="0">Off</option></select></span>
       </div>
       <div class="sgrp"><b>Audio</b>
+        <span class="opt rng"><label for="optVolume">Volume</label><input type="range" id="optVolume" min="0" max="1" step="0.05"><small id="volVal">80%</small></span>
         <span class="opt"><label for="optMusic">Music</label><select id="optMusic"><option value="always">Always</option><option value="races">Races only</option><option value="off">Off</option></select></span>
         <label class="chk"><input type="checkbox" id="optSfx" checked> Sound effects</label>
         <label class="chk"><input type="checkbox" id="optVoice" checked> Announcer</label>
@@ -326,7 +350,6 @@ body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-
       </div>
       <small style="color:var(--muted)">Sumo arenas always play as sumo. Press Start cup to begin; friends on the island follow you through it.</small>
     </div>
-    <button class="go" type="button" id="go">Play</button>
     <div class="boards" id="boards" hidden><span style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)" id="boardTitle">Best times</span><div class="board-list" id="boardList"></div></div>
     <details class="howto"><summary>Controls</summary>
     <dl class="keys" id="keysDesk">
@@ -334,6 +357,8 @@ body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-
         <dt>Mouse</dt><dd>Look. Hold the left or right button (or E) to grapple where you aim.</dd>
         <dt>Shift</dt><dd>While hooked, reel in. Hook a crate and reel to yank it.</dd>
         <dt>Tab</dt><dd>Hold to see the standings.</dd>
+        <dt>Shift (gliding)</dt><dd>Dive: plunge and build speed. Let go to pull up into a climb. Ram someone mid-dive to slam them.</dd>
+        <dt>Shift + two hooks</dt><dd>Reel both ropes in until you hang almost straight: they merge into a tightrope you can walk on.</dd>
         <dt>C</dt><dd>While hooked, pull what you hooked (a crate, the idol, a friend, a bot) toward you. Then F to throw or bat it.</dd>
         <dt>Space</dt><dd>Jump and double jump. While hooked, let go with a boost.</dd>
         <dt>Wheel · R</dt><dd>Zoom the camera · respawn.</dd>

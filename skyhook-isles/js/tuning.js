@@ -13,7 +13,7 @@ export const TUNE = {
     maxHorizontal: 45,                                 // speed cap (also a cap on velocity pile-ups)
   },
   hook:    { range: 75, speed: 150, reel: 24 },         // grapple reach, hook flight speed, reel-in speed
-  glider:  { time: 30, respawn: 15 },
+  glider:  { time: 30, respawn: 15, diveSink: 26, diveSpeed: 50, pullUp: .45, pullUpMax: 22 },   // dive: sink rate and top speed; pull-up: share of speed turned into climb
   bat:     { time: 30, respawn: 20, sumoRespawn: 8, knock: 40, up: 16, stun: 1.3 },
   shove:   { knock: 10, up: 5, stun: .45 },
   blast:   { knock: 38, up: 15, upMin: 5, stun: 1.6 },   // explosions: per unit of power, scaled by closeness
@@ -23,7 +23,8 @@ export const TUNE = {
   sumo:    { roundTime: 150, kos: 10, maxDeathCam: 3 },
   deathCam:{ secs: 10 },
   slowmo:  { secs: 3 },
-  boost:   { hold: 1.4, grip: 1.2 },                     // speed strips: low ground grip for `hold` s, so you keep the launch speed
+  boost:   { hold: 1.4, grip: 1.2 },
+  tightrope: { life: 10 },                              // a merged rope vanishes after this many seconds with nobody on it                     // speed strips: low ground grip for `hold` s, so you keep the launch speed
   camera:  { fov: 65, fovMax: 80, fovFrom: 14, fovTo: 44 },  // field of view widens from 14 to 44 m/s: the feeling of speed                                   // match-end slow motion (time drops to 20%)
   // bot skill levels: multipliers on running speed, time between swings, dodge chance, knockback; hesitate = chance to dither
   botSkill: {

@@ -4,6 +4,22 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-15: Glider dive, character select, tightropes, volume
+
+- **Glider dive (Arkham-style):** while gliding, hold Shift (or Reel, or swipe down and hold on touch) to plunge at a 26 m/s sink and build speed toward 50 m/s (the speed cap rises while diving). Let go to pull up: up to 45% of your speed turns into a climb (max 22 m/s), keeping 85% of the horizontal speed. Ramming someone at over 28 m/s mid-dive is a **dive bomb** (a bat-strength hit). The test measured 45 m/s after a 1.5 s dive and a 17 m/s climb on release. Tuning is in `tuning.js` → `glider`.
+- **Character select:** a portrait grid on the start screen (each face drawn with the HUD face renderer, a flag-stripe band, name and home). Picking one plays their catchphrase in a pop-up bubble, their animation on the card (spin, bow, cower, knuckles, pound, dance or shaka), and a short jingle in their own pitch. It's text and a jingle rather than a voice, following the earlier "bot voices off" preference. Play moved up to just under the options so it stays above the fold on iPad.
+- **Tightropes:**
+  - With two hooks on fixed anchors 5–70 m apart, reel in until you hang almost in a straight line (within 12% of the anchor distance): the ropes merge into a glowing tight rope and you land on top.
+  - It's a thin static box, so everyone's hover controller can stand on it: walk it, jump on it, shove each other off. You can hook and Pull someone up onto it.
+  - It's shared with friends in presence (`tr`). The owner removes it after 10 s with nobody on it (`tuning.js` → `tightrope.life`).
+- **Volume:** a master slider in Settings → Audio (default 80%). It sets a gain after the compressor and also scales the browser speech voices.
+- Tests: the volume slider; dive speed and pull-up; tightrope standing, merging and expiry; friend tightrope sync; character select. A chase test now picks Matteo explicitly (selecting a character respawns the bots).
+
+![Character select](img/skyhook-charselect.png)
+![Tightrope](img/skyhook-tightrope.png)
+
+---
+
 ## 2026-11-15: Sky Speedway, a race map built for speed
 
 - **New map, Sky Speedway** (`maps/speedway.js`):
