@@ -942,9 +942,12 @@ world.addEventListener("postStep",()=>{
 });
 const fwd=new THREE.Vector3(), right=new THREE.Vector3(), wish=new THREE.Vector3();
 function controls(dt){
+  updateNuke(dt);
   if (settings.controls==="simple" && isTouch && !lookT && !settings.gyro){
     lookIdle+=dt; const hv=pBody.velocity, hs=Math.hypot(hv.x,hv.z);
     if (lookIdle>.6 && hs>2.5){ let dy=Math.atan2(-hv.x,-hv.z)-yaw; dy=Math.atan2(Math.sin(dy),Math.cos(dy)); yaw+=dy*(1-Math.exp(-2.2*dt)); pitch+=(.32-pitch)*(1-Math.exp(-1.2*dt)); } }
+  // ragdolled: no hooks, jumps or glider until it wears off
+  if (ragdolled()){ if ((hook && hook.phase!=="retract") || (hook2 && hook2.phase!=="retract")) releaseHooks(); jumpQueued=false; gliding=false; diving=false; }
   if (deadT>0){ const sink=Math.min(3,(deadFor-deadT)*.5); pBody.position.set(deathPos.x,deadShot?deathPos.y:-2.2-sink,deathPos.z); pBody.velocity.set(0,0,0); jumpQueued=false; return; }
   if (raceCount>0){ pBody.velocity.x=0; pBody.velocity.z=0; jumpQueued=false; return; }
   let ix=touchMove.x, iy=touchMove.y;
@@ -1035,6 +1038,9 @@ function updateCamera(){
   camera.position.copy(camWant);
   if (shakeT>0){ camera.position.x+=(Math.random()-.5)*shakeT*.7; camera.position.y+=(Math.random()-.5)*shakeT*.7; shakeT=Math.max(0,shakeT-camDt); }
   camera.lookAt(camTarget);
+  // the nuke: everyone watches the mushroom cloud from a distance for a few seconds
+  if (nuke.phase==="boom" && nuke.t<5.5){ const g=nuke.gz; let dx=p.x-g.x, dz=p.z-g.z; const dl2=Math.hypot(dx,dz); if (dl2<1){ dx=Math.sin(yaw); dz=Math.cos(yaw); } else { dx/=dl2; dz/=dl2; }
+    const back=110+nuke.t*6; camera.position.set(g.x+dx*back+(Math.random()-.5)*shakeT,g.y+26+(Math.random()-.5)*shakeT,g.z+dz*back); camera.lookAt(g.x,g.y+30,g.z); }
   { const vv=pBody.velocity, sp=deadT>0?0:Math.hypot(vv.x,vv.y,vv.z), C=TUNE.camera, want=C.fov+(C.fovMax-C.fov)*Math.min(1,Math.max(0,(sp-C.fovFrom)/(C.fovTo-C.fovFrom)));
     const f=camera.fov+(want-camera.fov)*(1-Math.exp(-3*camDt)); if (Math.abs(f-camera.fov)>.02){ camera.fov=f; camera.updateProjectionMatrix(); } }
   sky.position.copy(camera.position);
@@ -1113,7 +1119,7 @@ let toastT=0;
 function toast(big,small){ const t=$("toast"); t.replaceChildren(document.createTextNode(big)); if(small){ const s=document.createElement("small"); s.textContent=small; t.append(s); } t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,2200); }
 let lastSafe=spawnPos.clone(), safeT=0;
 function respawn(msg){
-  deadT=0; $("death").hidden=true;
+  deadT=0; $("death").hidden=true; daze=0; ragdollUntil=-9;
   if (MODE==="sumo" && running){ const q=landNear(Math.random()<.5?SPAWN:PEAK); lastSafe.set(q[0],q[1],q[2]); }
   hook2=null; pBody.position.copy(lastSafe); pBody.position.y+=1.5; pBody.velocity.set(0,0,0); pBody.interpolatedPosition.copy(pBody.position); hook=null; camSmooth=null; gliding=false;
   if (msg) toast(msg); tone(220,.3,"sine",.07,.5);
@@ -1288,7 +1294,7 @@ function frame(){
   updateRemoteBombs(dt); updateAutoTargets(dt); updateFinale(dt,t); updateMega(dt,t); if (running){ tryMergeRopes(); climbOntoRope(); } updateRopes(); updateTraps(simFrozen?0:dt); updateThrown(dt);
   if (finale.active && running && deadT<=0 && finale.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<(magnetT>0?8:5)) grabFinale(myName(),true);
   for (const u of updrafts) u.rings.forEach((r,k)=>{ const ph=((t*.6+k/u.rings.length)%1); r.position.y=ph*34; r.material.opacity=.55*(1-ph); });
-  updateDrops(dt); updateBoomFx(dt);
+  updateDrops(dt); updateBoomFx(dt); tickBanner(dt); watchStreak("me",myName(),myKs,myLs,true); renderDaze();
   for (let i=puffs.length-1;i>=0;i--){ const m=puffs[i]; m.userData.t+=dt; m.position.addScaledVector(m.userData.v,dt); m.material.opacity=.6*(1-m.userData.t/.5); if(m.userData.t>.5){ scene.remove(m); m.geometry.dispose(); m.material.dispose(); puffs.splice(i,1); } }
   hudT+=dt;
   if (hudT>.1){ hudT=0;
@@ -1338,7 +1344,7 @@ function sendPresence(){
   if (now-presT < (running?50:1000)) return; presT=now;
   const p=pBody.interpolatedPosition, v=pBody.velocity;
   const h = hook ? [hook.phase==="fly"?1:hook.phase==="attached"?2:3, r2(hook.tip.x),r2(hook.tip.y),r2(hook.tip.z), r2(hook.len||0), hook.remote||"", pullHeld&&hook.phase==="attached"?1:0] : 0;
-  room.presence({n:myName(), p:[r2(p.x),r2(p.y),r2(p.z)], v:[r2(v.x),r2(v.y),r2(v.z)], yw:r2(hero.rotation.y), g:gliding?1:0, dv:diving?1:0, h, s:got, t:Math.round(elapsed*10)/10, rs:runState, ps:running?0:1, mp:MAP.key, pc:myCharKey, sw:swingN, bt:batTime>0?1:0, hit:lastHit, sp:lastSplash, dk:dunks, bots:botsPayload(), bsp:lastBsp, chat:lastChat, bchat:lastBchat, boom:lastBoom, cupS:cupPresence(), fin:lastFin, fg:lastFinGot, trp:lastTrap, bm:bombsPayload(), bcl:lastBcl, tr:(()=>{ const r=ropes.get("me"); return r ? {n:r.n,a:[r2(r.a.x),r2(r.a.y),r2(r.a.z)],b:[r2(r.b.x),r2(r.b.y),r2(r.b.z)]} : 0; })(), mg:lastMega, mgg:lastMegaGot, msl:lastMsl, st:[stats.deaths,stats.hits,stats.homers,stats.punches,stats.items,Math.round(stats.airTime),Math.round(stats.topSpeed),stats.traps,stats.throws,stats.smashes,stats.snipes||0]}).catch(()=>{});
+  room.presence({n:myName(), p:[r2(p.x),r2(p.y),r2(p.z)], v:[r2(v.x),r2(v.y),r2(v.z)], yw:r2(hero.rotation.y), g:gliding?1:0, dv:diving?1:0, h, s:got, t:Math.round(elapsed*10)/10, rs:runState, ps:running?0:1, mp:MAP.key, pc:myCharKey, sw:swingN, bt:batTime>0?1:0, hit:lastHit, sp:lastSplash, dk:dunks, bots:botsPayload(), bsp:lastBsp, chat:lastChat, bchat:lastBchat, boom:lastBoom, cupS:cupPresence(), fin:lastFin, fg:lastFinGot, trp:lastTrap, bm:bombsPayload(), bcl:lastBcl, ks:[myKs,myLs], nk:lastNk, tr:(()=>{ const r=ropes.get("me"); return r ? {n:r.n,a:[r2(r.a.x),r2(r.a.y),r2(r.a.z)],b:[r2(r.b.x),r2(r.b.y),r2(r.b.z)]} : 0; })(), mg:lastMega, mgg:lastMegaGot, msl:lastMsl, st:[stats.deaths,stats.hits,stats.homers,stats.punches,stats.items,Math.round(stats.airTime),Math.round(stats.topSpeed),stats.traps,stats.throws,stats.smashes,stats.snipes||0]}).catch(()=>{});
 }
 function nameSprite(text,color){
   const c=document.createElement("canvas"); let x=c.getContext("2d"); const font="700 30px 'Nunito Sans', system-ui, sans-serif";
@@ -1389,9 +1395,12 @@ function updateRemotes(dt){
           else if (amController && typeof hit.to==="string" && hit.to.startsWith("bot:")) hitBot(hit.to,dir,!!hit.f,a.peer,a.name); } } }
       const sp=ps.sp;
       if (sp && typeof sp.n==="number"){ if (!lastSpSeen.has(pr.peer)) lastSpSeen.set(pr.peer,sp.n); else if (sp.n>lastSpSeen.get(pr.peer)){ lastSpSeen.set(pr.peer,sp.n);
-        if (myPeer && sp.by===myPeer){ dunks++; faceHappyT=2; if (sp.how==="snipe") toast("Sniped "+a.name+"!","One shot, one KO."); else { announce("dunk","Dunked! "+a.name+" is swimming."); toast("Dunked "+a.name+"!","Straight into the sea."); } }
+        if (myPeer && sp.by===myPeer){ gotKO(); faceHappyT=2; if (sp.how==="nuke") {} else if (sp.how==="snipe") toast("Sniped "+a.name+"!","One shot, one KO."); else { announce("dunk","Dunked! "+a.name+" is swimming."); toast("Dunked "+a.name+"!","Straight into the sea."); } }
         else { if (amController && typeof sp.by==="string" && sp.by.startsWith("bot:")) creditBot(sp.by); } } }
       syncRemoteBombs(pr.peer,ps.bm);
+      if (Array.isArray(ps.ks)) watchStreak(pr.peer,a.name,Math.max(0,ps.ks[0]|0),Math.max(0,ps.ks[1]|0),false);
+      const nk=ps.nk;
+      if (nk && typeof nk.n==="number"){ if (!lastNkSeen.has(pr.peer)) lastNkSeen.set(pr.peer,nk.n); else if (nk.n>lastNkSeen.get(pr.peer)){ lastNkSeen.set(pr.peer,nk.n); if (typeof nk.by==="string") launchNuke({peer:nk.by,name:cleanName(nk.name)},false); } }
       const bcl=ps.bcl;
       if (bcl && typeof bcl.n==="number"){ if (!lastBclSeen.has(pr.peer)) lastBclSeen.set(pr.peer,bcl.n); else if (bcl.n>lastBclSeen.get(pr.peer)){ lastBclSeen.set(pr.peer,bcl.n);
         const mine=projectiles.find(p=>p.kind==="bomb" && p.id===bcl.id); if (mine){ dropLocalBomb(mine); claimedIds.set(bcl.id,simTime+4); } } }
@@ -1420,7 +1429,7 @@ function updateRemotes(dt){
         const C=CHARACTERS.find(c=>c.name===cleanName(bc.who)); if (C) botSay(C,cleanChat(bc.t),true); } }
       const bsp=ps.bsp;
       if (bsp && typeof bsp.n==="number"){ if (!lastBspSeen.has(pr.peer)) lastBspSeen.set(pr.peer,bsp.n); else if (bsp.n>lastBspSeen.get(pr.peer)){ lastBspSeen.set(pr.peer,bsp.n);
-        if (myPeer && bsp.by===myPeer){ const nm=cleanName(bsp.name); dunks++; announce("dunk","Dunked! "+nm+" is swimming."); toast("Dunked "+nm+"!","Bots can't swim."); } } }
+        if (myPeer && bsp.by===myPeer){ const nm=cleanName(bsp.name); gotKO(); if (bsp.how!=="nuke") announce("dunk","Dunked! "+nm+" is swimming."); if (bsp.how!=="nuke") toast("Dunked "+nm+"!","Bots can't swim."); } } }
       const bt=ps.bt?1:0; lastBtSeen.set(pr.peer,bt);   // (no pop-up: only actions that involve you get one)
       if (typeof ps.sw==="number"){ if (a.swLast!=null && ps.sw!==a.swLast){ a.swing=1; a.swingBat=!!ps.bt; } a.swLast=ps.sw; }
       if (typeof ps.race==="number"){ if (!raceSeen.has(pr.peer)) raceSeen.set(pr.peer,ps.race); else if (ps.race>raceSeen.get(pr.peer)){ raceSeen.set(pr.peer,ps.race); if (ps.race!==raceId) beginRace(ps.race,a.name,ps.md); } }
@@ -1540,7 +1549,7 @@ function takeHit(dir,bat,from,mul=1){
   faceHurtT=1.2;
   const v=pBody.velocity, k=(bat?BAT_K:TUNE.shove.knock)*mul;
   v.x+=dir[0]*k; v.z+=dir[1]*k; v.y=Math.max(v.y,bat?BAT_UP:TUNE.shove.up);
-  knockUntil=simTime+(bat?TUNE.bat.stun:TUNE.shove.stun); if (bat){ spinUntil=simTime+1.1; releaseHooks(); }
+  const st=dazeMe(bat?TUNE.bat.stun:TUNE.shove.stun,false); if (bat){ spinUntil=simTime+Math.min(1.1,st); releaseHooks(); }
   stats.hitsTaken++; if (hook) hook.phase="retract"; gliding=false;
   lastHitBy={peer:from.peer,name:from.name,t:simTime}; shakeT=bat?.5:.25;
   if (bat){ crack(); announce("homerun","Home run!"); toast(from.name+" took a swing!","Batter up."); }
@@ -1550,7 +1559,7 @@ function takeHit(dir,bat,from,mul=1){
 function killMe(by){
   if (deadT>0) return;
   if (shieldT>0){ toast("Shield blocked the shot!"); tone(1500,.12,"sine",.06); return; }
-  faceDizzyT=2.5; stats.deaths++; stats.dunkedBy[by.name]=(stats.dunkedBy[by.name]||0)+1;
+  faceDizzyT=2.5; stats.deaths++; myDied(); stats.dunkedBy[by.name]=(stats.dunkedBy[by.name]||0)+1;
   spN++; lastSplash={n:spN,by:by.peer,how:"snipe"}; lastHitBy=null; crack(); shakeT=.6; flashT=Math.max(flashT,.2);
   announce("sniped","Sniped!",true);
   if (DEATH_SECS>0 && !simFrozen) startDeathCam("SNIPED",by.name+" got you with the spin sniper",true);
@@ -1567,7 +1576,7 @@ function fellInWater(){
   spN++; lastSplash={n:spN,by:by?by.peer:""}; lastHitBy=null;
   if (by && amController && by.peer.startsWith("bot:")) creditBot(by.peer);
   if (by && by.peer.startsWith("bot:")){ const ba=botAvatars.get(by.peer); if (ba && ba.C){ setTimeout(()=>botSay(ba.C,ba.C.taunt,true),1200); } }
-  stats.deaths++; if (by) stats.dunkedBy[by.name]=(stats.dunkedBy[by.name]||0)+1;
+  stats.deaths++; myDied(); if (by) stats.dunkedBy[by.name]=(stats.dunkedBy[by.name]||0)+1;
   splash(pBody.position.x,pBody.position.z,1.3); shakeT=.35;
   if (by) announce("dunked","Splashdown! "+by.name+" sends you swimming."); else announce("splash","Man overboard!");
   if (DEATH_SECS>0 && !simFrozen) startDeathCam(by?"SPLASHDOWN":"SPLASH!", by ? by.name+" knocked you into the "+(MAP.theme.waterGlow?"lava":"sea") : "Into the "+(MAP.theme.waterGlow?"lava":"drink")+" you go");
@@ -1693,8 +1702,8 @@ function trapForces(body,dt,isMe,st){
     if (T.kind==="gust"){ const onG = isMe ? standing : st.standing; const k=(onG?60:24)*dt*(isMe&&gliding?1.4:1); v.x+=T.dir[0]*k; v.z+=T.dir[1]*k; }
     if (T.kind==="boulder" && T.ball){ const q=T.ball.body.position, id=isMe?"me":st.key; if (!T.ball.hit.has(id) && Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<T.r+.8){ T.ball.hit.add(id);
       const bv=T.ball.body.velocity, bl=Math.hypot(bv.x,bv.z)||1, dir=[bv.x/bl,bv.z/bl];
-      if (isMe){ if (shieldT>0) toast("Shield blocked it!"); else { v.x+=dir[0]*30; v.z+=dir[1]*30; v.y=Math.max(v.y,11); knockUntil=simTime+1.1; spinUntil=simTime+1; faceHurtT=1.2; shakeT=Math.max(shakeT,.5); crack(); toast("FLATTENED!"); if (T.by && T.by.name!==myName()) lastHitBy={peer:T.by.peer,name:T.by.name,t:simTime}; } }
-      else if (st.bot){ v.x+=dir[0]*30; v.z+=dir[1]*30; v.y=Math.max(v.y,11); st.bot.knockUntil=simTime+1.1; if (T.by) st.bot.lastHitBy={peer:T.by.peer,name:T.by.name,t:simTime}; } } }
+      if (isMe){ if (shieldT>0) toast("Shield blocked it!"); else { v.x+=dir[0]*30; v.z+=dir[1]*30; v.y=Math.max(v.y,11); dazeMe(1.1,true); spinUntil=simTime+1; faceHurtT=1.2; shakeT=Math.max(shakeT,.5); crack(); toast("FLATTENED!"); if (T.by && T.by.name!==myName()) lastHitBy={peer:T.by.peer,name:T.by.name,t:simTime}; } }
+      else if (st.bot){ v.x+=dir[0]*30; v.z+=dir[1]*30; v.y=Math.max(v.y,11); dazeBot(st.bot,1.1,true); if (T.by) st.bot.lastHitBy={peer:T.by.peer,name:T.by.name,t:simTime}; } } }
   }
 }
 function updateTraps(dt){
@@ -1842,6 +1851,8 @@ function isBotController(){
 function landNear(c){
   for (let k=0;k<40;k++){ const a=Math.random()*Math.PI*2, d=14+Math.random()*22, x=c.x+Math.cos(a)*d, z=c.z+Math.sin(a)*d;
     if (Math.abs(x)>HALF*.85 || Math.abs(z)>HALF*.85) continue; const g=H(x,z); if (g>1 && slopeAt(x,z)<.5) return [x,g+2,z]; }
+  // small islands: nothing 14 m out, so look closer in
+  for (let k=0;k<40;k++){ const a=Math.random()*Math.PI*2, d=Math.random()*12, x=c.x+Math.cos(a)*d, z=c.z+Math.sin(a)*d; const g=H(x,z); if (g>1 && slopeAt(x,z)<.5) return [x,g+2,z]; }
   return [spawnPos.x+4,spawnPos.y,spawnPos.z+4];
 }
 function spawnBot(i){
@@ -1867,17 +1878,17 @@ function hitBot(key,dir,bat,fromPeer,fromName){
   if (Math.random()<.6) botSay(b.C,b.C.hurt);
   if (b.C.grudge) b.grudge={peer:fromPeer,until:simTime+20};
   const v=b.body.velocity, k=(bat?BAT_K:TUNE.shove.knock)/Math.sqrt(b.C.scale); v.x+=dir[0]*k; v.z+=dir[1]*k; v.y=Math.max(v.y,bat?BAT_UP:TUNE.shove.up);
-  b.knockUntil=simTime+(bat?TUNE.bat.stun:TUNE.shove.stun); b.hook=null; b.lastHitBy={peer:fromPeer,name:fromName,t:simTime};
+  dazeBot(b,bat?TUNE.bat.stun:TUNE.shove.stun,false); b.hook=null; b.lastHitBy={peer:fromPeer,name:fromName,t:simTime};
 }
-function creditBot(key){ const b=bots.find(x=>"bot:"+x.id===key); if (b) b.dunks++; }
+function creditBot(key){ const b=bots.find(x=>"bot:"+x.id===key); if (b){ b.dunks++; b.ks=(b.ks||0)+1; b.ls=0; if (nukeEarned(b.ks) && !b.nukeAt) b.nukeAt=simTime+1.5; } }
 function botSplash(b,how){
-  b.falls=(b.falls||0)+1;
+  b.falls=(b.falls||0)+1; b.ks=0; b.ls=(b.ls||0)+1; b.daze=0; b.ragdollUntil=-9;
   const by=b.lastHitBy && simTime-b.lastHitBy.t<8 ? b.lastHitBy : null;
   b.body.position.set(...landNear(pBody.position)); b.body.velocity.set(0,0,0); b.body.interpolatedPosition.copy(b.body.position); b.hook=null; b.lastHitBy=null;
   if (!by) return;
   if (by.peer.startsWith("bot:")){ creditBot(by.peer); return; }
-  if (by.peer===(myPeer||"me")){ dunks++; faceHappyT=2; if (how==="snipe"){ toast("Sniped "+b.name+"!","One shot, one KO."); } else { announce("dunk","Dunked! "+b.name+" is swimming."); toast("Dunked "+b.name+"!","Bots can't swim."); } }
-  else { bspN++; lastBsp={n:bspN,by:by.peer,name:b.name}; }
+  if (by.peer===(myPeer||"me")){ gotKO(); faceHappyT=2; if (how==="nuke"){} else if (how==="snipe"){ toast("Sniped "+b.name+"!","One shot, one KO."); } else { announce("dunk","Dunked! "+b.name+" is swimming."); toast("Dunked "+b.name+"!","Bots can't swim."); } }
+  else { bspN++; lastBsp={n:bspN,by:by.peer,name:b.name,how:how||""}; }
 }
 function botAttack(b,t){
   b.swingN++; const bat=b.bat>0, p=b.body.position;
@@ -1895,6 +1906,9 @@ function botThink(b,dt){
   const p=b.body.position, v=b.body.velocity;
   b.cd-=dt; b.grappleCd-=dt; if (b.bat>0) b.bat=Math.max(0,b.bat-dt);
   if (p.y < -1.8){ botSplash(b); return; }
+  if (b.nukeAt && simTime>=b.nukeAt){ b.nukeAt=0; if (!nuke.phase && nukeEarned(b.ks)){ launchNuke({peer:"bot:"+b.id,name:b.name},true); botSay(b.C,b.C.taunt,true); } }
+  // ragdolled: limp until it wears off (no hooks, no steering)
+  if (simTime<(b.ragdollUntil||-9)){ b.hook=null; b.wish.set(0,0,0); return; }
   botItems(b,dt);
   // nearest player who is actually playing
   let best=null, bd=1e9;
@@ -1932,6 +1946,7 @@ function botThink(b,dt){
   if (b.pickup && b.pickup.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<2.2){ b.bat=BAT_TIME; b.pickup.cd=BAT_RESPAWN; b.pickup.grp.visible=b.pickup.beam.visible=false; b.pickup=null; }
   if (!goal && !b.pickup){ if (botRace(b,dt)){ botHop(b,dt); return; } }
   if (!goal){ b.wanderT-=dt; if (!b.wander || b.wanderT<=0){ b.wander=new THREE.Vector3(...landNear(p)); b.wanderT=6; } goal=b.wander; }
+  const chasing = !!best && goal===best.pos && !b.pickup;
   if (best && goal===best.pos && !b.pickup) goal=botTactics(b,best,bd,dt) || goal;
   const gx=goal.x-p.x, gz=goal.z-p.z, gd=Math.hypot(gx,gz);
   if (gd>1.2) b.wish.set(gx/gd,0,gz/gd); else b.wish.set(0,0,0);
@@ -1939,7 +1954,10 @@ function botThink(b,dt){
   // swing when close (cornered cowards lash out too)
   const reach=(b.bat>0?3:2)*Math.sqrt(C.scale);
   if (best && !b.pickup && bd<reach && Math.abs(best.pos.y-p.y)<2 && b.cd<=0 && (C.aggr>.2 || bd<1.6)){ botAttack(b,best); b.cd=((2.6-1.6*C.aggr)+Math.random()*1.2)*botDiff().cd; }
+  // chasing someone on a tightrope: hook the rope, haul up, climb on, then walk the rope to them
+  if (chasing && botRopeChase(b,best,dt)) return;
   // grapple toward far or high goals
+  if (b.hook && b.hook.rope) b.hook=null;
   if (b.hook){ b.hook.t+=dt; if (b.hook.t>3.5 || b.hook.len<4 || gd<8) { b.hook=null; b.grappleCd=1.5+Math.random()*2; } }
   else if (b.grappleCd<=0 && (gd>28/C.grapple || goal.y-p.y>5/C.grapple)){
     b.grappleCd=(2+Math.random()*2)/C.grapple;
@@ -1949,6 +1967,41 @@ function botThink(b,dt){
     if (hit && hit.distance>6) b.hook={point:hit.point.clone(),len:hit.distance*.95,t:0};
   }
   botHop(b,dt);
+}
+// ---- tightrope chase ----
+function ropeUnder(pos){ for (const r of ropes.values()) if (nearRope(r,pos)) return r; return null; }
+function ropePoint(r,pos,out){ const ab=tmpV.subVectors(r.b,r.a), t=Math.max(.05,Math.min(.95,tmpV2.set(pos.x-r.a.x,pos.y-r.a.y,pos.z-r.a.z).dot(ab)/ab.lengthSq())); return out.set(r.a.x+ab.x*t,r.a.y+ab.y*t,r.a.z+ab.z*t); }
+const ropeTmp=new THREE.Vector3();
+function botRopeChase(b,best,dt){
+  const R_=ropeUnder(best.pos); if (!R_) { if (b.hook && b.hook.rope) b.hook=null; return false; }
+  const p=b.body.position;
+  if (ropeUnder(p)===R_){
+    // on it: walk along the rope toward them, nudging back to the middle of the line
+    b.hook=null; const ax=R_.b.x-R_.a.x, az=R_.b.z-R_.a.z, al=Math.hypot(ax,az)||1, ux=ax/al, uz=az/al;
+    const s=(best.pos.x-p.x)*ux+(best.pos.z-p.z)*uz, c=ropePoint(R_,p,ropeTmp), ox=c.x-p.x, oz=c.z-p.z;
+    const dir=Math.abs(s)>1.1 ? Math.sign(s) : 0, wx=ux*dir+ox*1.5, wz=uz*dir+oz*1.5, wl=Math.hypot(wx,wz);
+    if (wl>.05) b.wish.set(wx/wl,0,wz/wl); else b.wish.set(0,0,0);
+    b.speed=5.5*b.C.speed*botDiff().speed; b.onRope=R_; R_.lastOcc=simTime;
+    if (Math.hypot(b.body.velocity.x,b.body.velocity.z)>.5) b.yaw=Math.atan2(-b.body.velocity.x,-b.body.velocity.z);
+    return true;
+  }
+  if (b.hook && b.hook.rope===R_){
+    b.hook.t+=dt; const A=b.hook.point, d=Math.hypot(A.x-p.x,A.y-p.y,A.z-p.z);
+    if (d<2.8){ // climb on top
+      const c=ropePoint(R_,p,ropeTmp); b.body.position.set(c.x,c.y+.75,c.z); b.body.velocity.set(0,0,0); b.body.interpolatedPosition.copy(b.body.position); b.hook=null; R_.lastOcc=simTime; b.jumpT=simTime-1; return true; }
+    if (b.hook.t>5){ b.hook=null; b.grappleCd=1.2; }
+    b.wish.set(0,0,0); return true;
+  }
+  if (b.grappleCd>0) return false;
+  // hook the nearest point of the rope we can see
+  const c=ropePoint(R_,p,new THREE.Vector3()), from=new THREE.Vector3(p.x,p.y+.6,p.z), dist=from.distanceTo(c);
+  if (dist>HOOK_RANGE-5) return false;
+  if (dist<2.8){ b.hook={point:c,len:dist,t:0,rope:R_,reel:TUNE.tightrope.climbReel}; return true; }
+  bRay.set(from,c.clone().sub(from).normalize()); bRay.far=dist+1;
+  const hit=bRay.intersectObjects(grappleables,false).find(h=>!h.object.userData.remote && !h.object.userData.body);
+  if (hit && hit.object!==R_.sleeve && hit.distance<dist-1){ b.grappleCd=.6; return false; }
+  b.hook={point:c,len:dist*.95,t:0,rope:R_,reel:TUNE.tightrope.climbReel}; b.grappleCd=1;
+  return true;
 }
 // ---- fighting tactics ----
 // The nearest way off the land from a point: march out in 12 directions until the ground drops into the sea.
@@ -2135,7 +2188,7 @@ function botsPreStep(dt){
   if (!amController) return;
   for (const b of bots){
     const p=b.body.position, v=b.body.velocity;
-    if (b.hook){ b.hook.len=Math.max(3,b.hook.len-(b.reel||14)*dt); const A=b.hook.point, dx=A.x-p.x, dy=A.y-p.y, dz=A.z-p.z, d=Math.hypot(dx,dy,dz)||1;
+    if (b.hook){ b.hook.len=Math.max(b.hook.rope?1:3,b.hook.len-(b.hook.reel||b.reel||14)*dt); const A=b.hook.point, dx=A.x-p.x, dy=A.y-p.y, dz=A.z-p.z, d=Math.hypot(dx,dy,dz)||1;
       if (d>b.hook.len){ const nx=dx/d, ny=dy/d, nz=dz/d, rel=v.x*nx+v.y*ny+v.z*nz, k=Math.max(0,-rel)+(d-b.hook.len)*30*dt; v.x+=nx*k; v.y+=ny*k; v.z+=nz*k; } }
     b.standing=false;
     if (!b.hook && simTime>b.knockUntil && simTime-b.jumpT>.2 && v.y<6){
@@ -2157,7 +2210,7 @@ function botsPreStep(dt){
 function botsPayload(){
   if (!amController || !bots.length) return 0;
   return bots.map(b=>{ const q=b.body.interpolatedPosition, v=b.body.velocity;
-    return [b.id,b.name,r2(q.x),r2(q.y),r2(q.z),r2(v.x),r2(v.y),r2(v.z),r2(b.yaw),b.bat>0?1:0,b.swingN,b.hook?[r2(b.hook.point.x),r2(b.hook.point.y),r2(b.hook.point.z)]:0,b.dunks,b.ch,b.sparkCount,b.gliding?1:0,b.falls||0]; });
+    return [b.id,b.name,r2(q.x),r2(q.y),r2(q.z),r2(v.x),r2(v.y),r2(v.z),r2(b.yaw),b.bat>0?1:0,b.swingN,b.hook?[r2(b.hook.point.x),r2(b.hook.point.y),r2(b.hook.point.z)]:0,b.dunks,b.ch,b.sparkCount,b.gliding?1:0,b.falls||0,b.ks||0,b.ls||0,simTime<(b.ragdollUntil||-9)?1:0]; });
 }
 function updateBots(dt){
   const ctrl=isBotController();
@@ -2169,8 +2222,8 @@ function updateBots(dt){
   }
   // gather poses: our own bots, or the ones another player is running
   const now=performance.now(), seen=new Set();
-  const show=(key,name,pos,vel,yaw,bat,swingN,tip,dk,raw,local,ch,sc=0,gl=false,fl=0)=>{
-    seen.add(key);
+  const show=(key,name,pos,vel,yaw,bat,swingN,tip,dk,raw,local,ch,sc=0,gl=false,fl=0,ks=0,ls=0,rg=false)=>{
+    seen.add(key); watchStreak(key,name,ks,ls,false);
     let a=botAvatars.get(key);
     if (!a){ a=makeAvatar(key); const C=CHARACTERS[ch]||CHARACTERS[0]; a.ch=ch; a.C=C;
       a.torso.material.color.set(C.suit); const hat=a.body.children[2]; hat.material=new THREE.MeshStandardMaterial({color:C.hat,roughness:.7});
@@ -2191,6 +2244,7 @@ function updateBots(dt){
     a.body.rotation.x = gl ? -1.1 : tip ? -.35 : 0;
     a.phase=(a.phase||0)+Math.hypot(vel.x,vel.z)*1.4*dt; poseArms(a.body, tip?"rope" : gl?"glide" : vel.y<-14?"fall":"walk", a.phase, Math.min(1,Math.hypot(vel.x,vel.z)/6));
     a.body.rotation.z=0; a.body.position.x=0; a.body.scale.set(1,1,1);
+    if (rg){ a.rag=(a.rag||0)+dt*9; a.body.rotation.z=a.rag; a.body.rotation.x=a.rag*.45; poseArms(a.body,"fall",a.phase,1); } else a.rag=0;
     if (a.introT>0){ a.introT=Math.max(0,a.introT-dt); const u=1-a.introT/1.8, w=Math.sin(Math.PI*u);
       switch (a.C.anim){
         case "spin": a.g.rotation.y=a.yaw+u*Math.PI*4; break;
@@ -2210,14 +2264,14 @@ function updateBots(dt){
     else a.rope.visible=a.tip.visible=false;
   };
   if (amController){
-    for (const b of bots) show("bot:"+b.id,b.name,b.body.interpolatedPosition,b.body.velocity,b.yaw,b.bat>0,b.swingN,b.hook?b.hook.point:null,b.dunks,null,true,b.ch,b.sparkCount,!!b.gliding,b.falls||0);
+    for (const b of bots) show("bot:"+b.id,b.name,b.body.interpolatedPosition,b.body.velocity,b.yaw,b.bat>0,b.swingN,b.hook?b.hook.point:null,b.dunks,null,true,b.ch,b.sparkCount,!!b.gliding,b.falls||0,b.ks||0,b.ls||0,simTime<(b.ragdollUntil||-9));
   } else {
     for (const a of avatars.values()){
       const list=a.pres && a.pres.bots; if (!Array.isArray(list)) continue;
       for (const e of list.slice(0,8)){
         if (!Array.isArray(e) || e.length<13 || ![e[2],e[3],e[4],e[5],e[6],e[7],e[8]].every(n=>typeof n==="number" && isFinite(n) && Math.abs(n)<5000)) continue;
         const tip=Array.isArray(e[11]) && e[11].length===3 && e[11].every(Number.isFinite) ? new THREE.Vector3(...e[11]) : null;
-        show("bot:"+(e[0]|0),cleanName(e[1]),new THREE.Vector3(e[2],e[3],e[4]),new THREE.Vector3(e[5],e[6],e[7]),e[8],!!e[9],e[10]|0,tip,Math.max(0,e[12]|0),e,false,Math.max(0,Math.min(CHARACTERS.length-1,e[13]|0)),Math.max(0,Math.min(99,e[14]|0)),!!e[15],Math.max(0,Math.min(999,e[16]|0)));
+        show("bot:"+(e[0]|0),cleanName(e[1]),new THREE.Vector3(e[2],e[3],e[4]),new THREE.Vector3(e[5],e[6],e[7]),e[8],!!e[9],e[10]|0,tip,Math.max(0,e[12]|0),e,false,Math.max(0,Math.min(CHARACTERS.length-1,e[13]|0)),Math.max(0,Math.min(99,e[14]|0)),!!e[15],Math.max(0,Math.min(999,e[16]|0)),Math.max(0,Math.min(999,e[17]|0)),Math.max(0,Math.min(999,e[18]|0)),!!e[19]);
       }
     }
   }
@@ -2340,7 +2394,7 @@ function cleanCustom(d){
   if (!d || typeof d!=="object" || !Array.isArray(d.maps)) return null;
   const maps=d.maps.filter(k=>typeof k==="string" && MAPS[k]).slice(0,8); if (!maps.length) return null;
   const r=d.rules||{}, pick=(v,ok,def)=>ok.includes(v)?v:def;
-  return {key:"custom",name:"Custom game",maps,rules:{mode:pick(r.mode,["race","sumo","mixed"],"race"),raceTime:pick(+r.raceTime,[120,180,240,360],240),sumoTime:pick(+r.sumoTime,[90,150,240],150),kos:pick(+r.kos,[3,5,10,15,20],10),items:r.items!==false,bats:r.bats!==false,final:r.final!==false}};
+  return {key:"custom",name:"Custom game",maps,rules:{mode:pick(r.mode,["race","sumo","mixed"],"race"),raceTime:pick(+r.raceTime,[120,180,240,360],240),sumoTime:pick(+r.sumoTime,[90,150,240,300,420],300),kos:pick(+r.kos,[0,3,5,10,15,20],0),items:r.items!==false,bats:r.bats!==false,final:r.final!==false}};
 }
 try{ cup=JSON.parse(localStorage.getItem(CUP_KEY)||"null"); if (cup && cup.key==="custom"){ cup.def=cleanCustom(cup.def); if (!cup.def) cup=null; } else if (cup && !CUPS.some(c=>c.key===cup.key)) cup=null; }catch(e){ cup=null; }
 const saveCup=()=>{ try{ cup ? localStorage.setItem(CUP_KEY,JSON.stringify(cup)) : localStorage.removeItem(CUP_KEY); }catch(e){} };
@@ -2395,7 +2449,7 @@ function standings(){
   if (!amController) for (const a of botAvatars.values()) rows.push({name:a.name,bot:true,s:a.sparks||0,t:null,k:a.dunks||0,d:a.falls||0,color:a.color});
   for (const a of avatars.values()){ const ps=a.pres||{}, st=Array.isArray(ps.st)?ps.st:[]; rows.push({name:a.name,s:Number(ps.s)||0,t:ps.rs==="done"?Number(ps.t)||null:null,k:Math.max(0,Number(ps.dk)||0),d:Math.max(0,Number(st[0])||0),color:a.color,
     st:{deaths:Number(st[0])||0,hits:Number(st[1])||0,homers:Number(st[2])||0,punches:Number(st[3])||0,items:Number(st[4])||0,airTime:Number(st[5])||0,topSpeed:Number(st[6])||0,traps:Number(st[7])||0,throws:Number(st[8])||0,smashes:Number(st[9])||0,snipes:Number(st[10])||0,dunks:Math.max(0,Number(ps.dk)||0)}}); }
-  if (MODE==="sumo"){ for (const r of rows){ r.fin=false; r.score=r.k||0; } rows.sort((x,y)=>y.score-x.score || (x.d||0)-(y.d||0)); return rows; }
+  if (MODE==="sumo"){ for (const r of rows){ r.fin=false; r.score=r.k||0; r.nuke=!!nuke.winner && r.name===nuke.winner; } rows.sort((x,y)=>(y.nuke-x.nuke) || y.score-x.score || (x.d||0)-(y.d||0)); return rows; }
   for (const r of rows){ r.fin = !!finale.grabbedBy && r.name===finale.grabbedBy; r.score=r.s+(r.fin?FINAL_BONUS:0); }
   rows.sort((x,y)=>y.score-x.score || (x.t??1e9)-(y.t??1e9));
   return rows;
@@ -2403,8 +2457,16 @@ function standings(){
 function checkRaceEnd(){
   if (!raceLive || raceOver || raceCount>0) return;
   const t=simTime-raceStartSim, rows=standings();
-  if (MODE==="sumo"){ if (t>=SUMO_TIME || rows.some(r=>r.score>=SUMO_KOS)) endRace(rows,t); return; }
+  clockCalls((MODE==="sumo"?SUMO_TIME:ROUND_TIME)-t);
+  if (MODE==="sumo"){ if (t>=SUMO_TIME || (SUMO_KOS>0 && rows.some(r=>r.score>=SUMO_KOS)) || (nuke.endAt && simTime>=nuke.endAt)) endRace(rows,t); return; }
   if (finale.got || t>=ROUND_TIME || (!RULES.final && rows.some(r=>r.s>=TOTAL))) endRace(rows,t);
+}
+// the clock: a one-minute warning and a beep for each of the last ten seconds
+let lastLeft=1e9;
+function clockCalls(left){
+  if (lastLeft>60 && left<=60 && left>50) { streakCall("ONE MINUTE LEFT", MODE==="sumo" ? "Get those KOs in." : "Grab what you can.","#ffffff"); announce("minute","One minute left!",true); }
+  const a=Math.ceil(left), b=Math.ceil(lastLeft); if (a!==b && a<=10 && a>0) tone(a<=3?1320:880,.09,"square",.05);
+  lastLeft=left;
 }
 function endRace(rows){
   raceOver=true; raceLive=false;
@@ -2429,7 +2491,7 @@ function showResults(rows,inCup,d){
   $("awards").hidden=true;
   const last = inCup && cup.idx>=d.maps.length-1;
   $("resKicker").textContent = inCup ? `${d.name} · race ${cup.idx+1} of ${d.maps.length}` : MAP.name;
-  $("resTitle").textContent = MODE==="sumo" ? (rows[0].me ? "Last one standing: you!" : rows[0].name+" rules the ring") : rows[0].me ? "You win the race!" : rows[0].name+" wins the race";
+  $("resTitle").textContent = MODE==="sumo" ? (rows[0].nuke ? (rows[0].me ? "You nuked the match!" : rows[0].name+" nuked the match") : rows[0].me ? "Last one standing: you!" : rows[0].name+" rules the ring") : rows[0].me ? "You win the race!" : rows[0].name+" wins the race";
   standingsTable(rows,inCup);
   $("resNote").textContent = inCup ? "Cup points so far: "+Object.entries(cup.points).sort((a,b)=>b[1]-a[1]).map(([n,p])=>`${n} ${p}`).join(" · ") : "";
   $("resInitials").hidden = !(db && rows.find(r=>r.me) && rows.find(r=>r.me).t!=null);
@@ -2555,7 +2617,7 @@ if (window.claude && typeof window.claude.use==="function") window.claude.use("d
 const ITEMS={
   boost:{name:"Rocket boost",label:"BOOST"}, bomb:{name:"Bomb",label:"BOMB"}, comet:{name:"Homing comet",label:"COMET"},
   shield:{name:"Shield bubble",label:"SHIELD"}, magnet:{name:"Spark magnet",label:"MAGNET"},
-  sniper:{name:"Spin sniper",label:"SNIPER"}, missile:{name:"CRUISE MISSILE",label:"MISSILE"},
+  sniper:{name:"Spin sniper",label:"SNIPER"}, missile:{name:"CRUISE MISSILE",label:"MISSILE"}, nuke:{name:"TACTICAL NUKE",label:"NUKE"},
 };
 let heldItem=null, shieldT=0, magnetT=0, boomN=0, lastBoom=0;
 const lastBoomSeen=new Map(), projectiles=[];
@@ -2738,6 +2800,7 @@ function updateBombLook(pr,dt){
 function useItem(){
   if (!running || raceCount>0 || !heldItem) return;
   if (heldItem==="missile"){ audioOn(); heldItem=null; stats.items++; fireMissile(); return; }
+  if (heldItem==="nuke"){ audioOn(); heldItem=null; stats.items++; if (!nuke.phase) launchNuke({peer:myPeer||"me",name:myName()},true); return; }
   if (heldItem==="sniper"){ audioOn(); if (sniperCharge<=0){ toast("Spin 360° to charge it!","Turn a full circle, then fire while it glows"); tone(220,.12,"square",.04); return; } heldItem=null; sniperCharge=0; stats.items++; fireSniper(); return; }
   audioOn(); const it=heldItem; heldItem=null; stats.items++;
   const fwd=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)), p=pBody.position, v=pBody.velocity;
@@ -2785,6 +2848,107 @@ function updateBoomFx(dt){
 // ragdoll: after a blast you tumble for a moment with no control
 let boostUntil=-9;
 let ragdollUntil=-9; const ragSpin=new THREE.Vector3(), ragAng=new THREE.Vector3();
+// ---- daze: hits stack, so a beating stuns (and from the second quick hit, ragdolls) for longer ----
+let daze=0, dazeT=-99;
+function dazeNow(d,t){ return Math.max(0,(d||0)-(simTime-(t??-99))/TUNE.daze.decay); }
+function dazeMul(d){ return 1+TUNE.daze.per*(Math.max(1,d)-1); }
+// a hit on me: returns the stun time; ragdolls if the stack is high (or `rag` forces it, as blasts do)
+function dazeMe(base,rag){
+  daze=Math.min(TUNE.daze.maxStack,dazeNow(daze,dazeT)+1); dazeT=simTime;
+  const st=base*dazeMul(daze); knockUntil=Math.max(knockUntil,simTime+st);
+  if (rag || daze>=TUNE.daze.ragdollFrom){ ragdollUntil=Math.max(ragdollUntil,simTime+st); releaseHooks(); gliding=false; if (!rag) ragSpin.set((Math.random()-.5)*4,0,(Math.random()<.5?-1:1)*(6+Math.random()*4)); faceDizzyT=Math.max(faceDizzyT,st); }
+  return st;
+}
+function dazeBot(b,base,rag){
+  b.daze=Math.min(TUNE.daze.maxStack,dazeNow(b.daze,b.dazeT)+1); b.dazeT=simTime;
+  const st=base*dazeMul(b.daze); b.knockUntil=Math.max(b.knockUntil,simTime+st);
+  if (rag || b.daze>=TUNE.daze.ragdollFrom){ b.ragdollUntil=Math.max(b.ragdollUntil||-9,simTime+st); b.hook=null; }
+  return st;
+}
+const ragdolled=()=>simTime<ragdollUntil;
+// HUD: stars under the face while the stack lasts
+let dazeShown="";
+function renderDaze(){ const el=$("daze"); if (!el) return; const d=dazeNow(daze,dazeT), txt=d>=.5 ? "DAZED ×"+dazeMul(d+0).toFixed(1)+(ragdolled()?" · RAGDOLL":"") : "";
+  if (txt!==dazeShown){ dazeShown=txt; el.textContent=txt; el.hidden=!txt; el.classList.toggle("rag",ragdolled()); } }
+
+// ---- streaks: KOs in a row and falls in a row, announced to the whole match ----
+let myKs=0, myLs=0, nukeReady=false;
+const streakSeen=new Map();   // id -> last {ks,ls} we saw, so each threshold is called once
+function gotKO(){ dunks++; myKs++; myLs=0; if (nukeEarned(myKs) && !nukeReady){ nukeReady=true; heldItem="nuke"; streakCall("NUKE READY",(isTouch?"Tap Item":"Press G")+" to drop it. Everyone else is toast.","#ff5a3a"); announce("nukeready","Nuke ready!",true); for (let k=0;k<3;k++) tone(520+k*260,.2,"square",.06,1,k*.14); } }
+function myDied(){ myKs=0; myLs++; daze=0; ragdollUntil=-9; }
+const nukeEarned=ks=>MODE==="sumo" && raceLive && !nuke.used && ks>=TUNE.nuke.streak;
+function watchStreak(id,name,ks,ls,me){
+  const o=streakSeen.get(id); if (o && o.ks===ks && o.ls===ls) return; streakSeen.set(id,{ks,ls});
+  if (!o) return;
+  if (ks>o.ks) for (const [n,t] of TUNE.streak.kill) if (o.ks<n && ks>=n){
+    streakCall(me ? t+"!" : name+": "+t, n+" KOs in a row"+(me?"":" without dying"),"#ffd25a"); announce("streak",me?t.toLowerCase()+"!":name+" is "+t.toLowerCase()+"!",true); }
+  if (ks<o.ks && o.ks>=TUNE.streak.shutdown){ streakCall("SHUTDOWN", me ? "Your "+o.ks+"-KO streak is over" : name+"'s "+o.ks+"-KO streak is over","#7ce0ff"); announce("shutdown",me?"Streak over!":name+" has been shut down!",true); }
+  if (ls>o.ls) for (const [n,t] of TUNE.streak.lose) if (o.ls<n && ls>=n){
+    streakCall(me ? t : name+": "+t, n+" falls without a KO"+(me?". Hang in there.":""),"#9ab0c8"); announce("losing",(me?"You're ":name+" is ")+t.toLowerCase()+"!",true); }
+}
+// the streak banner: its own slot under the timer, queued so calls don't stomp each other or the toasts
+const bannerQ=[]; let bannerT=0;
+const bannerLog=[];   // (for tests: every call, in order)
+function streakCall(big,small,color){ bannerQ.push({big,small,color}); if (bannerQ.length>4) bannerQ.shift(); bannerLog.push(big); if (bannerLog.length>40) bannerLog.shift(); }
+function tickBanner(dt){
+  const el=$("streak"); if (!el) return;
+  if (bannerT>0){ bannerT-=dt; if (bannerT<=0) el.hidden=true; return; }
+  const b=bannerQ.shift(); if (!b) return;
+  el.replaceChildren(document.createTextNode(b.big)); const sm=document.createElement("small"); sm.textContent=b.small; el.append(sm);
+  el.style.setProperty("--c",b.color); el.hidden=false; el.style.animation="none"; void el.offsetWidth; el.style.animation=""; bannerT=2.4;
+}
+function resetStreaks(){ myKs=myLs=0; lastLeft=1e9; nukeReady=false; streakSeen.clear(); for (const b of bots){ b.ks=b.ls=0; b.nukeAt=0; } resetNuke(); }
+
+// ---- the nuke: 30 KOs in a row in a deathmatch round. It falls on the middle of the map and takes out everyone else ----
+const nuke={used:false,phase:null,t:0,by:null,endAt:0,winner:"",grp:null,gz:new THREE.Vector3()};
+let nkN=0, lastNk={n:0}; const lastNkSeen=new Map();
+const nukeMat=new THREE.MeshStandardMaterial({color:"#3a4030",roughness:.5,metalness:.4}), nukeBand=new THREE.MeshStandardMaterial({color:"#ffd020",emissive:"#ff9000",emissiveIntensity:.6});
+function launchNuke(by,local){
+  if (nuke.phase) return;
+  nuke.used=true; nuke.phase="fall"; nuke.t=0; nuke.by=by; nuke.siren=0;
+  if (local){ nkN++; lastNk={n:nkN,by:String(by.peer).slice(0,40),name:String(by.name).slice(0,16)}; }
+  const cx=MAP.sumoOnly?0:PEAK.x, cz=MAP.sumoOnly?0:PEAK.z; nuke.gz.set(cx,Math.max(0,H(cx,cz)),cz);
+  const g=new THREE.Group(); const body=new THREE.Mesh(new THREE.CapsuleGeometry(1.1,3.2,6,12),nukeMat); g.add(body);
+  for (const y of [-.6,.9]){ const r=new THREE.Mesh(new THREE.CylinderGeometry(1.14,1.14,.3,14),nukeBand); r.position.y=y; g.add(r); }
+  for (let k=0;k<4;k++){ const f=new THREE.Mesh(new THREE.BoxGeometry(.12,1.4,1.4),nukeMat); f.position.y=2.2; f.rotation.y=k*Math.PI/4; g.add(f); }
+  g.rotation.x=Math.PI; g.position.set(cx,nuke.gz.y+140,cz); scene.add(g); nuke.grp=g;
+  const mine=by.peer===(myPeer||"me");
+  streakCall("TACTICAL NUKE", mine ? "You called it in. Enjoy the view." : by.name+" called it in. Nowhere to hide.","#ff5a3a");
+  announce("nuke","Tactical nuke incoming!",true);
+}
+function nukeBoom(){
+  const by=nuke.by, gz=nuke.gz; nuke.phase="boom"; nuke.t=0; if (nuke.grp){ scene.remove(nuke.grp); nuke.grp=null; }
+  flashT=1.6; shakeT=Math.max(shakeT,2.2); const wf=$("nukeFlash"); if (wf){ wf.hidden=false; wf.style.animation="none"; void wf.offsetWidth; wf.style.animation=""; setTimeout(()=>wf.hidden=true,2600); }
+  noise(4,{type:"lowpass",f:500,f2:30,vol:.9}); tone(32,4,"sine",.5,.5); tone(60,2.5,"sawtooth",.12,.4);
+  // fireball, stem and cap
+  const fx=new THREE.Group(); fx.position.copy(gz); scene.add(fx);
+  const hot=new THREE.MeshBasicMaterial({color:"#ffb050",transparent:true,opacity:.95,toneMapped:false,depthWrite:false}), smoke=new THREE.MeshStandardMaterial({color:"#5a4038",emissive:"#ff5a10",emissiveIntensity:1.2,transparent:true,opacity:.95,roughness:1,flatShading:true});
+  const ball=new THREE.Mesh(new THREE.SphereGeometry(1,24,16),hot), stem=new THREE.Mesh(new THREE.CylinderGeometry(.55,1,1,12,1,true),smoke), cap=new THREE.Mesh(new THREE.IcosahedronGeometry(1,2),smoke), ring=new THREE.Mesh(new THREE.TorusGeometry(1,.05,6,64),new THREE.MeshBasicMaterial({color:"#fff0d0",transparent:true,opacity:.9,toneMapped:false,depthWrite:false}));
+  ring.rotation.x=Math.PI/2; fx.add(ball,stem,cap,ring); nuke.fx={fx,ball,stem,cap,ring,hot,smoke};
+  const isMeBy=by.peer===(myPeer||"me");
+  // everyone but the nuker is out, and the KO goes to them
+  if (!isMeBy && running && deadT<=0){ faceDizzyT=3; stats.deaths++; myDied(); stats.dunkedBy[by.name]=(stats.dunkedBy[by.name]||0)+1;
+    spN++; lastSplash={n:spN,by:by.peer,how:"nuke"}; lastHitBy=null; if (by.peer.startsWith("bot:") && amController) creditBot(by.peer);
+    if (DEATH_SECS>0 && !simFrozen) startDeathCam("NUKED",by.name+" dropped the nuke",true); else respawn(null); }
+  if (amController) for (const b of bots){ if ("bot:"+b.id===by.peer) continue; b.lastHitBy={peer:by.peer,name:by.name,t:simTime}; botSplash(b,"nuke"); }
+  if (raceLive){ nuke.endAt=simTime+TUNE.nuke.endDelay; nuke.winner=by.name; }
+}
+function updateNuke(dt){
+  if (!nuke.phase) return;
+  nuke.t+=dt;
+  if (nuke.phase==="fall"){
+    const u=Math.min(1,nuke.t/TUNE.nuke.fall); if (nuke.grp){ nuke.grp.position.y=nuke.gz.y+140*(1-u*u)+1.5; nuke.grp.rotation.y+=dt*2; }
+    nuke.siren-=dt; if (nuke.siren<=0){ nuke.siren=.7; tone(440,.65,"sawtooth",.05,1.6); }
+    if (u>=1) nukeBoom(); return;
+  }
+  const f=nuke.fx; if (!f) return; const t=nuke.t, k=Math.min(1,t/1.2);
+  f.ball.scale.setScalar(4+18*k); f.hot.opacity=Math.max(0,.95-t*.5);
+  f.ring.scale.setScalar(8+t*45); f.ring.material.opacity=Math.max(0,.9-t*.45);
+  const h=Math.min(1,t/3)*60; f.stem.scale.set(4+k*3,Math.max(.1,h),4+k*3); f.stem.position.y=h/2;
+  f.cap.scale.set(12+k*12,7+k*6,12+k*12); f.cap.position.y=h+4; f.cap.rotation.y+=dt*.3; f.smoke.opacity=Math.max(0,.95-Math.max(0,t-4.5)*.3); f.smoke.transparent=f.smoke.opacity<.94; f.smoke.emissiveIntensity=Math.max(.08,1.2-t*.2);
+  if (t>8){ scene.remove(f.fx); f.fx.traverse(o=>{ if (o.geometry) o.geometry.dispose(); }); f.hot.dispose(); f.smoke.dispose(); f.ring.material.dispose(); nuke.fx=null; nuke.phase=null; }
+}
+function resetNuke(){ if (nuke.grp){ scene.remove(nuke.grp); nuke.grp=null; } if (nuke.fx){ scene.remove(nuke.fx.fx); nuke.fx=null; } nuke.used=false; nuke.phase=null; nuke.endAt=0; nuke.winner=""; }
 function explode(x,y,z,r,power,by,local){
   noise(.9,{type:"lowpass",f:900,f2:60,vol:.7}); tone(70,.5,"sine",.4,.5); noise(1.6,{type:"lowpass",f:300,f2:40,vol:.5}); blastFx(x,y,z,r);
   const flash=new THREE.Mesh(new THREE.SphereGeometry(1,16,10),new THREE.MeshBasicMaterial({color:"#ffb050",transparent:true,opacity:.8,toneMapped:false,depthWrite:false})); flash.position.set(x,y,z); scene.add(flash); projectiles.push({kind:"flash",mesh:flash,t:.45,r});
@@ -2792,12 +2956,12 @@ function explode(x,y,z,r,power,by,local){
   blastTowers(x,y,z,r,power);
   const p=pBody.position, d=Math.hypot(p.x-x,p.y-y,p.z-z);
   if (d<r){ const k=(1-d/r); if (Math.hypot(p.x-pBody.position.x)>=0){ shakeT=Math.max(shakeT,.6*k);
-      const dx=(p.x-x)/(d||1), dz=(p.z-z)/(d||1); if (shieldT>0) toast("Shield blocked the blast!"); else { const v=pBody.velocity; v.x+=dx*TUNE.blast.knock*power*k; v.z+=dz*TUNE.blast.knock*power*k; v.y=Math.max(v.y,TUNE.blast.up*power*k+TUNE.blast.upMin); knockUntil=simTime+TUNE.blast.stun; faceHurtT=1.2; if (hook) hook.phase="retract"; gliding=false;
-        ragdollUntil=simTime+TUNE.blast.stun; releaseHooks(); ragSpin.set((Math.random()-.5)*4,0,(Math.random()<.5?-1:1)*(7+Math.random()*5));
+      const dx=(p.x-x)/(d||1), dz=(p.z-z)/(d||1); if (shieldT>0) toast("Shield blocked the blast!"); else { const v=pBody.velocity; v.x+=dx*TUNE.blast.knock*power*k; v.z+=dz*TUNE.blast.knock*power*k; v.y=Math.max(v.y,TUNE.blast.up*power*k+TUNE.blast.upMin); faceHurtT=1.2; if (hook) hook.phase="retract"; gliding=false;
+        dazeMe(TUNE.blast.stun,true); releaseHooks(); ragSpin.set((Math.random()-.5)*4,0,(Math.random()<.5?-1:1)*(7+Math.random()*5));
         if (by && by.peer!==(myPeer||"me")) lastHitBy={peer:by.peer,name:by.name,t:simTime}; } } }
   // a bot shield shows as a bubble on its avatar
 
-  if (amController) for (const b of bots){ const q=b.body.position, db_=Math.hypot(q.x-x,q.y-y,q.z-z); if (db_<r && !(b.shieldT>0) && !(by && by.peer==="bot:"+b.id && db_>2)){ const k=1-db_/r, dx=(q.x-x)/(db_||1), dz=(q.z-z)/(db_||1), v=b.body.velocity; v.x+=dx*TUNE.blast.knock*power*k; v.z+=dz*TUNE.blast.knock*power*k; v.y=Math.max(v.y,TUNE.blast.up*power*k+TUNE.blast.upMin); b.knockUntil=simTime+TUNE.blast.stun; b.ragdollUntil=simTime+TUNE.blast.stun; b.hook=null; if (by) b.lastHitBy={peer:by.peer,name:by.name,t:simTime}; } }
+  if (amController) for (const b of bots){ const q=b.body.position, db_=Math.hypot(q.x-x,q.y-y,q.z-z); if (db_<r && !(b.shieldT>0) && !(by && by.peer==="bot:"+b.id && db_>2)){ const k=1-db_/r, dx=(q.x-x)/(db_||1), dz=(q.z-z)/(db_||1), v=b.body.velocity; v.x+=dx*TUNE.blast.knock*power*k; v.z+=dz*TUNE.blast.knock*power*k; v.y=Math.max(v.y,TUNE.blast.up*power*k+TUNE.blast.upMin); dazeBot(b,TUNE.blast.stun,true); b.hook=null; if (by) b.lastHitBy={peer:by.peer,name:by.name,t:simTime}; } }
   if (local){ boomN++; lastBoom={n:boomN,x:r2(x),y:r2(y),z:r2(z),r,p:power}; }
 }
 function updateItems(dt,itemDt=simFrozen?0:dt){
@@ -3018,6 +3182,7 @@ function beginRace(id,byName,mode){
   if (mode) setMode(mode);
   dunks=0; for (const k of ["deaths","dunks","hits","homers","hitsTaken","punches","items","airTime","topSpeed","traps","throws","smashes","snipes"]) stats[k]=0; stats.dunkedBy={};
   for (const b of bots){ b.dunks=0; b.falls=0; }
+  resetStreaks(); daze=0; ragdollUntil=-9;
   raceId=id; restartRun(); buildTowers(); heldItem=null; raceLive=true; raceOver=false; raceStartSim=simTime+3; raceCount=3; for (const b of bots){ b.got.clear(); b.sparkCount=0; b.target=null; b.hook=null; b.final=false; b.eng=null; b.bait=null; b.avoid&&b.avoid.clear(); } announce("race","Race starting!",true);
   for (const a of botAvatars.values()) queueIntro(a.ch,true); tone(440,.15,"square",.05);
   toast("3", byName ? byName+" started a race" : "Race starting for everyone on the island");
@@ -3025,7 +3190,7 @@ function beginRace(id,byName,mode){
 function tickRace(dt){
   if (raceCount<=0) return;
   const before=Math.ceil(raceCount); raceCount-=dt; const after=Math.ceil(raceCount);
-  if (raceCount<=0){ raceCount=0; runState="running"; elapsed=0; toast("GO!",MODE==="sumo"?`Knock them off. First to ${SUMO_KOS} wins.`:"Most sparks fastest wins."); announce("go","Go!",true); tone(880,.25,"square",.06); }
+  if (raceCount<=0){ raceCount=0; runState="running"; elapsed=0; toast("GO!",MODE==="sumo"?(SUMO_KOS>0?`Knock them off. First to ${SUMO_KOS} wins.`:`Most KOs in ${fmt(SUMO_TIME)} wins. ${TUNE.nuke.streak} in a row drops a nuke.`):"Most sparks fastest wins."); announce("go","Go!",true); tone(880,.25,"square",.06); }
   else if (after!==before){ toast(String(after)); tone(440,.15,"square",.05); }
 }
 function startRound(){ const id=Date.now(); if (room) room.presence({race:id,md:MODE}).catch(()=>{}); beginRace(id,null,MODE); }
@@ -3141,5 +3306,5 @@ $("deathGo").addEventListener("click",e=>{ e.preventDefault(); respawn(null); })
 // interpolated poses start at the origin until the first physics step
 for (const b of world.bodies){ b.interpolatedPosition.copy(b.position); b.interpolatedQuaternion.copy(b.quaternion); }
 // small hook for automated testing; not used by the game itself
-window.__skyDebug={ gliderPickupsList:()=>gliderPickups, renderInfo:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,meshes:(()=>{ let n=0; scene.traverse(o=>{ if(o.isMesh) n++; }); return n; })()}), headlessStart:(nBots=1)=>{ simFrozen=true; wantBots=nBots; running=true; $("start").hidden=true; for (const C of CHARACTERS) introSeen.add(C.key); introQ.length=0; }, botItems:(b,dt)=>botItems(b,dt), gfx:()=>({GFX,composer:!!composer,ao:aoOn,shafts:!!shafts}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, cupAwards:()=>cupAwards(), showCupFinal:()=>showCupFinal(cupDef()), forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,raceOver,slowmo:!!slowmo,timeScale:lastTimeScale,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); for (const g of [...gliderPickups,...batPickups]) if (g.cd>0) g.cd-=1/60; for (const b of itemBoxes) if (b.cd>0) b.cd-=1/60; } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded, pullKeys:()=>({q:pullHeld,e:pull2Held}), clearBombs:()=>{ for (const pr of projectiles.filter(p=>p.kind==='bomb')) dropLocalBomb(pr); }, auto:()=>({L:autoL&&autoL.point.toArray().map(n=>+n.toFixed(1)),R:autoR&&autoR.point.toArray().map(n=>+n.toFixed(1))}), leftPress:()=>leftPress(), rightPress:()=>rightPress(), leftUp:()=>{ leftReel=false; }, rightUp:()=>{ rightReel=false; }, setPull2:v=>{ pull2Held=v; }, refreshAuto:()=>{ autoT=0; updateAutoTargets(0); }, remoteBombs, claimRemoteBomb:id=>!!claimRemoteBomb(id), myBombs:()=>bombsPayload(), bcl:()=>lastBcl, makeBomb:(x,y,z)=>{ const pr=makeBomb({x,y,z},{x:0,y:0,z:0},{peer:'bot:1',name:'Lars'}); return pr.body; }, bombs:()=>projectiles.filter(p=>p.kind==='bomb').map(p=>({t:+p.t.toFixed(2),by:p.by&&p.by.name,col:'#'+p.mat.emissive.getHexString()})), hook2State:()=>hook2&&hook2.phase, pitch:()=>pitch, lookBy:(dx,dy)=>look(dx,dy), heroTilt:()=>heroBody.rotation.x, hook2Down:()=>rightPress(), hook2Up:()=>{ if (hook2) hook2.phase='retract'; }, climb:()=>climbOntoRope(), pulling:()=>pullingNow(), swinging:()=>swingingNow(), camDist:()=>camDist, ropes, makeRope:(a,b)=>{ trN++; return !!makeRope('me',a,b,trN); }, tryMerge:()=>tryMergeRopes(), setReel:v=>{ reelHeld=v; if(v) lastReelT=simTime; }, setHook2:h=>{ hook2=h; }, glider:()=>({gliding,diving,gliderTime}), setGlider:t=>{ gliderTime=t; }, setTouchDive:v=>{ touchDive=v; }, pickChar:k=>pickChar(k,true), masterVol:()=>masterVol&&masterVol.gain.value, boosts, fov:()=>camera.fov, touchSim:(type,x,y,id=7)=>{ const e={pointerId:id,clientX:x,clientY:y,pointerType:'touch'}; if(type==='down') touchDown(e); else if(type==='move') touchMoveH(e); else touchUp(e); return {joy:!!joy,pending:!!joyPending,hooks:[hook&&hook.phase,hook2&&hook2.phase]}; }, hooks:()=>[hook&&hook.phase,hook2&&hook2.phase,hook&&hook.len!=null?+hook.len.toFixed(2):null,hook2&&hook2.len!=null?+hook2.len.toFixed(2):null], swipe:(dx,dy)=>{ if(!lookT) lookT={id:-1,x:0,y:0,x0:0,y0:0,t0:0}; const r=swingGesture(dx,dy); return r; }, endSwipe:()=>{ lookT=null; }, mega, spawnMega:i=>spawnMega(i,true), takeMega:()=>takeMega(myName(),true), medals:()=>({me:heroMedal.visible?medalMats.indexOf(heroMedal.material)+1:0, others:[...avatars.values(),...botAvatars.values()].map(a=>[a.name,a.medal&&a.medal.visible?medalMats.indexOf(a.medal.material)+1:0])}), setBoard:v=>{ boardOpen=v; renderLiveBoard(); }, ragdoll:()=>simTime<ragdollUntil, boomFx:()=>boomFx.length, killMe:n=>killMe({peer:'x',name:n||'Sniper'}), killBot:(k)=>killBot(k,{peer:myPeer||'me',name:myName()}), botDiff:()=>botDiff(), isRunning:()=>running, speedText:()=>[$("speed").textContent,$("speedLbl").textContent], setClock:(t)=>setClock($("timer"),t), rules:()=>({...RULES,ROUND_TIME,SUMO_TIME,SUMO_KOS,MODE}), customDraft:()=>customDraft, setPull:v=>{ pullHeld=v; }, ropeStep:dt=>ropeStep(dt), setHook:h=>{ hook=h; }, edgeFrom:(x,z)=>edgeFrom(x,z), botThink:(b,dt)=>botThink(b,dt), mapInfo:()=>({key:MAP.key,sumoOnly:!!MAP.sumoOnly,narrow:!!MAP.narrow}), pickFrenchVoice, mode:()=>MODE, setMode:m=>setMode(m), startRound:()=>startRound(), checkRaceEnd:()=>checkRaceEnd(), sniper:()=>({spinAcc,sniperCharge,held:heldItem}), traps, projectiles, sunDir:SUN_DIR, camInfo:()=>({cam:camera.position.toArray().map(n=>+n.toFixed(2)),body:pBody.position.toArray().map(n=>+n.toFixed(2)),flashT,hemi:hemi.intensity,camCur}), triggerTrap:(i,n)=>triggerTrap(i,{peer:'x',name:n||'Tester'},true), meMag, yeet:b=>yeet(b), thrown, dynamics, finale, spawnFinale:(x,y,z,by)=>spawnFinale(new THREE.Vector3(x,y,z),by||myName(),true), finaleSpot:p=>finaleSpot(p), grabFinale:n=>grabFinale(n,true), resetFinale:()=>resetFinale(), finaleGrp, searchlights, standings:()=>standings(), settings, applyInputUI, setInput:t=>setInput(t), inputTouch:()=>isTouch, castAim:d=>castAim(d), assistAim:(d,l)=>assistAim(d,l), tapHook:(x,y)=>tapHook(x,y), camera, camTarget, hand, hookUp:()=>hookUp(), death:()=>({deadT,DEATH_SECS}), respawnNow:()=>respawn(null), setDeathSecs:n=>{ DEATH_SECS=n; }, stats:()=>JSON.parse(JSON.stringify(stats)), drops:()=>drops.length, groundPunch:b=>groundPunch(b), setOnGround:v=>{ onGround=v; } };
+window.__skyDebug={ gliderPickupsList:()=>gliderPickups, renderInfo:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,meshes:(()=>{ let n=0; scene.traverse(o=>{ if(o.isMesh) n++; }); return n; })()}), headlessStart:(nBots=1)=>{ simFrozen=true; wantBots=nBots; running=true; $("start").hidden=true; for (const C of CHARACTERS) introSeen.add(C.key); introQ.length=0; }, botItems:(b,dt)=>botItems(b,dt), gfx:()=>({GFX,composer:!!composer,ao:aoOn,shafts:!!shafts}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, cupAwards:()=>cupAwards(), showCupFinal:()=>showCupFinal(cupDef()), forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,raceOver,slowmo:!!slowmo,timeScale:lastTimeScale,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); for (const g of [...gliderPickups,...batPickups]) if (g.cd>0) g.cd-=1/60; for (const b of itemBoxes) if (b.cd>0) b.cd-=1/60; } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded, pullKeys:()=>({q:pullHeld,e:pull2Held}), clearBombs:()=>{ for (const pr of projectiles.filter(p=>p.kind==='bomb')) dropLocalBomb(pr); }, auto:()=>({L:autoL&&autoL.point.toArray().map(n=>+n.toFixed(1)),R:autoR&&autoR.point.toArray().map(n=>+n.toFixed(1))}), leftPress:()=>leftPress(), rightPress:()=>rightPress(), leftUp:()=>{ leftReel=false; }, rightUp:()=>{ rightReel=false; }, setPull2:v=>{ pull2Held=v; }, refreshAuto:()=>{ autoT=0; updateAutoTargets(0); }, remoteBombs, claimRemoteBomb:id=>!!claimRemoteBomb(id), myBombs:()=>bombsPayload(), bcl:()=>lastBcl, makeBomb:(x,y,z)=>{ const pr=makeBomb({x,y,z},{x:0,y:0,z:0},{peer:'bot:1',name:'Lars'}); return pr.body; }, bombs:()=>projectiles.filter(p=>p.kind==='bomb').map(p=>({t:+p.t.toFixed(2),by:p.by&&p.by.name,col:'#'+p.mat.emissive.getHexString()})), hook2State:()=>hook2&&hook2.phase, pitch:()=>pitch, lookBy:(dx,dy)=>look(dx,dy), heroTilt:()=>heroBody.rotation.x, hook2Down:()=>rightPress(), hook2Up:()=>{ if (hook2) hook2.phase='retract'; }, climb:()=>climbOntoRope(), pulling:()=>pullingNow(), swinging:()=>swingingNow(), camDist:()=>camDist, ropes, makeRope:(a,b)=>{ trN++; return !!makeRope('me',a,b,trN); }, tryMerge:()=>tryMergeRopes(), setReel:v=>{ reelHeld=v; if(v) lastReelT=simTime; }, setHook2:h=>{ hook2=h; }, glider:()=>({gliding,diving,gliderTime}), setGlider:t=>{ gliderTime=t; }, setTouchDive:v=>{ touchDive=v; }, pickChar:k=>pickChar(k,true), masterVol:()=>masterVol&&masterVol.gain.value, boosts, fov:()=>camera.fov, touchSim:(type,x,y,id=7)=>{ const e={pointerId:id,clientX:x,clientY:y,pointerType:'touch'}; if(type==='down') touchDown(e); else if(type==='move') touchMoveH(e); else touchUp(e); return {joy:!!joy,pending:!!joyPending,hooks:[hook&&hook.phase,hook2&&hook2.phase]}; }, hooks:()=>[hook&&hook.phase,hook2&&hook2.phase,hook&&hook.len!=null?+hook.len.toFixed(2):null,hook2&&hook2.len!=null?+hook2.len.toFixed(2):null], swipe:(dx,dy)=>{ if(!lookT) lookT={id:-1,x:0,y:0,x0:0,y0:0,t0:0}; const r=swingGesture(dx,dy); return r; }, endSwipe:()=>{ lookT=null; }, mega, spawnMega:i=>spawnMega(i,true), takeMega:()=>takeMega(myName(),true), medals:()=>({me:heroMedal.visible?medalMats.indexOf(heroMedal.material)+1:0, others:[...avatars.values(),...botAvatars.values()].map(a=>[a.name,a.medal&&a.medal.visible?medalMats.indexOf(a.medal.material)+1:0])}), setBoard:v=>{ boardOpen=v; renderLiveBoard(); }, ragdoll:()=>simTime<ragdollUntil, boomFx:()=>boomFx.length, killMe:n=>killMe({peer:'x',name:n||'Sniper'}), killBot:(k)=>killBot(k,{peer:myPeer||'me',name:myName()}), botDiff:()=>botDiff(), isRunning:()=>running, speedText:()=>[$("speed").textContent,$("speedLbl").textContent], setClock:(t)=>setClock($("timer"),t), rules:()=>({...RULES,ROUND_TIME,SUMO_TIME,SUMO_KOS,MODE}), customDraft:()=>customDraft, setPull:v=>{ pullHeld=v; }, ropeStep:dt=>ropeStep(dt), setHook:h=>{ hook=h; }, edgeFrom:(x,z)=>edgeFrom(x,z), botThink:(b,dt)=>botThink(b,dt), mapInfo:()=>({key:MAP.key,sumoOnly:!!MAP.sumoOnly,narrow:!!MAP.narrow}), pickFrenchVoice, mode:()=>MODE, setMode:m=>setMode(m), startRound:()=>startRound(), checkRaceEnd:()=>checkRaceEnd(), sniper:()=>({spinAcc,sniperCharge,held:heldItem}), traps, projectiles, sunDir:SUN_DIR, camInfo:()=>({cam:camera.position.toArray().map(n=>+n.toFixed(2)),body:pBody.position.toArray().map(n=>+n.toFixed(2)),flashT,hemi:hemi.intensity,camCur}), triggerTrap:(i,n)=>triggerTrap(i,{peer:'x',name:n||'Tester'},true), meMag, yeet:b=>yeet(b), thrown, dynamics, finale, spawnFinale:(x,y,z,by)=>spawnFinale(new THREE.Vector3(x,y,z),by||myName(),true), finaleSpot:p=>finaleSpot(p), grabFinale:n=>grabFinale(n,true), resetFinale:()=>resetFinale(), finaleGrp, searchlights, standings:()=>standings(), settings, applyInputUI, setInput:t=>setInput(t), inputTouch:()=>isTouch, castAim:d=>castAim(d), assistAim:(d,l)=>assistAim(d,l), tapHook:(x,y)=>tapHook(x,y), camera, camTarget, hand, hookUp:()=>hookUp(), death:()=>({deadT,DEATH_SECS}), respawnNow:()=>respawn(null), setDeathSecs:n=>{ DEATH_SECS=n; }, stats:()=>JSON.parse(JSON.stringify(stats)), drops:()=>drops.length, groundPunch:b=>groundPunch(b), setOnGround:v=>{ onGround=v; }, setSumoRules:(t,k)=>{ SUMO_TIME=t; SUMO_KOS=k; }, streak:()=>({ks:myKs,ls:myLs,nukeReady,held:heldItem,used:nuke.used,phase:nuke.phase,endAt:nuke.endAt,winner:nuke.winner,banner:$("streak").hidden?"":$("streak").textContent,queue:bannerQ.map(b=>b.big),log:bannerLog.slice()}), gotKO:()=>gotKO(), myDied:()=>myDied(), watchStreak:(i,n,k,l)=>watchStreak(i,n,k,l,false), creditBot:k=>creditBot(k), dazeInfo:()=>({daze:dazeNow(daze,dazeT),rag:ragdolled(),ragLeft:Math.max(0,ragdollUntil-simTime),knockLeft:Math.max(0,knockUntil-simTime)}), launchNuke:(peer,name)=>launchNuke({peer,name},true), lastNk:()=>lastNk, ropeUnder:p=>!!ropeUnder(p), simTime:()=>simTime, nukeObj:()=>nuke };
 frame();

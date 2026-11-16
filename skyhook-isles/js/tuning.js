@@ -24,7 +24,14 @@ export const TUNE = {
   sniper:  { charge: 3.2, range: 160 },
   mega:    { every: 150, first: 60 },                    // cruise missile drops
   race:    { roundTime: 240, points: [10, 8, 6, 5, 4, 3, 2, 1], finalBonus: 5 },
-  sumo:    { roundTime: 150, kos: 10, maxDeathCam: 3 },
+  sumo:    { roundTime: 300, kos: 0, maxDeathCam: 3 },     // deathmatch: 5-minute clock; kos 0 = no KO limit (the clock or a nuke ends it)
+  // streaks: KOs in a row without dying, and falls in a row without a KO. Announced to everyone at each threshold.
+  streak:  { kill: [[3, "ON A ROLL"], [5, "HEATING UP"], [10, "UNSINKABLE"], [15, "TIDAL WAVE"], [20, "SEA MONSTER"], [25, "KRAKEN"]],
+             lose: [[3, "TAKING ON WATER"], [5, "SINKING FAST"], [8, "FISH FOOD"], [12, "HONORARY FISH"]], shutdown: 5 },   // shutdown: announce when a streak this long ends
+  nuke:    { streak: 30, fall: 3.5, endDelay: 5 },        // KOs in a row to earn it (deathmatch rounds only); seconds it falls; seconds from blast to round end
+  // daze: every hit stacks, so a beating stuns longer. Stun time x (1 + per x (stacks - 1)); one stack wears off every `decay` s.
+  // From `ragdollFrom` stacks on, a hit also ragdolls you: no hooks, jumps or glider until it wears off.
+  daze:    { per: .6, maxStack: 4, decay: 5, ragdollFrom: 1.8 },
   deathCam:{ secs: 10 },
   slowmo:  { secs: 3 },
   boost:   { hold: 1.4, grip: 1.2 },

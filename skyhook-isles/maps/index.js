@@ -7,8 +7,9 @@ import junkyard from "./junkyard.js";
 import jungle from "./jungle.js";
 import ring from "./ring.js";
 import cross from "./cross.js";
+import garden from "./garden.js";
 import reach from "./reach.js";
-export const MAPS = { [isles.key]: isles, [neon.key]: neon, [volcano.key]: volcano, [glacier.key]: glacier, [junkyard.key]: junkyard, [jungle.key]: jungle, [reach.key]: reach, [ring.key]: ring, [cross.key]: cross };
+export const MAPS = { [isles.key]: isles, [neon.key]: neon, [volcano.key]: volcano, [glacier.key]: glacier, [junkyard.key]: junkyard, [jungle.key]: jungle, [reach.key]: reach, [ring.key]: ring, [cross.key]: cross, [garden.key]: garden };
 // sumo-only arenas are flagged with sumoOnly: true (no spark race there)
 // Cups are map packs: play every map in order, points per race, best total wins.
 export const CUPS = [

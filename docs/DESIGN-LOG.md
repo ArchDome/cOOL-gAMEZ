@@ -4,6 +4,26 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-16: Deathmatch upgrades: Rock Garden, streaks, the nuke, stacking daze, bots on tightropes
+
+![Rock Garden](img/rock-garden.png)
+
+- **Rock Garden** (new deathmatch arena): a small grassy island in a turquoise lagoon under a cloud of 50 little floating rocks in three rings (10 to 26 m up), plus a few right over the island and six tall posts out in the water. Every rock is a hook point, so fights spill into the air. It has the storm-horn trap. Spawns now fall back to spots close in when a map has no land 14 m out.
+- **The clock:** deathmatch rounds now run 5:00 with no KO limit by default (custom games can still pick 3 to 20 KOs, or 1:30 to 7:00). There's a one-minute warning and a beep for each of the last ten seconds, in races too.
+- **Streaks, called to the whole match** in their own banner under the timer, so they never stomp the normal pop-ups: 3, 5, 10, 15, 20 and 25 KOs in a row (On a roll, Heating up, Unsinkable, Tidal wave, Sea monster, Kraken); a Shutdown when a streak of 5+ ends; losing streaks at 3, 5, 8 and 12 falls without a KO (Taking on water, Sinking fast, Fish food, Honorary fish). Everyone shares their two counts in presence (`ks`) and bots share theirs in the bot list, so every screen calls the same thresholds. The names are original, nautical ones. Design principle 6b now notes this exception.
+
+![Streak banner and daze badge](img/streak-daze.png)
+
+- **The nuke:** 30 KOs in a row during a deathmatch round puts a tactical nuke in your item slot. Dropping it sends a shared numbered event (`nk`). A bomb falls on the middle of the map with a siren, then a white-out flash, a fireball, a shock ring and a mushroom cloud. Everyone else is out with the KO credited to the nuker (through the normal splash and bot-splash events). Every camera pulls back about 110 m to watch it, and 5 s later the round ends with the nuker on top ("You nuked the match!"). Bots can earn and drop it too.
+
+![The nuke](img/nuke.png)
+
+- **Daze stacks:** every hit adds a stack, and the stun lasts ×1, ×1.6, ×2.2, then ×2.8. From the second quick hit on (and always for blasts and boulders), you ragdoll: no hooks, jumps, glider or dive until it wears off. One stack wears off every 5 s and dying clears it. A badge over your face shows "DAZED ×1.6 · RAGDOLL". Bots stack the same way, go limp while ragdolled, and other players see them tumble. All the numbers are in `TUNE.daze`.
+- **Bots on tightropes:** a bot chasing someone who is standing on a tightrope hooks the nearest visible point of the rope, reels in fast, climbs on top, and walks the line to them (staying on the centre line), then shoves.
+- Tests: a new `tools/test-deathmatch.js` (16 checks) covers the map, the default clock, the streak calls and banner, other players' and bots' streaks, daze timings and ragdoll blocking the hook, decay, bot daze, a bot climbing a tightrope to reach you, earning and dropping the nuke, and the nuke ending the round. `test-skyhook` adds a friend's streak and nuke over the fake room (I'm taken out, with the KO going to them). The sumo test now checks the 5:00 default and a custom KO limit. Bot bench: 134 (was 132).
+
+---
+
 ## 2026-11-16: PC grapple controls: L and R hooks with auto-targeting
 
 ![L and R grapple markers](img/pc-grapple-markers.png)

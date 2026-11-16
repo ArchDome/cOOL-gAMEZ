@@ -28,5 +28,11 @@ Record each line as its own file and name it with the key (e.g. `homerun.m4a`). 
 | `sniped` | You get sniped | "Sniped!" |
 | `trickshot` | A spin-sniper hit | "TRICKSHOT!" |
 | `finalgot` | Someone grabs the final spark | "What a finish!" |
+| `streak` | Someone hits a kill streak (3, 5, 10, 15, 20, 25 in a row) | "On a roll!" |
+| `shutdown` | A streak of 5 or more ends | "Shut down!" |
+| `losing` | Someone hits a losing streak | "Taking on water!" |
+| `nukeready` | You earn the nuke (30 in a row) | "Nuke ready!" |
+| `nuke` | Someone drops the nuke | "Tactical nuke incoming!" |
+| `minute` | One minute left in a round | "One minute left!" |
 
 Missing clips fall back to the synthetic voice, so record as many or as few as you like. Names are shown on screen, so the clips don't need them.

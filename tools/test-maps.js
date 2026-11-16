@@ -124,11 +124,12 @@ const { openGame, checker } = require('./harness');
       a.C = { ...a.C, aggr: 1, fear: 0 }; a.cd = 0; a.eng = null; a.bait = null; a.avoid && a.avoid.clear();
       d.body.position.set(a.body.position.x + 60, a.body.position.y + 30, a.body.position.z); for (const o of bs.slice(2)) o.body.position.set(a.body.position.x - 60, a.body.position.y + 30, a.body.position.z);
       const v0 = Math.hypot(t.body.velocity.x, t.body.velocity.z); d.tick(3);
-      bs[2].dunks = 10; d.checkRaceEnd();
-      return { hitSpeed: Math.hypot(t.body.velocity.x, t.body.velocity.z) - v0 }; });
+      const rules = d.rules(); bs[2].dunks = 10; d.checkRaceEnd(); const stillLive = d.race().raceLive;   // default: no KO limit, the clock ends it
+      d.setSumoRules(rules.SUMO_TIME, 10); d.checkRaceEnd();
+      return { hitSpeed: Math.hypot(t.body.velocity.x, t.body.velocity.z) - v0, time: rules.SUMO_TIME, kos: rules.SUMO_KOS, stillLive }; });
     await page.waitForFunction(() => !document.getElementById('results').hidden, null, { timeout: 60000 }).catch(() => {});
     Object.assign(sb, await page.evaluate(() => ({ ended: !document.getElementById('results').hidden, head: [...document.querySelectorAll('#resTable .hd span')].map(x => x.textContent).join(',') })));
-    c.check('sumo: bots fight each other, and 10 KOs ends the round', sb.hitSpeed > 3 && sb.ended && /KOs/.test(sb.head), JSON.stringify(sb));
+    c.check('sumo: bots fight each other; default is a 5:00 clock with no KO limit; a 10-KO limit ends the round', sb.hitSpeed > 3 && sb.time === 300 && sb.kos === 0 && sb.stillLive && sb.ended && /KOs/.test(sb.head), JSON.stringify(sb));
     // tactics: a bot stuck in a long stalemate switches target or goes to bait at the edge
     const tac = await page.evaluate(() => { const d = window.__skyDebug, b = d.bots()[0]; if (!b) return { skip: 1 };
       b.introT = 0; b.eng = { peer: 'bot:999', t: 999, limit: 7, dk: b.dunks || 0 }; b.bait = null; b.avoid && b.avoid.clear();

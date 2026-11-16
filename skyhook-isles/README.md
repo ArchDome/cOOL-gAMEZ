@@ -40,10 +40,20 @@ Pick a map on the start screen:
 - **Glacier Spires:** an ice island where the ground is slippery.
 - **Scrapyard Canyon:** a junkyard on two mesas around a gorge.
 - **Jungle Ruins:** a stepped temple, giant canopy trees and a river.
+- **Sumo Ring**, **Plank Cross** and **Rock Garden:** deathmatch arenas. Rock Garden is a small island in a lagoon under a cloud of about 50 little floating rocks to hook onto.
 
 Each map is one file in `maps/`, listed in `maps/index.js`.
 
 **Cups** chain three maps. Races end when someone collects all 15 sparks, or after 4 minutes. Points go 10, 8, 6, 5, 4, 3, 2, 1, and the best total wins. **Leaderboards** keep the best full-clear time per map, with initials, in the artifact's shared database. Friends need Contributor access to post.
+
+## Deathmatch (sumo)
+
+Knock everyone into the sea. A round runs on a 5-minute clock with no KO limit (custom games can set one), with a one-minute warning and a beep for each of the last ten seconds.
+
+- **Streaks** are called to the whole match: 3, 5, 10, 15, 20 and 25 KOs in a row without dying (On a roll, Heating up, Unsinkable, Tidal wave, Sea monster, Kraken), a **Shutdown** when a streak of 5 or more ends, and losing streaks at 3, 5, 8 and 12 falls without a KO.
+- **The nuke:** 30 KOs in a row earns a tactical nuke (your Item button). It falls on the middle of the map with a siren, everyone else is out (the KOs are yours), the camera pulls back for the mushroom cloud, and the round ends with you on top.
+- **Daze:** every hit stacks. The stun lasts 1.6 times as long on the second quick hit, 2.2 times on the third, and so on, and from the second hit on you ragdoll: no hooks, jumps or glider until it wears off. One stack wears off every 5 s. A beating gets harder and harder to recover from.
+- **Bots** fight each other, bait you at the edge, and follow you onto tightropes: they hook the rope, climb on and walk it to you.
 
 ## Multiplayer
 

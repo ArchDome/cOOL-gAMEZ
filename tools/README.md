@@ -8,7 +8,7 @@ Scripts that let you, or Claude, check and build the games from a terminal. Ever
 npm test
 ```
 
-`npm test` runs two suites. `tools/test-maps.js` checks every map (loads cleanly, 15 sparks, grapple targets, dry spawn, smooth walking, moving bots), the cup flow end to end, and that bloom loads at High graphics. `tools/test-skyhook.js` boots Skyhook Isles in headless Chromium and checks:
+`npm test` runs three suites. `tools/test-deathmatch.js` checks Rock Garden, the round clock, kill and losing streaks, the 30-streak nuke, stacking daze and ragdoll, and a bot chasing you onto a tightrope. `tools/test-maps.js` checks every map (loads cleanly, 15 sparks, grapple targets, dry spawn, smooth walking, moving bots), the cup flow end to end, and that bloom loads at High graphics. `tools/test-skyhook.js` boots Skyhook Isles in headless Chromium and checks:
 - walking smoothness, measured with exact physics steps
 - pickups
 - multiplayer against a scripted fake friend: hits both ways, knockback, sea dunks, races

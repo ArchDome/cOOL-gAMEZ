@@ -33,7 +33,7 @@ The HUD always shows who is winning and who is close behind. Track lots of stats
 
 ## 6b. Pop-ups are for you
 
-Toasts and announcer lines only fire for actions that involve the player: they hit you, you hit someone, something is coming for you, or the race itself changes. Other people's fights stay visual and audible in the world, not on your screen.
+Toasts and announcer lines only fire for actions that involve the player: they hit you, you hit someone, something is coming for you, or the race itself changes. Other people's fights stay visual and audible in the world, not on your screen. The exception is match-wide moments the owner asked everyone to hear: kill streaks, losing streaks, shutdowns and the nuke get a banner and an announcer call for the whole match.
 
 ## 7. Everything is customizable
 

@@ -336,7 +336,7 @@ const { openGame, checker } = require('./harness');
     const intro = await page.evaluate(() => window.__skyDebug.intro());
     c.check('entrance cards play for each character', intro.seen.includes('matteo') && intro.seen.includes('yuki') && (await page.textContent('#introName')).length > 0, JSON.stringify(intro));
     const chase = await page.evaluate(() => { window.__skyDebug.clearBombs(); const d = window.__skyDebug, m = d.bots().find(b => b.C.key === 'matteo') || d.bots()[0], me = d.body.position;
-      m.body.position.set(me.x + 20, me.y + 1, me.z); m.body.velocity.set(0, 0, 0); m.introT = 0; m.eng = null; m.bait = null; m.avoid && m.avoid.clear(); m.knockUntil = -9; m.hook = null; d.tick(10);
+      m.body.position.set(me.x + 20, me.y + 1, me.z); m.body.velocity.set(0, 0, 0); m.introT = 0; m.eng = null; m.bait = null; m.avoid && m.avoid.clear(); m.knockUntil = -9; m.ragdollUntil = -9; m.daze = 0; m.item = null; m.grudge = null; m.hook = null; d.tick(10);
       const d0 = Math.hypot(m.body.position.x - me.x, m.body.position.z - me.z); d.tick(120);
       return { d0, d1: Math.hypot(m.body.position.x - me.x, m.body.position.z - me.z) }; });
     c.check('aggressive bot chases you', chase.d1 < chase.d0 - 5, `${chase.d0.toFixed(1)} m -> ${chase.d1.toFixed(1)} m`);
@@ -449,9 +449,19 @@ const { openGame, checker } = require('./harness');
     c.check('bombs sync: see a friend\'s bomb, hook it to take it over, and lose yours when they take it', rbSeen && cl.ok && cl.mine.includes('fr:1') && cl.bcl.id === 'fr:1' && !cl.remote && !stillMine.remote && stillMine.mine && bGone, JSON.stringify({ rbSeen, cl, stillMine, bGone }));
     await friendAt({ bm: 0 });
 
+    // A friend's streak is called on my screen, and their nuke falls on me: I'm out and the KO is theirs
+    await friendAt({ bm: 0, ks: [0, 0], nk: { n: 0 } }); await page.waitForFunction(() => window.__skyDebug.avatars.size > 0, null, { timeout: 20000 }).catch(() => {}); await page.waitForTimeout(500);
+    await friendAt({ bm: 0, ks: [3, 0], nk: { n: 1, by: 'fr1end00peer0000', name: 'Friend' } });
+    const fNuke = await page.waitForFunction(() => window.__skyDebug.streak().phase != null, null, { timeout: 20000 }).then(() => true, () => false);
+    const fStk = await page.waitForFunction(() => window.__skyDebug.streak().log.includes('Friend: ON A ROLL'), null, { timeout: 20000 }).then(() => true, () => false);
+    await page.evaluate(() => window.__skyDebug.tick(60 * 4));
+    const fOut = await page.waitForFunction(() => { const sp = window.__fake.mine().sp; return sp && sp.how === 'nuke'; }, null, { timeout: 20000 }).catch(() => {}).then(() => page.evaluate(() => window.__fake.mine().sp));
+    c.check('multiplayer: a friend\'s streak is announced, and their nuke takes me out (KO to them)', fNuke && fStk && fOut && fOut.by === 'fr1end00peer0000', JSON.stringify({ fNuke, fStk, fOut }));
+    await page.evaluate(() => window.__skyDebug.respawnNow());
+
     // Falling in the sea after being hit credits the friend
     const sp0 = await page.evaluate(() => { const sp = window.__fake.mine().sp; return sp ? sp.n : 0; });
-    await page.evaluate(() => { const b = window.__skyDebug.body; b.position.set(0, -4, -116); b.velocity.set(0, 0, 0); }); // out over the sea
+    await page.evaluate(() => { const d = window.__skyDebug; d.takeHit([0, 0], false, { peer: 'fr1end00peer0000', name: 'Friend' }); const b = d.body; b.position.set(0, -4, -116); b.velocity.set(0, 0, 0); }); // the friend shoved me, and I'm out over the sea
     await page.waitForFunction((sp0) => { const sp = window.__fake.mine().sp; return sp && sp.n > sp0; }, sp0, { timeout: 20000 }).catch(() => {});
     const sp = await page.evaluate(() => window.__fake.mine().sp);
     c.check('splash is broadcast with who knocked me in', sp && sp.by === 'fr1end00peer0000', JSON.stringify(sp));

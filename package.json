@@ -3,7 +3,8 @@
   "private": true,
   "description": "Browser games plus headless test and audio tooling",
   "scripts": {
-    "test": "node tools/test-skyhook.js && node tools/test-maps.js",
+    "test": "node tools/test-skyhook.js && node tools/test-maps.js && node tools/test-deathmatch.js",
+    "test:deathmatch": "node tools/test-deathmatch.js",
     "test:skyhook": "node tools/test-skyhook.js",
     "voice": "bash tools/voice/process.sh",
     "voice:heavy": "PRESET=heavy bash tools/voice/process.sh",

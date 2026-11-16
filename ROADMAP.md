@@ -127,6 +127,14 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] Right click fires the right grapple, hold to reel; Left Alt releases it; E pulls its object to you.
 - [x] Space releases both.
 
+### Owner's batch 14, 2026-11-16: deathmatch upgrades
+- [x] Bots chase you onto tightropes (slack lines) and grapple onto them.
+- [x] New deathmatch map: a small central island ringed by lots of little rocks to hook onto.
+- [x] Deathmatch has a timer by default.
+- [x] 30 kills in a row without dying lets you drop a nuke.
+- [x] Track kill streaks and losing streaks, with match-wide announcements.
+- [x] Ragdoll time grows with repeated hits, so a beating gets harder to recover from and more likely to end in the water.
+
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.

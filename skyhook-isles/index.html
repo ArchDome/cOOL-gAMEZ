@@ -177,6 +177,14 @@ body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-
 .anim-pound{animation:aPound .7s ease-in-out}@keyframes aPound{15%,45%,75%{transform:translateY(4px) scale(1.06)}30%,60%,90%{transform:translateY(-3px)}}
 .anim-shaka{animation:aShaka .9s ease-in-out}@keyframes aShaka{20%{transform:rotate(-10deg) translateY(-4px)}50%{transform:rotate(10deg) translateY(-6px)}80%{transform:rotate(-6deg)}}
 .anim-dance{animation:aDance .8s ease-in-out}@keyframes aDance{20%{transform:translateX(-6px) rotate(-6deg)}40%{transform:translateX(6px) rotate(6deg)}60%{transform:translateX(-4px) rotate(-4deg)}80%{transform:translateX(4px) rotate(4deg)}}
+.streak{position:fixed;left:50%;top:13%;transform:translateX(-50%);text-align:center;pointer-events:none;z-index:3;font-family:var(--display);font-size:clamp(20px,4vw,32px);letter-spacing:.04em;color:var(--c,#ffd25a);text-shadow:0 0 18px color-mix(in srgb,var(--c,#ffd25a) 60%,transparent),0 3px 10px rgba(0,0,0,.55);animation:streakIn 2.4s ease-out both;white-space:nowrap}
+.streak small{display:block;font:700 13px var(--body);letter-spacing:.06em;text-transform:uppercase;color:#fff;opacity:.9;margin-top:2px}
+@keyframes streakIn{0%{opacity:0;transform:translateX(-50%) scale(1.6)}10%{opacity:1;transform:translateX(-50%) scale(1)}85%{opacity:1}100%{opacity:0;transform:translateX(-50%) translateY(-8px)}}
+.nukeflash{position:fixed;inset:0;pointer-events:none;z-index:4;background:radial-gradient(circle at 50% 60%,#fff 0%,#fff6d8 40%,#ffb060 100%);animation:nukeFlash 2.6s ease-out both}
+@keyframes nukeFlash{0%{opacity:1}25%{opacity:.95}100%{opacity:0}}
+.daze{position:absolute;left:0;right:0;margin:0 auto;width:max-content;top:-26px;white-space:nowrap;font:900 11px var(--body);letter-spacing:.06em;padding:3px 7px;border-radius:999px;background:rgba(255,210,90,.9);color:#2a1a00}
+.daze.rag{background:#ff5a3a;color:#fff;animation:dazeThrob .5s ease-in-out infinite alternate}
+@keyframes dazeThrob{to{transform:scale(1.08)}}
 .gmark{position:fixed;left:0;top:0;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;border:2.5px solid;pointer-events:none;z-index:2;display:grid;place-items:center;transition:width .1s,height .1s}
 .gmark b{position:absolute;top:-17px;font:900 12px var(--body);text-shadow:0 1px 4px rgba(0,0,0,.7)}
 .gmark.gl{border-color:#49e8ff;box-shadow:0 0 10px rgba(73,232,255,.6)}.gmark.gl b{color:#49e8ff;left:-10px}
@@ -273,8 +281,10 @@ body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-
 <div class="rank" id="rank" hidden><b id="rankPos">1st</b><span id="rankOf">of 3</span></div>
 <div class="liveboard" id="liveBoard" hidden><div class="sp-head"><span id="lbTitle">Standings</span><span class="kb">hold Tab</span></div><div class="standings lb" id="lbTable"></div></div>
 <div class="toast" id="toast" hidden></div>
+<div class="streak" id="streak" hidden></div>
+<div class="nukeflash" id="nukeFlash" hidden></div>
 <div class="death" id="death" hidden><b id="deathTitle">SPLASH!</b><span id="deathSub"></span><button type="button" id="deathGo"><span id="deathCount"></span></button></div>
-<div class="face" id="faceBox" hidden><canvas id="face" width="42" height="42"></canvas><span id="faceName"></span></div>
+<div class="face" id="faceBox" hidden><b class="daze" id="daze" hidden></b><canvas id="face" width="42" height="42"></canvas><span id="faceName"></span></div>
 <div class="modal" id="results" hidden><div class="card">
   <small id="resKicker" style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)"></small>
   <h2 id="resTitle"></h2>
@@ -348,8 +358,8 @@ body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-
       <div class="curules">
         <span class="opt"><label for="cuMode">Mode</label><select id="cuMode"><option value="race">Spark race</option><option value="sumo">Sumo</option><option value="mixed">Mixed (alternate)</option></select></span>
         <span class="opt"><label for="cuRace">Race time</label><select id="cuRace"><option value="120">2 min</option><option value="180">3 min</option><option value="240">4 min</option><option value="360">6 min</option></select></span>
-        <span class="opt"><label for="cuSumo">Sumo time</label><select id="cuSumo"><option value="90">1:30</option><option value="150">2:30</option><option value="240">4:00</option></select></span>
-        <span class="opt"><label for="cuKos">KOs to win</label><select id="cuKos"><option>3</option><option>5</option><option>10</option><option>15</option><option>20</option></select></span>
+        <span class="opt"><label for="cuSumo">Sumo time</label><select id="cuSumo"><option value="90">1:30</option><option value="150">2:30</option><option value="240">4:00</option><option value="300">5:00</option><option value="420">7:00</option></select></span>
+        <span class="opt"><label for="cuKos">KOs to win</label><select id="cuKos"><option value="0">No limit</option><option>3</option><option>5</option><option>10</option><option>15</option><option>20</option></select></span>
         <label class="chk"><input type="checkbox" id="cuItems"> Item boxes</label>
         <label class="chk"><input type="checkbox" id="cuBats"> Bats</label>
         <label class="chk"><input type="checkbox" id="cuFinal"> Final spark</label>
