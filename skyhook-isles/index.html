@@ -177,6 +177,11 @@ body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-
 .anim-pound{animation:aPound .7s ease-in-out}@keyframes aPound{15%,45%,75%{transform:translateY(4px) scale(1.06)}30%,60%,90%{transform:translateY(-3px)}}
 .anim-shaka{animation:aShaka .9s ease-in-out}@keyframes aShaka{20%{transform:rotate(-10deg) translateY(-4px)}50%{transform:rotate(10deg) translateY(-6px)}80%{transform:rotate(-6deg)}}
 .anim-dance{animation:aDance .8s ease-in-out}@keyframes aDance{20%{transform:translateX(-6px) rotate(-6deg)}40%{transform:translateX(6px) rotate(6deg)}60%{transform:translateX(-4px) rotate(-4deg)}80%{transform:translateX(4px) rotate(4deg)}}
+.gmark{position:fixed;left:0;top:0;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;border:2.5px solid;pointer-events:none;z-index:2;display:grid;place-items:center;transition:width .1s,height .1s}
+.gmark b{position:absolute;top:-17px;font:900 12px var(--body);text-shadow:0 1px 4px rgba(0,0,0,.7)}
+.gmark.gl{border-color:#49e8ff;box-shadow:0 0 10px rgba(73,232,255,.6)}.gmark.gl b{color:#49e8ff;left:-10px}
+.gmark.gr{border-color:#ff4fd8;box-shadow:0 0 10px rgba(255,79,216,.6)}.gmark.gr b{color:#ff4fd8;right:-10px}
+.gmark.att{width:16px;height:16px;margin:-8px 0 0 -8px;background:currentColor}.gmark.gl.att{background:rgba(73,232,255,.6)}.gmark.gr.att{background:rgba(255,79,216,.6)}
 .toast small{display:block;font-family:var(--body);font-weight:700;font-size:15px;color:var(--ink);margin-top:6px}
 .overlay{position:fixed;inset:0;display:grid;place-items:center;overflow:auto;background:radial-gradient(ellipse at 50% 35%,rgba(20,32,56,.35),rgba(12,18,32,.82));
   padding-block:calc(env(safe-area-inset-top,0px) + 16px) calc(env(safe-area-inset-bottom,0px) + 16px);
@@ -234,6 +239,7 @@ body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-
 <div id="app"></div>
 <div class="cross" id="cross"><i></i></div>
 <i class="adot" id="assistDot" hidden></i>
+<div class="gmark gl" id="gL" hidden><b>L</b></div><div class="gmark gr" id="gR" hidden><b>R</b></div>
 <div class="hud">
   <div class="row">
     <div class="chip brand">Skyhook<small id="where">Skyhook Isles · The meadow</small></div>
@@ -354,18 +360,19 @@ body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-
     <details class="howto"><summary>Controls</summary>
     <dl class="keys" id="keysDesk">
         <dt>WASD</dt><dd>Move. Hold Shift to sprint.</dd>
-        <dt>Mouse</dt><dd>Look. Hold the left or right button (or E) to grapple where you aim.</dd>
-        <dt>Shift</dt><dd>While hooked, reel in. Hook a crate and reel to yank it.</dd>
+        <dt>L and R markers</dt><dd>Two markers always track the best thing to grab on the left and right of your view. Point the crosshair at something to grab exactly that instead.</dd>
+        <dt>Left click</dt><dd>Fire the left grapple. Hold to reel yourself in.</dd>
+        <dt>Right click</dt><dd>Fire the right grapple. Hold to reel yourself in. Two ropes at once: hang between anchors.</dd>
+        <dt>Shift · Left Alt</dt><dd>Let go of the left · right grapple.</dd>
+        <dt>Q · E</dt><dd>Pull what the left · right grapple caught (a crate, bomb, the idol, a friend or bot on the left one) toward you. Then F to throw or bat it.</dd>
+        <dt>Two ropes, reeled straight</dt><dd>Hold both buttons to reel in until you hang almost straight: they merge into a tightrope you can walk on.</dd>
         <dt>Tab</dt><dd>Hold to see the standings.</dd>
         <dt>Shift (gliding)</dt><dd>Dive straight down; WASD tilts the dive. Let go to swoop out and up. Ram someone mid-dive to dive bomb them.</dd>
-        <dt>Right mouse / X</dt><dd>A second hook at the crosshair (hold to stay on it). Two ropes at once: hang between anchors.</dd>
-        <dt>Shift + two hooks</dt><dd>Reel both ropes in until you hang almost straight: they merge into a tightrope you can walk on.</dd>
-        <dt>C</dt><dd>While hooked, pull what you hooked (a crate, the idol, a friend, a bot) toward you. Then F to throw or bat it.</dd>
-        <dt>Space</dt><dd>Jump and double jump. While hooked, let go with a boost.</dd>
+        <dt>Space</dt><dd>Jump and double jump. While hooked, let go of both grapples with a boost.</dd>
         <dt>Wheel · R</dt><dd>Zoom the camera · respawn.</dd>
         <dt>G</dt><dd>Use your item: grab rainbow ? boxes for a rocket boost, bomb, homing comet, shield or spark magnet. Bombs blow holes in towers.</dd>
         <dt>F</dt><dd>Shove whoever is right in front of you. With a red bat pickup it becomes a home-run swing.</dd>
-        <dt>Glider</dt><dd>Grab a cyan glider pickup, then hold Space while falling. Look down to dive, up to float.</dd>
+        <dt>Glider</dt><dd>Grab a cyan glider pickup, then hold Space while falling (60 s). Hold Shift to dive.</dd>
         <dt>Enter · V</dt><dd>Type in chat, or hold V and talk to send voice as text. Characters answer back in text. Scroll the chat panel to see earlier messages.</dd>
         <dt>T</dt><dd>Restart the speedrun. The timer starts on your first move.</dd>
         <dt>Esc</dt><dd>Pause. Click the game to capture the mouse again.</dd>

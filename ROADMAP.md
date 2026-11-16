@@ -121,6 +121,12 @@ This file is the work queue for Claude sessions, including unattended and schedu
 ### Owner's batch 12, 2026-11-15
 - [x] Sync bombs in multiplayer: friends see your bombs and can grab and throw them back (ownership handoff).
 
+### Owner's batch 13, 2026-11-16: PC grapple controls
+- [x] Two hook icons (L and R) that always track the nearest thing to grab (left and right side of the view); the crosshair still overrides for precise aim.
+- [x] Left click fires the left grapple, hold to reel; Shift releases it; Q pulls its object to you.
+- [x] Right click fires the right grapple, hold to reel; Left Alt releases it; E pulls its object to you.
+- [x] Space releases both.
+
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.

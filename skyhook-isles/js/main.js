@@ -397,7 +397,8 @@ let hook2=null;
 const isAtt=h=>!!h && h.phase==="attached";
 const anyAttached=()=>isAtt(hook)||isAtt(hook2);
 const pullingNow=()=>pullHeld && isAtt(hook) && (!!hook.remote || (!!hook.body && hook.body.mass>0));
-const swingingNow=()=>(isAtt(hook) && !pullingNow()) || isAtt(hook2);
+const pulling2Now=()=>pull2Held && isAtt(hook2) && !!hook2.body && hook2.body.mass>0;
+const swingingNow=()=>(isAtt(hook) && !pullingNow()) || (isAtt(hook2) && !pulling2Now());
 function releaseHooks(){ if (hook && hook.phase!=="retract") hook.phase="retract"; if (hook2 && hook2.phase!=="retract") hook2.phase="retract"; }
 const hookTip=new THREE.Mesh(new THREE.ConeGeometry(.16,.4,6),new THREE.MeshStandardMaterial({color:"#c9d3df",metalness:.8,roughness:.25})); hookTip.visible=false; scene.add(hookTip);
 
@@ -406,7 +407,7 @@ const keys=new Set();
 let yaw=Math.PI*.75, pitch=.28, camDist=7.5;
 let gliderTime=0, gliding=false, glideSink=-3, inUpdraft=false, jumpHeldTouch=false;
 const GLIDE_TIME=TUNE.glider.time, GLIDER_RESPAWN=TUNE.glider.respawn;
-let pullHeld=false;   // Pull: drag what you've hooked (a prop, a friend, a bot) toward you instead of you toward it
+let pullHeld=false, pull2Held=false, leftReel=false, rightReel=false;   // Pull: drag what you've hooked (a prop, a friend, a bot) toward you instead of you toward it
 let jumpQueued=false, hookHeld=false, reelHeld=false, running=false, locked=false, triedLock=false;
 let isTouch = matchMedia("(pointer: coarse)").matches || ("ontouchstart" in window && navigator.maxTouchPoints>0);
 const touchMove={x:0,y:0};
@@ -447,16 +448,18 @@ addEventListener("keydown",e=>{
   if (k==="tab"){ e.preventDefault(); if (!boardOpen){ boardOpen=true; renderLiveBoard(); } return; }
   if (deadT>0 && (k===" "||k==="r")){ e.preventDefault(); if (!e.repeat) respawn(null); return; }
   keys.add(k);
-  if (k===" "){ if (!e.repeat) jumpQueued=true; e.preventDefault(); }
-  if (k==="e" && !e.repeat) hookDown();
-  if (k==="x" && !e.repeat) hook2Down();
-  if (k==="c") pullHeld=true;
+  if (k===" "){ if (!e.repeat) jumpQueued=true; e.preventDefault(); }   // Space: jump, or let go of both ropes
+  // PC grapples: Shift lets go of the left rope, Left Alt the right one; Q pulls the left rope's catch in, E the right's
+  if (k==="shift" && !e.repeat && hook && hook.phase!=="retract"){ hookUp(); leftReel=false; }
+  if (k==="alt"){ e.preventDefault(); if (!e.repeat && hook2 && hook2.phase!=="retract"){ hook2.phase="retract"; rightReel=false; } }
+  if (k==="q"||k==="c") pullHeld=true;
+  if (k==="e") pull2Held=true;
   if (k==="r") respawn("Respawned");
   if (k==="t" && !e.repeat) restartRun();
-  if ((k==="f"||k==="q") && !e.repeat) attack();
+  if (k==="f" && !e.repeat) attack();
   if (k==="g" && !e.repeat) useItem();
 });
-addEventListener("keyup",e=>{ const k=e.key.toLowerCase(); keys.delete(k); if (k==="c") pullHeld=false; if (k==="tab"){ boardOpen=false; renderLiveBoard(); } if (k==="v") stopVoice(true); if(k==="e") hookUp(); if (k==="x") hook2Up(); });
+addEventListener("keyup",e=>{ const k=e.key.toLowerCase(); keys.delete(k); if (k==="c"||k==="q") pullHeld=false; if (k==="e") pull2Held=false; if (k==="alt") e.preventDefault(); if (k==="tab"){ boardOpen=false; renderLiveBoard(); } if (k==="v") stopVoice(true);  });
 addEventListener("blur",()=>{ keys.clear(); hookUp(); pauseGame(); });
 document.addEventListener("visibilitychange",()=>{ if (document.hidden) pauseGame(); });
 // mouse capture: Play/Resume asks for it, and clicking the game asks again if it was lost
@@ -468,7 +471,7 @@ function captureMouse(){
 }
 function pauseGame(){
   if (!running) return;
-  running=false; keys.clear(); hookUp(); reelHeld=false; pullHeld=false; dragLook=null;
+  running=false; keys.clear(); hookUp(); reelHeld=false; pullHeld=false; pull2Held=false; leftReel=rightReel=false; dragLook=null;
   if (document.pointerLockElement) document.exitPointerLock();
   showStart(true);
 }
@@ -478,8 +481,8 @@ canvas.addEventListener("pointerdown",e=>{
   if (!running) return;
   if (e.pointerType==="touch"){ touchDown(e); return; }
   if (e.button===1){ e.preventDefault(); attack(); return; }
-  if (e.button===2){ hook2Down(); return; }   // right mouse: second rope
-  if (locked){ hookDown(); return; }
+  if (e.button===2){ rightPress(); return; }   // right mouse: right grapple (hold to reel)
+  if (locked){ leftPress(); return; }           // left mouse: left grapple (hold to reel)
   if (e.button===0){ captureMouse(); dragLook={x:e.clientX,y:e.clientY,id:e.pointerId}; try{canvas.setPointerCapture(e.pointerId);}catch(_){} }
 });
 canvas.addEventListener("pointermove",e=>{
@@ -487,14 +490,14 @@ canvas.addEventListener("pointermove",e=>{
   // pressing or releasing another mouse button while one is already held doesn't fire pointerdown/up; it arrives here
   if (e.pointerType==="mouse" && e.button>=0 && running){
     const down=!!(e.buttons & (e.button===0?1:e.button===2?2:4));
-    if (e.button===2) down ? hook2Down() : hook2Up();
-    else if (e.button===0 && locked) down ? hookDown() : hookUp();
+    if (e.button===2){ if (down) rightPress(); else rightReel=false; }
+    else if (e.button===0 && locked){ if (down) leftPress(); else leftReel=false; }
     else if (e.button===1 && down) attack();
   }
   if (locked){ look(e.movementX,e.movementY); return; }
   if (dragLook && e.pointerId===dragLook.id){ look(e.clientX-dragLook.x,e.clientY-dragLook.y); dragLook.x=e.clientX; dragLook.y=e.clientY; }
 });
-const pUp=e=>{ if (e.pointerType==="touch"){ touchUp(e); return; } if (dragLook && e.pointerId===dragLook.id) dragLook=null; if (e.button===2) hook2Up(); else if (locked) hookUp(); };
+const pUp=e=>{ if (e.pointerType==="touch"){ touchUp(e); return; } if (dragLook && e.pointerId===dragLook.id) dragLook=null; if (e.button===2) rightReel=false; else if (e.button===0) leftReel=false; };
 canvas.addEventListener("pointerup",pUp); canvas.addEventListener("pointercancel",pUp);
 canvas.addEventListener("wheel",e=>{ camDist=Math.min(15,Math.max(3.5,camDist+e.deltaY*.01)); e.preventDefault(); },{passive:false});
 let lookIdle=0;
@@ -619,6 +622,78 @@ function updateRopes(){
     if (simTime-mine.lastOcc>TUNE.tightrope.life){ removeRope("me"); toast("The tightrope snapped"); }
   }
 }
+// ---- PC grapples: two auto-targets (left and right side of the view) the crosshair can override ----
+// Each side tracks the best thing to grab: rocks, pillar and tree tops, crates, bombs, tightropes, and (left only)
+// players and bots. The crosshair wins when it's on an actual object. If something blocks the line of sight, the
+// blocker becomes the target.
+const anchorObj=new THREE.Object3D();
+let autoL=null, autoR=null, autoT=0; const ndcV=new THREE.Vector3(), camFwd=new THREE.Vector3();
+function grabCandidates(){
+  const c=[];
+  for (const r of rocks) c.push({x:r.x,y:r.y,z:r.z,obj:anchorObj});
+  for (const p of pillars) c.push({x:p.x,y:p.top-.4,z:p.z,obj:anchorObj});
+  for (const t of trees) c.push({x:t.x,y:t.top-1,z:t.z,obj:anchorObj});
+  for (const d of dynamics) c.push({x:d.body.position.x,y:d.body.position.y,z:d.body.position.z,obj:d.mesh});
+  for (const pr of projectiles) if (pr.kind==="bomb") c.push({x:pr.body.position.x,y:pr.body.position.y,z:pr.body.position.z,obj:pr.pick});
+  for (const rb of remoteBombs.values()) c.push({x:rb.disp.x,y:rb.disp.y,z:rb.disp.z,obj:rb.pick});
+  for (const r of ropes.values()){ const ab=tmpV.subVectors(r.b,r.a), p=pBody.position, t=Math.max(0,Math.min(1,tmpV2.set(p.x-r.a.x,p.y-r.a.y,p.z-r.a.z).dot(ab)/ab.lengthSq())); c.push({x:r.a.x+ab.x*t,y:r.a.y+ab.y*t,z:r.a.z+ab.z*t,obj:r.sleeve}); }
+  for (const a of avatars.values()) c.push({x:a.disp.x,y:a.disp.y+.3,z:a.disp.z,obj:a.torso,person:true});
+  for (const a of botAvatars.values()) c.push({x:a.disp.x,y:a.disp.y+.3,z:a.disp.z,obj:a.torso,person:true});
+  return c;
+}
+function pickAuto(cands,side,exclude){
+  camera.getWorldDirection(camFwd); const scored=[];
+  for (const c of cands){
+    if (side>0 && c.person) continue;
+    if (exclude && Math.hypot(c.x-exclude.x,c.y-exclude.y,c.z-exclude.z)<3) continue;   // L and R never share a target
+    const dx=c.x-hand.x, dy=c.y-hand.y, dz=c.z-hand.z, d=Math.hypot(dx,dy,dz); if (d>HOOK_RANGE-2 || d<3) continue;
+    const vx=c.x-camera.position.x, vy=c.y-camera.position.y, vz=c.z-camera.position.z, vl=Math.hypot(vx,vy,vz)||1, dot=(vx*camFwd.x+vy*camFwd.y+vz*camFwd.z)/vl;
+    if (dot<.35) continue;
+    ndcV.set(c.x,c.y,c.z).project(camera); if (Math.abs(ndcV.x)>.95 || Math.abs(ndcV.y)>.92 || (side<0 ? ndcV.x>.12 : ndcV.x<-.12)) continue;   // on screen, on that side
+    scored.push([d*(1+(1-dot)*3),c]); }
+  scored.sort((a,b)=>a[0]-b[0]);
+  // line of sight: whatever is in the way becomes the target instead (unless that's the other side's target)
+  for (const [,best] of scored.slice(0,4)){
+    const dir=tmpV.set(best.x-camera.position.x,best.y-camera.position.y,best.z-camera.position.z), dl=dir.length(); dir.normalize();
+    const hit=castAim(dir);
+    const t = hit && hit.distance<dl-1.5 && hit.object!==best.obj ? {point:hit.point.clone(),object:hit.object} : {point:new THREE.Vector3(best.x,best.y,best.z),object:best.obj};
+    if (exclude && t.point.distanceTo(exclude)<3) continue;
+    return t; }
+  return null;
+}
+function updateAutoTargets(dt){
+  const show = running && !isTouch && deadT<=0;
+  if (show){ autoT-=dt; if (autoT<=0){ autoT=.1; const c=grabCandidates(); autoL=pickAuto(c,-1); autoR=pickAuto(c,1,autoL&&autoL.point); } } else autoL=autoR=null;
+  for (const [id,t,h] of [["gL",autoL,hook],["gR",autoR,hook2]]){
+    const el=$(id), att=isAtt(h), at = att ? h.tip : t && t.point;
+    if (!show || !at){ if (!el.hidden) el.hidden=true; continue; }
+    ndcV.copy(at).project(camera); if (ndcV.z>1){ el.hidden=true; continue; }
+    el.hidden=false; el.style.transform=`translate(${(ndcV.x+1)/2*innerWidth}px,${(1-ndcV.y)/2*innerHeight}px)`; el.classList.toggle("att",att);
+  }
+}
+// what a click grabs: the crosshair if it's on an object, else that side's auto-target, else the crosshair on the ground
+function grabTarget(side){
+  if (aimHit && aimHit.object!==terrainMesh && !(side>0 && aimHit.object.userData.remote)) return aimHit;
+  const t=side<0?autoL:autoR; if (t) return t;
+  return aimHit && !(side>0 && aimHit.object.userData.remote) ? aimHit : null;
+}
+function leftPress(){
+  if (!running || raceCount>0 || deadT>0) return; audioOn(); leftReel=true;
+  const t=grabTarget(-1);
+  if (hook && hook.phase==="attached" && (!t || hook.tip.distanceTo(t.point)<3)) return;   // same spot: just reel
+  if (!t){ tone(300,.08,"square",.03,.7); return; }
+  hook=null; aimHit=t; hookDown(); if (hook) hook.t0=simTime;
+}
+function rightPress(){
+  if (!running || raceCount>0 || deadT>0) return; audioOn(); rightReel=true;
+  const t=grabTarget(1);
+  if (hook2 && hook2.phase==="attached" && (!t || hook2.tip.distanceTo(t.point)<3)) return;
+  if (!t){ tone(300,.08,"square",.03,.7); return; }
+  const body=t.object.userData.body||null;
+  hook2={phase:"fly",tip:hand.clone(),body,point:t.point.clone(),miss:false,obj:t.object,t0:simTime};
+  if (body) hook2.local=body.pointToLocalFrame(new CANNON.Vec3(t.point.x,t.point.y,t.point.z));
+  tone(900,.12,"sawtooth",.04,.4);
+}
 // PC second rope (right mouse or X): fires at the crosshair; hold to stay on it, release to let go
 function hook2Down(){
   if (!running || raceCount>0 || deadT>0) return; audioOn();
@@ -714,7 +789,7 @@ function pullToward(body,tx,ty,tz,speed,dt){
   if (body.wakeUp) body.wakeUp(); return d;
 }
 function ropeStep(dt){
-  if (isAtt(hook2)) ropeConstraint(hook2,dt);
+  if (isAtt(hook2)){ if (pulling2Now()){ const p=pBody.position; hook2.len=Math.max(1.6,anchorWorld(hook2,tmpV).distanceTo(tmpV2.set(p.x,p.y,p.z))); pullToward(hook2.body,p.x,p.y+.5,p.z,Math.max(8,20/Math.sqrt(hook2.body.mass)),dt); } else ropeConstraint(hook2,dt); }
   if (!hook || hook.phase!=="attached") return;
   if (pullHeld && (hook.remote || (hook.body && hook.body.mass>0))){
     const A=anchorWorld(hook,tmpV), p=pBody.position; hook.len=Math.max(1.6,Math.hypot(A.x-p.x,A.y-p.y,A.z-p.z));
@@ -728,7 +803,7 @@ function ropeStep(dt){
 function ropeConstraint(h,dt){
   const A=anchorWorld(h,tmpV), p=pBody.position;
   const dx=A.x-p.x, dy=A.y-p.y, dz=A.z-p.z, dist=Math.hypot(dx,dy,dz)||1e-6, nx=dx/dist, ny=dy/dist, nz=dz/dist;
-  if (reelHeld || keys.has("shift")){ h.len=Math.max(1.6,h.len-TUNE.hook.reel*dt); lastReelT=simTime; }
+  if (reelHeld || (h===hook && leftReel) || (h===hook2 && rightReel)){ h.len=Math.max(1.6,h.len-TUNE.hook.reel*dt); lastReelT=simTime; }
   if (h.obj && h.obj.userData.tightOwner!=null) h.len=Math.max(1.2,h.len-TUNE.tightrope.climbReel*dt);   // hooked a tightrope: haul yourself up to it
   if (dist<=h.len) return;
   const dyn = h.body && h.body.mass>0 ? h.body : null;
@@ -1210,7 +1285,7 @@ function frame(){
       if (got===TOTAL){ const r=finishRun(); toast(r.newPb ? (r.prev==null?"First full run!":"New personal best!") : "Every gate cleared!", r.prev==null ? fmtT(r.final) : `${fmtT(r.final)} · ${fmtD(r.final-r.prev)} vs PB`); }
       else toast(`Gate ${got} of ${TOTAL}`, got===1 && !pb ? "Follow the light beams to find the rest." : dTxt);
       renderSplits(true); } }
-  updateRemoteBombs(dt); updateFinale(dt,t); updateMega(dt,t); if (running){ tryMergeRopes(); climbOntoRope(); } updateRopes(); updateTraps(simFrozen?0:dt); updateThrown(dt);
+  updateRemoteBombs(dt); updateAutoTargets(dt); updateFinale(dt,t); updateMega(dt,t); if (running){ tryMergeRopes(); climbOntoRope(); } updateRopes(); updateTraps(simFrozen?0:dt); updateThrown(dt);
   if (finale.active && running && deadT<=0 && finale.pos.distanceTo(tmpV.set(p.x,p.y,p.z))<(magnetT>0?8:5)) grabFinale(myName(),true);
   for (const u of updrafts) u.rings.forEach((r,k)=>{ const ph=((t*.6+k/u.rings.length)%1); r.position.y=ph*34; r.material.opacity=.55*(1-ph); });
   updateDrops(dt); updateBoomFx(dt);
@@ -1223,10 +1298,10 @@ function frame(){
     if (!isTouch){ const h=$("hint");
       if (attached) swings++;
       const html = diving ? "Diving. Steer the angle with <kbd>WASD</kbd>. Let go of <kbd>Shift</kbd> to swoop up. Ram someone to dive bomb them." : gliding ? "Gliding. Hold <kbd>Shift</kbd> to dive straight down (steer with <kbd>WASD</kbd>), let go to swoop up. Fly through updrafts to climb." :
-        attached ? (hook && (hook.remote || (hook.body && hook.body.mass>0)) ? "Hooked something loose. Hold <kbd>C</kbd> to pull it to you, <kbd>F</kbd> to throw it, <kbd>Shift</kbd> to reel yourself in." : "Swinging. Hold <kbd>Shift</kbd> to reel in, <kbd>Space</kbd> to launch off, let go to fly.") :
+        attached ? (hook && (hook.remote || (hook.body && hook.body.mass>0)) ? "Hooked something loose. Hold <kbd>Q</kbd> (left) or <kbd>E</kbd> (right) to pull it to you, <kbd>F</kbd> to throw it." : "Swinging. Hold the mouse button to reel in. <kbd>Shift</kbd> lets go of the left rope, <kbd>Alt</kbd> the right, <kbd>Space</kbd> both.") :
         batTime>0 ? "Bat ready. Press <kbd>F</kbd> to swing at anyone in front of you. Knock them into the sea for a dunk." :
         gliderTime>0 ? "Glider ready. In the air, hold <kbd>Space</kbd> while falling to open it." :
-        "Aim at anything solid. When the crosshair turns blue, hold <kbd>Mouse</kbd> or <kbd>E</kbd> to grapple.";
+        "<kbd>Left click</kbd> and <kbd>Right click</kbd> fire the L and R grapples at their markers (or at the crosshair). Hold to reel.";
       h.hidden = (elapsed>45 && swings>20) || deadT>0;
       if (h.dataset.v!==html){ h.dataset.v=html; h.innerHTML=html; } }
   }
@@ -3066,5 +3141,5 @@ $("deathGo").addEventListener("click",e=>{ e.preventDefault(); respawn(null); })
 // interpolated poses start at the origin until the first physics step
 for (const b of world.bodies){ b.interpolatedPosition.copy(b.position); b.interpolatedQuaternion.copy(b.quaternion); }
 // small hook for automated testing; not used by the game itself
-window.__skyDebug={ gliderPickupsList:()=>gliderPickups, renderInfo:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,meshes:(()=>{ let n=0; scene.traverse(o=>{ if(o.isMesh) n++; }); return n; })()}), headlessStart:(nBots=1)=>{ simFrozen=true; wantBots=nBots; running=true; $("start").hidden=true; for (const C of CHARACTERS) introSeen.add(C.key); introQ.length=0; }, botItems:(b,dt)=>botItems(b,dt), gfx:()=>({GFX,composer:!!composer,ao:aoOn,shafts:!!shafts}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, cupAwards:()=>cupAwards(), showCupFinal:()=>showCupFinal(cupDef()), forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,raceOver,slowmo:!!slowmo,timeScale:lastTimeScale,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); for (const g of [...gliderPickups,...batPickups]) if (g.cd>0) g.cd-=1/60; for (const b of itemBoxes) if (b.cd>0) b.cd-=1/60; } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded, remoteBombs, claimRemoteBomb:id=>!!claimRemoteBomb(id), myBombs:()=>bombsPayload(), bcl:()=>lastBcl, makeBomb:(x,y,z)=>{ const pr=makeBomb({x,y,z},{x:0,y:0,z:0},{peer:'bot:1',name:'Lars'}); return pr.body; }, bombs:()=>projectiles.filter(p=>p.kind==='bomb').map(p=>({t:+p.t.toFixed(2),by:p.by&&p.by.name,col:'#'+p.mat.emissive.getHexString()})), hook2State:()=>hook2&&hook2.phase, pitch:()=>pitch, lookBy:(dx,dy)=>look(dx,dy), heroTilt:()=>heroBody.rotation.x, hook2Down:()=>hook2Down(), hook2Up:()=>hook2Up(), climb:()=>climbOntoRope(), pulling:()=>pullingNow(), swinging:()=>swingingNow(), camDist:()=>camDist, ropes, makeRope:(a,b)=>{ trN++; return !!makeRope('me',a,b,trN); }, tryMerge:()=>tryMergeRopes(), setReel:v=>{ reelHeld=v; if(v) lastReelT=simTime; }, setHook2:h=>{ hook2=h; }, glider:()=>({gliding,diving,gliderTime}), setGlider:t=>{ gliderTime=t; }, setTouchDive:v=>{ touchDive=v; }, pickChar:k=>pickChar(k,true), masterVol:()=>masterVol&&masterVol.gain.value, boosts, fov:()=>camera.fov, touchSim:(type,x,y,id=7)=>{ const e={pointerId:id,clientX:x,clientY:y,pointerType:'touch'}; if(type==='down') touchDown(e); else if(type==='move') touchMoveH(e); else touchUp(e); return {joy:!!joy,pending:!!joyPending,hooks:[hook&&hook.phase,hook2&&hook2.phase]}; }, hooks:()=>[hook&&hook.phase,hook2&&hook2.phase,hook&&hook.len!=null?+hook.len.toFixed(2):null,hook2&&hook2.len!=null?+hook2.len.toFixed(2):null], swipe:(dx,dy)=>{ if(!lookT) lookT={id:-1,x:0,y:0,x0:0,y0:0,t0:0}; const r=swingGesture(dx,dy); return r; }, endSwipe:()=>{ lookT=null; }, mega, spawnMega:i=>spawnMega(i,true), takeMega:()=>takeMega(myName(),true), medals:()=>({me:heroMedal.visible?medalMats.indexOf(heroMedal.material)+1:0, others:[...avatars.values(),...botAvatars.values()].map(a=>[a.name,a.medal&&a.medal.visible?medalMats.indexOf(a.medal.material)+1:0])}), setBoard:v=>{ boardOpen=v; renderLiveBoard(); }, ragdoll:()=>simTime<ragdollUntil, boomFx:()=>boomFx.length, killMe:n=>killMe({peer:'x',name:n||'Sniper'}), killBot:(k)=>killBot(k,{peer:myPeer||'me',name:myName()}), botDiff:()=>botDiff(), isRunning:()=>running, speedText:()=>[$("speed").textContent,$("speedLbl").textContent], setClock:(t)=>setClock($("timer"),t), rules:()=>({...RULES,ROUND_TIME,SUMO_TIME,SUMO_KOS,MODE}), customDraft:()=>customDraft, setPull:v=>{ pullHeld=v; }, ropeStep:dt=>ropeStep(dt), setHook:h=>{ hook=h; }, edgeFrom:(x,z)=>edgeFrom(x,z), botThink:(b,dt)=>botThink(b,dt), mapInfo:()=>({key:MAP.key,sumoOnly:!!MAP.sumoOnly,narrow:!!MAP.narrow}), pickFrenchVoice, mode:()=>MODE, setMode:m=>setMode(m), startRound:()=>startRound(), checkRaceEnd:()=>checkRaceEnd(), sniper:()=>({spinAcc,sniperCharge,held:heldItem}), traps, projectiles, sunDir:SUN_DIR, camInfo:()=>({cam:camera.position.toArray().map(n=>+n.toFixed(2)),body:pBody.position.toArray().map(n=>+n.toFixed(2)),flashT,hemi:hemi.intensity,camCur}), triggerTrap:(i,n)=>triggerTrap(i,{peer:'x',name:n||'Tester'},true), meMag, yeet:b=>yeet(b), thrown, dynamics, finale, spawnFinale:(x,y,z,by)=>spawnFinale(new THREE.Vector3(x,y,z),by||myName(),true), finaleSpot:p=>finaleSpot(p), grabFinale:n=>grabFinale(n,true), resetFinale:()=>resetFinale(), finaleGrp, searchlights, standings:()=>standings(), settings, applyInputUI, setInput:t=>setInput(t), inputTouch:()=>isTouch, castAim:d=>castAim(d), assistAim:(d,l)=>assistAim(d,l), tapHook:(x,y)=>tapHook(x,y), camera, camTarget, hand, hookUp:()=>hookUp(), death:()=>({deadT,DEATH_SECS}), respawnNow:()=>respawn(null), setDeathSecs:n=>{ DEATH_SECS=n; }, stats:()=>JSON.parse(JSON.stringify(stats)), drops:()=>drops.length, groundPunch:b=>groundPunch(b), setOnGround:v=>{ onGround=v; } };
+window.__skyDebug={ gliderPickupsList:()=>gliderPickups, renderInfo:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,meshes:(()=>{ let n=0; scene.traverse(o=>{ if(o.isMesh) n++; }); return n; })()}), headlessStart:(nBots=1)=>{ simFrozen=true; wantBots=nBots; running=true; $("start").hidden=true; for (const C of CHARACTERS) introSeen.add(C.key); introQ.length=0; }, botItems:(b,dt)=>botItems(b,dt), gfx:()=>({GFX,composer:!!composer,ao:aoOn,shafts:!!shafts}), giveItem:k=>{ heldItem=k; }, useItem:()=>useItem(), item:()=>({heldItem,shieldT,magnetT,lastBoom}), towers:()=>towers.map(t=>t.chunks.filter(c=>c.alive).length), towersAt:i=>({x:towerSpots[i].x,y:towerSpots[i].g,z:towerSpots[i].z}), explodeAt:(x,y,z)=>explode(x,y,z,7,1,null,true), itemBoxes, faceSheet:()=>{ const out=[]; for (const C of [CLASSIC,...CHARACTERS]) for (const m of ["idle","grin","ow","panic","dizzy","thrill"]){ drawFace(C,m,false); out.push($("face").toDataURL()); } return out; }, face:()=>({mood:faceMood}), hurt:()=>{ faceHurtT=1.2; }, calm:()=>{ faceHurtT=faceHappyT=faceDizzyT=0; shieldT=0; magnetT=0; }, cupAwards:()=>cupAwards(), showCupFinal:()=>showCupFinal(cupDef()), forceRaceEnd:()=>{ raceCount=0; raceLive=true; raceOver=false; endRace(standings()); }, cup:()=>cup, restartRun:()=>restartRun(), setBotParams:(k,o)=>{ BOT_PARAMS[k]=o; }, getBotParams:()=>JSON.parse(JSON.stringify(BOT_PARAMS)), botRace:(b,dt)=>botRace(b,dt), anchors:()=>ANCHORS, chat:()=>({lastChat,lastBchat,log:[...$("chatlog").children].map(d=>d.textContent)}), sendChatText:t=>{ $("chatIn").value=t; sendChat(); }, setSample:f=>{ sampleFn=f; }, CHARACTERS, intro:()=>({showing:introCh,queue:introQ.slice(),seen:[...introSeen]}), race:()=>({raceCount,raceId,raceLive,raceOver,slowmo:!!slowmo,timeScale:lastTimeScale,seen:[...raceSeen]}), bots:()=>bots, botAvatars, hitBot, ctrl:()=>amController, attack, takeHit, batPickups, bat:()=>batTime, audio:()=>({ctx:!!ac,state:ac&&ac.state,musicOn,step:mStep}), presence:()=>({lastHit,lastSplash,dunks}), avatars, net:()=>({room:!!room,myPeer}), keys, tick:(n=1)=>{ for(let i=0;i<n;i++){ controls(1/60); world.step(1/60,1/60,1); updateBots(1/60); for (const g of [...gliderPickups,...batPickups]) if (g.cd>0) g.cd-=1/60; for (const b of itemBoxes) if (b.cd>0) b.cd-=1/60; } }, ground:()=>({standing,onGround}), probe:p=>groundBelow(p), body:pBody, pillars, rocks, sparks, gliderPickups, glide:()=>({gliding,gliderTime}), view:(y,pt)=>{ yaw=y; pitch=pt; }, hook:()=>hook&&hook.phase, aim:()=>aimHit&&aimHit.distance, grounded:()=>grounded, pullKeys:()=>({q:pullHeld,e:pull2Held}), clearBombs:()=>{ for (const pr of projectiles.filter(p=>p.kind==='bomb')) dropLocalBomb(pr); }, auto:()=>({L:autoL&&autoL.point.toArray().map(n=>+n.toFixed(1)),R:autoR&&autoR.point.toArray().map(n=>+n.toFixed(1))}), leftPress:()=>leftPress(), rightPress:()=>rightPress(), leftUp:()=>{ leftReel=false; }, rightUp:()=>{ rightReel=false; }, setPull2:v=>{ pull2Held=v; }, refreshAuto:()=>{ autoT=0; updateAutoTargets(0); }, remoteBombs, claimRemoteBomb:id=>!!claimRemoteBomb(id), myBombs:()=>bombsPayload(), bcl:()=>lastBcl, makeBomb:(x,y,z)=>{ const pr=makeBomb({x,y,z},{x:0,y:0,z:0},{peer:'bot:1',name:'Lars'}); return pr.body; }, bombs:()=>projectiles.filter(p=>p.kind==='bomb').map(p=>({t:+p.t.toFixed(2),by:p.by&&p.by.name,col:'#'+p.mat.emissive.getHexString()})), hook2State:()=>hook2&&hook2.phase, pitch:()=>pitch, lookBy:(dx,dy)=>look(dx,dy), heroTilt:()=>heroBody.rotation.x, hook2Down:()=>rightPress(), hook2Up:()=>{ if (hook2) hook2.phase='retract'; }, climb:()=>climbOntoRope(), pulling:()=>pullingNow(), swinging:()=>swingingNow(), camDist:()=>camDist, ropes, makeRope:(a,b)=>{ trN++; return !!makeRope('me',a,b,trN); }, tryMerge:()=>tryMergeRopes(), setReel:v=>{ reelHeld=v; if(v) lastReelT=simTime; }, setHook2:h=>{ hook2=h; }, glider:()=>({gliding,diving,gliderTime}), setGlider:t=>{ gliderTime=t; }, setTouchDive:v=>{ touchDive=v; }, pickChar:k=>pickChar(k,true), masterVol:()=>masterVol&&masterVol.gain.value, boosts, fov:()=>camera.fov, touchSim:(type,x,y,id=7)=>{ const e={pointerId:id,clientX:x,clientY:y,pointerType:'touch'}; if(type==='down') touchDown(e); else if(type==='move') touchMoveH(e); else touchUp(e); return {joy:!!joy,pending:!!joyPending,hooks:[hook&&hook.phase,hook2&&hook2.phase]}; }, hooks:()=>[hook&&hook.phase,hook2&&hook2.phase,hook&&hook.len!=null?+hook.len.toFixed(2):null,hook2&&hook2.len!=null?+hook2.len.toFixed(2):null], swipe:(dx,dy)=>{ if(!lookT) lookT={id:-1,x:0,y:0,x0:0,y0:0,t0:0}; const r=swingGesture(dx,dy); return r; }, endSwipe:()=>{ lookT=null; }, mega, spawnMega:i=>spawnMega(i,true), takeMega:()=>takeMega(myName(),true), medals:()=>({me:heroMedal.visible?medalMats.indexOf(heroMedal.material)+1:0, others:[...avatars.values(),...botAvatars.values()].map(a=>[a.name,a.medal&&a.medal.visible?medalMats.indexOf(a.medal.material)+1:0])}), setBoard:v=>{ boardOpen=v; renderLiveBoard(); }, ragdoll:()=>simTime<ragdollUntil, boomFx:()=>boomFx.length, killMe:n=>killMe({peer:'x',name:n||'Sniper'}), killBot:(k)=>killBot(k,{peer:myPeer||'me',name:myName()}), botDiff:()=>botDiff(), isRunning:()=>running, speedText:()=>[$("speed").textContent,$("speedLbl").textContent], setClock:(t)=>setClock($("timer"),t), rules:()=>({...RULES,ROUND_TIME,SUMO_TIME,SUMO_KOS,MODE}), customDraft:()=>customDraft, setPull:v=>{ pullHeld=v; }, ropeStep:dt=>ropeStep(dt), setHook:h=>{ hook=h; }, edgeFrom:(x,z)=>edgeFrom(x,z), botThink:(b,dt)=>botThink(b,dt), mapInfo:()=>({key:MAP.key,sumoOnly:!!MAP.sumoOnly,narrow:!!MAP.narrow}), pickFrenchVoice, mode:()=>MODE, setMode:m=>setMode(m), startRound:()=>startRound(), checkRaceEnd:()=>checkRaceEnd(), sniper:()=>({spinAcc,sniperCharge,held:heldItem}), traps, projectiles, sunDir:SUN_DIR, camInfo:()=>({cam:camera.position.toArray().map(n=>+n.toFixed(2)),body:pBody.position.toArray().map(n=>+n.toFixed(2)),flashT,hemi:hemi.intensity,camCur}), triggerTrap:(i,n)=>triggerTrap(i,{peer:'x',name:n||'Tester'},true), meMag, yeet:b=>yeet(b), thrown, dynamics, finale, spawnFinale:(x,y,z,by)=>spawnFinale(new THREE.Vector3(x,y,z),by||myName(),true), finaleSpot:p=>finaleSpot(p), grabFinale:n=>grabFinale(n,true), resetFinale:()=>resetFinale(), finaleGrp, searchlights, standings:()=>standings(), settings, applyInputUI, setInput:t=>setInput(t), inputTouch:()=>isTouch, castAim:d=>castAim(d), assistAim:(d,l)=>assistAim(d,l), tapHook:(x,y)=>tapHook(x,y), camera, camTarget, hand, hookUp:()=>hookUp(), death:()=>({deadT,DEATH_SECS}), respawnNow:()=>respawn(null), setDeathSecs:n=>{ DEATH_SECS=n; }, stats:()=>JSON.parse(JSON.stringify(stats)), drops:()=>drops.length, groundPunch:b=>groundPunch(b), setOnGround:v=>{ onGround=v; } };
 frame();

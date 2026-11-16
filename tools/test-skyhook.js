@@ -242,17 +242,55 @@ const { openGame, checker } = require('./harness');
       h2 = { att, after: await page.evaluate(() => window.__skyDebug.hooks()[1]) };
     }
     c.check('PC: a second rope on right mouse / X', h2.skip || (h2.att && (h2.after === 'retract' || h2.after === null)), JSON.stringify(h2));
-    // PC: holding left mouse then pressing right (a chorded press arrives as pointermove) fires the second rope
+    // PC: pressing right while left is held (a chorded press arrives as pointermove) fires the right grapple;
+    // releasing the button only stops reeling, and Left Alt lets go
     let ch = { skip: h2a.skip };
     if (!h2a.skip) {
       await page.evaluate(() => { const d = window.__skyDebug; d.setHook2(null); });
       await page.waitForFunction(() => window.__skyDebug.aim() != null, null, { timeout: 20000 }).catch(() => {});
       await page.evaluate(() => document.querySelector('canvas').dispatchEvent(new PointerEvent('pointermove', { pointerType: 'mouse', button: 2, buttons: 3, bubbles: true })));
-      const fired = await page.waitForFunction(() => window.__skyDebug.hook2State() === 'attached' || window.__skyDebug.hook2State() === 'fly', null, { timeout: 20000 }).then(() => true, () => false);
+      const fired = await page.waitForFunction(() => window.__skyDebug.hook2State() === 'attached', null, { timeout: 20000 }).then(() => true, () => false);
       await page.evaluate(() => document.querySelector('canvas').dispatchEvent(new PointerEvent('pointermove', { pointerType: 'mouse', button: 2, buttons: 1, bubbles: true })));
-      ch = { fired, after: await page.evaluate(() => window.__skyDebug.hook2State()) };
+      const kept = await page.evaluate(() => window.__skyDebug.hook2State());
+      await page.keyboard.press('Alt');
+      ch = { fired, kept, afterAlt: await page.evaluate(() => window.__skyDebug.hook2State()) };
     }
-    c.check('PC: right mouse pressed while left is held fires the second rope (chorded buttons)', ch.skip || (ch.fired && (ch.after === 'retract' || ch.after === null)), JSON.stringify(ch));
+    c.check('PC: right click (even while left is held) fires the right grapple; releasing keeps it; Left Alt lets go', ch.skip || (ch.fired && ch.kept === 'attached' && (ch.afterAlt === 'retract' || ch.afterAlt === null)), JSON.stringify(ch));
+
+    // PC: L and R markers track the nearest things to grab; a left click at open sky fires at the L marker; Shift lets go
+    const mk = await page.evaluate(() => { const d = window.__skyDebug; d.respawnNow(); d.setHook(null); d.setHook2(null); d.body.position.set(-55, 8, 45); d.view(Math.PI * .75, -.35); return true; });
+    await page.waitForFunction(() => { const a = window.__skyDebug.auto(); return a.L || a.R; }, null, { timeout: 20000 }).catch(() => {});
+    const mk2 = await page.evaluate(() => ({ auto: window.__skyDebug.auto(), gL: !document.getElementById('gL').hidden, gR: !document.getElementById('gR').hidden }));
+    let lf = { skip: !mk2.auto.L };
+    if (mk2.auto.L) {
+      await page.evaluate(() => window.__skyDebug.leftPress());
+      const lfired = await page.waitForFunction(() => { const h = window.__skyDebug.hooks(); return h[0] === 'fly' || h[0] === 'attached'; }, null, { timeout: 20000 }).then(() => true, () => false);
+      await page.evaluate(() => window.__skyDebug.leftUp());
+      await page.keyboard.press('Shift');
+      lf = { lfired, afterShift: await page.evaluate(() => window.__skyDebug.hooks()[0]) };
+    }
+    c.check('PC: L/R markers track different things to grab; left click fires at the L marker; Shift lets go', (mk2.gL || mk2.gR) && !(mk2.auto.L && mk2.auto.R && mk2.auto.L.join() === mk2.auto.R.join()) && (lf.skip || (lf.lfired && (lf.afterShift === 'retract' || lf.afterShift === null))), JSON.stringify({ mk2, lf }));
+
+    // PC: Q pulls what the left rope caught, E what the right rope caught (each tested on its own); Space lets go of both
+    const setupPull = (side) => page.evaluate((side) => { const d = window.__skyDebug, b = d.body; d.clearBombs(); d.calm(); d.keys.clear(); d.setHook(null); d.setHook2(null);
+      const x = -55, z = 45, g = d.probe({ x, y: 400, z })[0]; b.position.set(x, g + .7, z); b.velocity.set(0, 0, 0); d.tick(10);
+      const cr = d.dynamics.find(o => o.body.mass > 0 && o.body.mass < 10); if (!cr) return { skip: 1 };
+      const A = cr.body, V = b.position.constructor, gx = d.probe({ x: x + 10, y: 400, z })[0]; A.position.set(x + 10, gx + 1, z); A.velocity.set(0, 0, 0); A.angularVelocity.set(0, 0, 0); A.wakeUp();
+      const h = { phase: 'attached', tip: d.camera.position.clone(), body: A, local: new V(0, 0, 0), point: d.camera.position.clone(), len: 10, miss: false, remote: null, obj: null };
+      if (side === 'q') d.setHook(h); else d.setHook2(h);
+      return { d0: +A.position.distanceTo(b.position).toFixed(1) }; }, side);
+    const pullWith = async (key) => { const s0 = await setupPull(key); if (s0.skip) return s0;
+      await page.keyboard.down(key); await page.waitForFunction((k) => window.__skyDebug.pullKeys()[k], key, { timeout: 10000 }).catch(() => {});
+      const d1 = await page.evaluate(() => { const d = window.__skyDebug; d.tick(45); const A = d.dynamics.find(o => o.body.mass > 0 && o.body.mass < 10).body; return +A.position.distanceTo(d.body.position).toFixed(1); });
+      await page.keyboard.up(key); return { d0: s0.d0, d1 }; };
+    const qP = await pullWith('q'), eP = await pullWith('e');
+    // Space lets go of both ropes
+    await page.evaluate(() => { const d = window.__skyDebug, p = d.body.position, A = d.camera.position.clone().set(p.x + 8, p.y + 12, p.z), B = d.camera.position.clone().set(p.x - 8, p.y + 12, p.z); d.setHook(null); d.setHook2(null);
+      d.setHook({ phase: 'attached', tip: A.clone(), body: null, point: A.clone(), len: 15, miss: false, remote: null, obj: null }); d.setHook2({ phase: 'attached', tip: B.clone(), body: null, point: B.clone(), len: 15, miss: false, obj: null }); });
+    await page.keyboard.press(' '); await page.evaluate(() => window.__skyDebug.tick(2));
+    const afterSpace = await page.evaluate(() => window.__skyDebug.hooks().slice(0, 2));
+    c.check('PC: Q pulls the left catch, E the right catch, Space lets go of both', (qP.skip || qP.d1 < qP.d0 - 4) && (eP.skip || eP.d1 < eP.d0 - 4) && afterSpace.every(h => h !== 'attached'), JSON.stringify({ qP, eP, afterSpace }));
+    await page.evaluate(() => { const d = window.__skyDebug; d.setHook(null); d.setHook2(null); d.respawnNow(); });
 
     // Bombs: 4 s fuse with a green -> red countdown; throwing one back makes it yours
     const bm0 = await page.evaluate(() => { const d = window.__skyDebug, p = d.body.position; d.makeBomb(p.x + 8, p.y + 2, p.z); return d.bombs().slice(-1)[0]; });
@@ -297,7 +335,7 @@ const { openGame, checker } = require('./harness');
     c.check('bots spawn as characters', bots0.n === 2 && bots0.ctrl && bots0.avatars === 2 && bots0.names.join() === 'Matteo,Yuki', JSON.stringify(bots0));
     const intro = await page.evaluate(() => window.__skyDebug.intro());
     c.check('entrance cards play for each character', intro.seen.includes('matteo') && intro.seen.includes('yuki') && (await page.textContent('#introName')).length > 0, JSON.stringify(intro));
-    const chase = await page.evaluate(() => { const d = window.__skyDebug, m = d.bots().find(b => b.C.key === 'matteo') || d.bots()[0], me = d.body.position;
+    const chase = await page.evaluate(() => { window.__skyDebug.clearBombs(); const d = window.__skyDebug, m = d.bots().find(b => b.C.key === 'matteo') || d.bots()[0], me = d.body.position;
       m.body.position.set(me.x + 20, me.y + 1, me.z); m.body.velocity.set(0, 0, 0); m.introT = 0; m.eng = null; m.bait = null; m.avoid && m.avoid.clear(); m.knockUntil = -9; m.hook = null; d.tick(10);
       const d0 = Math.hypot(m.body.position.x - me.x, m.body.position.z - me.z); d.tick(120);
       return { d0, d1: Math.hypot(m.body.position.x - me.x, m.body.position.z - me.z) }; });
@@ -405,9 +443,9 @@ const { openGame, checker } = require('./harness');
     const stillMine = await page.evaluate(() => ({ remote: window.__skyDebug.remoteBombs.has('fr:1'), mine: window.__skyDebug.myBombs().some(b => b[0] === 'fr:1') }));
     // now the friend claims a bomb of mine
     const myId = await page.evaluate(() => { const d = window.__skyDebug, p = d.body.position; d.makeBomb(p.x + 3, p.y + 1, p.z); return d.myBombs().slice(-1)[0][0]; });
-    await friendAt({ bm: 0, bcl: { n: 1, id: 'x' } }); await page.waitForTimeout(400);
-    await friendAt({ bm: 0, bcl: { n: 2, id: myId } });
-    const bGone = await page.waitForFunction((id) => !window.__skyDebug.myBombs().some(b => b[0] === id), myId, { timeout: 20000 }).then(() => true, () => false);
+    // the friend keeps re-sending numbered claims until one lands (the first number seen is only a baseline)
+    let bGone = false;
+    for (let n = 1; n <= 8 && !bGone; n++) { await friendAt({ bm: 0, bcl: { n, id: myId } }); bGone = await page.waitForFunction((id) => !window.__skyDebug.myBombs().some(b => b[0] === id), myId, { timeout: 2500 }).then(() => true, () => false); }
     c.check('bombs sync: see a friend\'s bomb, hook it to take it over, and lose yours when they take it', rbSeen && cl.ok && cl.mine.includes('fr:1') && cl.bcl.id === 'fr:1' && !cl.remote && !stillMine.remote && stillMine.mine && bGone, JSON.stringify({ rbSeen, cl, stillMine, bGone }));
     await friendAt({ bm: 0 });
 

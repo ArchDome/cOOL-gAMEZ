@@ -4,6 +4,20 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-16: PC grapple controls: L and R hooks with auto-targeting
+
+![L and R grapple markers](img/pc-grapple-markers.png)
+
+- **Two markers, L (cyan) and R (pink),** always track the best thing to grab on their side of the screen: the nearest rock, pillar, tree, prop, bomb, rope or player in range, favouring what's near your view centre. They only pick targets that are on screen and in line of sight, and they never share a target. When a rope is attached, its marker fills in. They're hidden on touch.
+- **The crosshair still wins:** if it's on a grabbable object, the click goes exactly there.
+- **Left click** fires the left grapple; keep holding to reel in. **Shift** releases it, and **Q** pulls its object toward you.
+- **Right click** fires the right grapple; hold to reel. **Left Alt** releases it, and **E** pulls its object toward you.
+- **Space** releases both. Clicking again on a rope that's already attached at that spot just reels instead of refiring.
+- Changes: F is now the only attack key (Q pulls), and X no longer fires a hook. Chorded presses (holding one button while you click the other) work for both.
+- Tests: the two markers pick different targets, left click fires at L, Shift and Alt release their own rope, chorded right press, Q and E pull separately, Space releases both (75/75 skyhook, 82/82 maps).
+
+---
+
 ## 2026-11-15: Bombs in multiplayer: catch a friend's bomb and throw it back
 
 - **Ownership handoff:** every bomb has an id and one owner, who simulates its physics and shares it in presence (`bm`: id, position, velocity, fuse left, last thrower; up to 6). Everyone else draws it as a remote bomb (smoothed, with gravity extrapolation) with the same colour countdown and a hook target.
