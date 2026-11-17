@@ -144,6 +144,9 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] With no ropes out, left click throws the left grapple (Q still works). Everything else stays as in batch 15.
 - [x] New tenet (principles): controls easy for simple grapplers, with lots of control and accuracy left for advanced players.
 
+### Owner's batch 17, 2026-11-17: human missile power-up
+- [x] A power-up that turns you into a missile: fast, propelled flight; speed up or slow down, steer your course, and still swing on your hooks, but it should feel different because you're being propelled.
+
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.

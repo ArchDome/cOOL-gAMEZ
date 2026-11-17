@@ -22,6 +22,10 @@ export const TUNE = {
   blast:   { knock: 38, up: 15, upMin: 5, stun: 1.6 },   // explosions: per unit of power, scaled by closeness
   bomb:    { fuse: 4 },                                   // seconds from throw to boom (was 1.8)
   sniper:  { charge: 3.2, range: 160 },
+  // human missile item: you fly where you look, propelled. W/S throttle between min and max, A/D strafe; hooks still work
+  // (the engine keeps pushing while you swing). lift = share of gravity the engine holds up; turn = how fast sideways
+  // speed bleeds into the heading (off a rope); pitchBias = how far below the camera's look the flight line sits.
+  rocket:  { time: 9, cruise: 30, max: 46, min: 12, accel: 60, lift: .85, turn: 2.4, strafe: 12, pitchBias: .28, ram: 20, afterDecay: 14 },
   mega:    { every: 150, first: 60 },                    // cruise missile drops
   race:    { roundTime: 240, points: [10, 8, 6, 5, 4, 3, 2, 1], finalBonus: 5 },
   sumo:    { roundTime: 300, kos: 0, maxDeathCam: 3 },     // deathmatch: 5-minute clock; kos 0 = no KO limit (the clock or a nuke ends it)

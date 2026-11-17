@@ -55,7 +55,7 @@ const { openGame, checker } = require('./harness');
     c.check('daze: a second quick hit ragdolls you, and ragdolled you cannot hook', !dz.a.rag && dz.b2.rag && dz.c3.rag && (dz.hooked == null || dz.hooked === 'retract'), JSON.stringify(dz));
     const dzDecay = await page.evaluate(() => { const d = window.__skyDebug; d.tick(60 * 12); return d.dazeInfo(); });
     c.check('daze wears off over time', dzDecay.daze < .7 && !dzDecay.rag, JSON.stringify(dzDecay));
-    const botDz = await page.evaluate(() => { const d = window.__skyDebug, b = d.bots()[0]; b.C = { ...b.C, dodge: 0 }; b.daze = 0; d.hitBot('bot:' + b.id, [1, 0], false, 'x', 'T'); const r1 = b.ragdollUntil > d.simTime(); d.hitBot('bot:' + b.id, [1, 0], true, 'x', 'T'); return { r1, r2: b.ragdollUntil > d.simTime(), left: b.knockUntil - d.simTime() }; });
+    const botDz = await page.evaluate(() => { const d = window.__skyDebug, b = d.bots()[0]; b.C = { ...b.C, dodge: 0 }; b.daze = 0; b.shieldT = 0; b.item = null;   /* a bot shield would block the hits */ d.hitBot('bot:' + b.id, [1, 0], false, 'x', 'T'); const r1 = b.ragdollUntil > d.simTime(); d.hitBot('bot:' + b.id, [1, 0], true, 'x', 'T'); return { r1, r2: b.ragdollUntil > d.simTime(), left: b.knockUntil - d.simTime() }; });
     c.check('bots stack daze too (second hit ragdolls them)', !botDz.r1 && botDz.r2 && botDz.left > 2, JSON.stringify(botDz));
 
     // --- bots chase you onto a tightrope ---

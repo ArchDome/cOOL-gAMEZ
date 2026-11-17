@@ -304,6 +304,27 @@ const { openGame, checker } = require('./harness');
     c.check('PC: Z pulls the left catch, C the right catch, Space lets go of both', (qP.skip || qP.d1 < qP.d0 - 4) && (eP.skip || eP.d1 < eP.d0 - 4) && afterSpace.every(h => h !== 'attached'), JSON.stringify({ qP, eP, afterSpace }));
     await page.evaluate(() => { const d = window.__skyDebug; d.setHook(null); d.setHook2(null); d.respawnNow(); });
 
+    // Human missile: fly where you look at cruise speed; W/S throttle; carve turns; swing on a rope with the engine pushing; it runs out
+    const rk = await page.evaluate(() => { const d = window.__skyDebug, b = d.body, T = d.tune ? d.tune() : null; d.calm(); d.keys.clear(); d.setHook(null); d.setHook2(null);
+      b.position.set(0, 140, 0); b.velocity.set(0, 0, 0); d.view(0, .28); d.giveItem('rocket'); d.useItem();
+      const sp = () => Math.hypot(b.velocity.x, b.velocity.y, b.velocity.z), r = {};
+      r.on = d.rocket().t > 0; d.tick(120); r.cruise = +sp().toFixed(1); r.dy = +(b.position.y - 140).toFixed(1);
+      d.keys.add('w'); d.tick(90); r.fast = +sp().toFixed(1); d.keys.delete('w');
+      d.keys.add('s'); d.tick(90); r.slow = +sp().toFixed(1); d.keys.delete('s');
+      d.view(Math.PI / 2, .28); d.tick(60); const hs = Math.hypot(b.velocity.x, b.velocity.z); r.turn = +((-b.velocity.x) / (hs || 1)).toFixed(2);   // heading yaw pi/2 = -x
+      // swing: a rope to a point above; the engine keeps pushing, so you whip around fast and stay on the rope
+      const p = b.position, A = d.camera.position.clone().set(p.x, p.y + 14, p.z); d.setHook({ phase: 'attached', tip: A.clone(), body: null, point: A.clone(), len: 14, miss: false, remote: null, obj: null });
+      let maxD = 0, minSp = 99; for (let i = 0; i < 90; i++) { d.tick(1); maxD = Math.max(maxD, Math.hypot(p.x - A.x, p.y - A.y, p.z - A.z)); minSp = Math.min(minSp, sp()); }
+      r.swing = { held: d.hooks()[0], maxD: +maxD.toFixed(1), minSp: +minSp.toFixed(1) }; d.setHook(null);
+      d.tick(60 * 9); r.done = d.rocket(); return r; });
+    // shared: friends see the flame (presence rk)
+    await page.evaluate(() => { const d = window.__skyDebug; d.respawnNow(); d.giveItem('rocket'); d.useItem(); });
+    rk.pres = await page.waitForFunction(() => window.__fake.mine().rk === 1, null, { timeout: 20000 }).then(() => 1, () => 0);
+    await page.evaluate(() => { const d = window.__skyDebug; d.endRocket(); d.respawnNow(); d.body.velocity.set(0, 0, 0); d.tick(30); });
+    c.check('human missile: cruises level (~30 m/s), W speeds up, S slows down, turns where you look', rk.on && rk.cruise > 24 && rk.cruise < 36 && Math.abs(rk.dy) < 12 && rk.fast > 40 && rk.slow < 18 && rk.turn > .8, JSON.stringify(rk));
+    c.check('human missile: swings on a rope with the engine pushing, is shared, and runs out', rk.swing.held === 'attached' && rk.swing.maxD < 16 && rk.swing.minSp > 15 && rk.pres === 1 && rk.done.t === 0 && !rk.done.flame, JSON.stringify(rk));
+    await page.evaluate(() => { const d = window.__skyDebug; d.setHook(null); d.respawnNow(); });
+
     // Bombs: 4 s fuse with a green -> red countdown; throwing one back makes it yours
     const bm0 = await page.evaluate(() => { const d = window.__skyDebug, p = d.body.position; d.makeBomb(p.x + 8, p.y + 2, p.z); return d.bombs().slice(-1)[0]; });
     const bmBody = await page.evaluate(() => true);
@@ -347,12 +368,12 @@ const { openGame, checker } = require('./harness');
     c.check('bots spawn as characters', bots0.n === 2 && bots0.ctrl && bots0.avatars === 2 && bots0.names.join() === 'Matteo,Yuki', JSON.stringify(bots0));
     const intro = await page.evaluate(() => window.__skyDebug.intro());
     c.check('entrance cards play for each character', intro.seen.includes('matteo') && intro.seen.includes('yuki') && (await page.textContent('#introName')).length > 0, JSON.stringify(intro));
-    const chase = await page.evaluate(() => { window.__skyDebug.clearBombs(); const d = window.__skyDebug, m = d.bots().find(b => b.C.key === 'matteo') || d.bots()[0], me = d.body.position;
+    const chase = await page.evaluate(() => { const D = window.__skyDebug; D.clearBombs(); D.respawnNow(); { const g = D.probe({ x: -55, y: 400, z: 45 })[0]; D.body.position.set(-55, g + .7, 45); } D.body.velocity.set(0, 0, 0); D.view(Math.PI / 2, .3); D.tick(30); /* a fixed, flat spot; the bot starts 20 m east */ const d = window.__skyDebug, m = d.bots().find(b => b.C.key === 'matteo') || d.bots()[0], me = d.body.position;
       m.body.position.set(me.x + 20, me.y + 1, me.z); m.body.velocity.set(0, 0, 0); m.introT = 0; m.eng = null; m.bait = null; m.avoid && m.avoid.clear(); m.knockUntil = -9; m.ragdollUntil = -9; m.daze = 0; m.item = null; m.grudge = null; m.hook = null; const batCd = d.batPickups.map(g => g.cd); d.batPickups.forEach(g => { g.cd = 99; }); d.tick(10);
       const d0 = Math.hypot(m.body.position.x - me.x, m.body.position.z - me.z); d.tick(180);   // 3 s: room for a random hop or dodge (bats out of play, so it can't detour for one)
       d.batPickups.forEach((g, i) => { g.cd = batCd[i]; });
-      return { d0, d1: Math.hypot(m.body.position.x - me.x, m.body.position.z - me.z) }; });
-    c.check('aggressive bot chases you', chase.d1 < chase.d0 - 5, `${chase.d0.toFixed(1)} m -> ${chase.d1.toFixed(1)} m`);
+      return { d0, d1: Math.hypot(m.body.position.x - me.x, m.body.position.z - me.z), me: [me.x, me.y, me.z].map(n => +n.toFixed(1)), bot: m.body.position.toArray().map(n => +n.toFixed(1)), rag: m.ragdollUntil > d.simTime(), hook: !!m.hook, st: m.standing }; });
+    c.check('aggressive bot chases you', chase.d1 < chase.d0 - 5, `${chase.d0.toFixed(1)} m -> ${chase.d1.toFixed(1)} m ` + JSON.stringify(chase));
     const hitB = await page.evaluate(() => { const d = window.__skyDebug, m = d.bots()[0]; m.body.velocity.set(0, 0, 0); d.hitBot('bot:' + m.id, [1, 0], true, 'me', 'Tester'); return m.body.velocity.x; });
     c.check('hitting a bot knocks it back', hitB > 15, `vx ${hitB.toFixed(1)}`);
     const dodges = await page.evaluate(() => { const d = window.__skyDebug, k = d.CHARACTERS.find(c => c.key === 'kofi'); return k.dodge; });
@@ -463,7 +484,7 @@ const { openGame, checker } = require('./harness');
     await friendAt({ bm: 0 });
 
     // A friend's streak is called on my screen, and their nuke falls on me: I'm out and the KO is theirs
-    await friendAt({ bm: 0, ks: [0, 0], nk: { n: 0 } }); await page.waitForFunction(() => window.__skyDebug.avatars.size > 0, null, { timeout: 20000 }).catch(() => {}); await page.waitForTimeout(500);
+    await friendAt({ bm: 0, ks: [0, 0], nk: { n: 0 } }); await page.waitForFunction(() => { const a = window.__skyDebug.avatars.get('fr1end00peer0000'), ps = a && a.pres; return ps && ps.nk && ps.nk.n === 0 && Array.isArray(ps.ks); }, null, { timeout: 20000 }).catch(() => {});   // the game has taken these as the baseline
     await friendAt({ bm: 0, ks: [3, 0], nk: { n: 1, by: 'fr1end00peer0000', name: 'Friend' } });
     const fNuke = await page.waitForFunction(() => window.__skyDebug.streak().phase != null, null, { timeout: 20000 }).then(() => true, () => false);
     const fStk = await page.waitForFunction(() => window.__skyDebug.streak().log.includes('Friend: ON A ROLL'), null, { timeout: 20000 }).then(() => true, () => false);

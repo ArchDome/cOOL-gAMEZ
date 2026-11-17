@@ -4,6 +4,18 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-17: Human missile power-up
+
+![Human missile over Neon Harbour](img/human-missile.png)
+
+- **New item, the human missile** (from ? boxes, more often when you're behind in a race). For 9 s you fly where you look at a 30 m/s cruise. **W** speeds you up to 46 m/s and **S** slows you to 12 (stick forward and back on touch). **A/D** strafe. The engine holds up most of your weight, so you fly level, and it skims you over the ground instead of ploughing in. Pressing **G** again cuts the engine. Afterwards the speed cap eases back down instead of snapping, so you keep the momentum.
+- **Why it feels different:** off a rope, your sideways speed bleeds into the heading, so you carve turns like a missile instead of drifting. On a rope, the engine drives the swing: it pushes along your arc, tilted toward where you look, so you whip around the anchor at full speed instead of dangling. Let go at the right moment to sling yourself out. That's the skill part (principle 2b: easy to fly, deep to master).
+- **Ram:** hitting someone above 20 m/s slams them like a dive bomb ("ROCKET RAM!"). A hit that ragdolls you makes the engine sputter until you recover.
+- **Looks and sound:** a superman pose along your flight line, a flickering flame from your feet, a low engine drone that rises with speed, and the speed-FOV kick. Friends see the pose and flame (presence `rk`). Bots don't use it yet.
+- Numbers in `TUNE.rocket`. Tests: cruise ~30 m/s and level, W reaches 46, S drops to 12, a 90° look turns the heading, a rope swing stays above 15 m/s on the rope, the flag is shared, and it runs out. Fixed three flaky tests along the way: the bot-chase test now starts from a fixed flat spot, the rocket test stops you before moving on, the friend-nuke test waits until its baseline has been seen, and the bot-daze test clears any shield the bot picked up.
+
+---
+
 ## 2026-11-17: Left click throws your first rope
 
 - Owner's request: when no rope is out, **left click** throws the left grapple (same as Q), and holding it reels you in. With a rope already out, left click only reels, as before. Nothing else changed: Q/E throw, left/right click reel, Z/C pull, Shift/Left Alt let go, Space drops both.
