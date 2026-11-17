@@ -147,6 +147,9 @@ This file is the work queue for Claude sessions, including unattended and schedu
 ### Owner's batch 17, 2026-11-17: human missile power-up
 - [x] A power-up that turns you into a missile: fast, propelled flight; speed up or slow down, steer your course, and still swing on your hooks, but it should feel different because you're being propelled.
 
+### Owner's batch 18, 2026-11-17: fair start
+- [x] Everyone (you and the bots) is frozen during the race countdown.
+
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.

@@ -4,6 +4,14 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-17: Fair start: everyone frozen during the countdown
+
+- Owner's report: bots could move during the 3-2-1 countdown. Now bots stand still until GO, just like you: no running, hooks, items or attacks. Gravity still works, so nobody hangs in mid-air.
+- Bots also move to the start when a race begins. In a race they line up beside the spawn (alternating left and right of you, about 1.8 m apart). In a deathmatch they drop onto random dry land, like you do. Friends were already frozen by their own game.
+- Test: during the countdown a shoved bot and a player holding W both stay put, and the bots start on land. Bot bench unchanged (134).
+
+---
+
 ## 2026-11-17: Human missile power-up
 
 ![Human missile over Neon Harbour](img/human-missile.png)

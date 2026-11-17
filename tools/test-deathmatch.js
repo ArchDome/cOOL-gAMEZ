@@ -15,6 +15,16 @@ const { openGame, checker } = require('./harness');
     // start a live round with two bots
     await page.selectOption('#optBots', '2'); await page.click('#go');
     await page.evaluate(() => window.__skyDebug.startRound());
+    // the countdown freezes everyone: bots stand still on dry land, and so do you
+    await page.waitForFunction(() => window.__skyDebug.bots().length === 2 && window.__skyDebug.race().raceCount > 0, null, { timeout: 60000 }).catch(() => {});
+    const frz = await page.evaluate(() => { const d = window.__skyDebug, bs = d.bots(); d.setRaceCount(3);
+      for (const b of bs){ b.introT = 0; b.body.velocity.set(6, 0, 3); }   // even shoved, they stop
+      const p0 = bs.map(b => [b.body.position.x, b.body.position.z]), me0 = [d.body.position.x, d.body.position.z];
+      d.keys.add('w'); d.tick(90); d.keys.delete('w');
+      const moved = Math.max(...bs.map((b, i) => Math.hypot(b.body.position.x - p0[i][0], b.body.position.z - p0[i][1])));
+      const onLand = bs.every(b => d.probe(b.body.position)[0] > 1);
+      d.setRaceCount(.05); return { moved: +moved.toFixed(2), me: +Math.hypot(d.body.position.x - me0[0], d.body.position.z - me0[1]).toFixed(2), onLand }; });
+    c.check('countdown: everyone is frozen (bots and you), bots start on dry land', frz.moved < .5 && frz.me < .3 && frz.onLand, JSON.stringify(frz));
     await page.waitForFunction(() => { const d = window.__skyDebug; return d.race().raceLive && d.race().raceCount <= 0 && d.bots().length === 2; }, null, { timeout: 90000 });
     await page.evaluate(() => { const d = window.__skyDebug; d.headlessStart(2); for (const b of d.bots()) b.introT = 0; });
 
