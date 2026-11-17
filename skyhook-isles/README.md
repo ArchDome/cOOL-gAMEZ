@@ -12,8 +12,10 @@ Built with [Three.js](https://threejs.org) 0.160 for rendering and [cannon-es](h
 | --- | --- | --- |
 | WASD, Shift | Left thumb | Move, sprint |
 | Mouse | Right thumb | Look |
-| Hold mouse button or E | Hold Hook | Grapple where the crosshair points |
-| Shift while hooked | Hold Reel | Reel in. Hook a crate to yank it toward you |
+| Q · E | Hook (tap the screen) | Throw the left · right grapple at its L · R marker (or exactly at the crosshair) |
+| Hold left click · right click | Hold Reel | Reel yourself in on the left · right grapple |
+| Shift · Left Alt | Swipe up | Let go of the left · right grapple |
+| Hold Z · C | Hold Pull | Pull what the left · right grapple caught (crate, bomb, friend) toward you |
 | Space | Jump | Jump and double jump. While hooked, let go with a boost |
 | Hold Space while falling | Hold Jump while falling | Glide (after grabbing a glider pickup) |
 | G | Item | Use your item (from rainbow ? boxes): rocket boost, bomb, homing comet, shield, spark magnet |

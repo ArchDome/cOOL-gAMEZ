@@ -4,6 +4,14 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-17: PC keys rebind: Q/E throw, mouse buttons reel, Z/C pull
+
+- Owner's request: **Q** throws the left grapple and **E** the right one (at the L and R markers, or exactly at the crosshair). Holding **left click** reels you in on the left rope and holding **right click** on the right one. **Z** pulls the left rope's catch to you and **C** the right's. **Shift** and **Left Alt** still let go of the left and right rope, and **Space** lets go of both.
+- Clicking no longer throws a rope, so a click with no rope out does nothing (the first click still captures the mouse). Holding both buttons still reels both ropes straight into a tightrope.
+- Hints, the Controls panel and the README show the new keys. Tests: E throws, a chorded right click reels and releasing stops reeling, Q throws at the L marker, Z and C pull separately. The bot-chase test now runs 3 s, because a random dodge made it flaky at 2 s.
+
+---
+
 ## 2026-11-16: Deathmatch upgrades: Rock Garden, streaks, the nuke, stacking daze, bots on tightropes
 
 ![Rock Garden](img/rock-garden.png)

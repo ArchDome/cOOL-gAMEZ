@@ -135,6 +135,11 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] Track kill streaks and losing streaks, with match-wide announcements.
 - [x] Ragdoll time grows with repeated hits, so a beating gets harder to recover from and more likely to end in the water.
 
+### Owner's batch 15, 2026-11-17: PC keys rebind
+- [x] Q throws the left grapple, E throws the right one.
+- [x] Left click (held) reels in on the left grapple, right click on the right one.
+- [x] Z pulls the left grapple's catch to you, C the right's. (Shift, Left Alt and Space still let go.)
+
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.
