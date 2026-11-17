@@ -4,6 +4,14 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-17: Left click throws your first rope
+
+- Owner's request: when no rope is out, **left click** throws the left grapple (same as Q), and holding it reels you in. With a rope already out, left click only reels, as before. Nothing else changed: Q/E throw, left/right click reel, Z/C pull, Shift/Left Alt let go, Space drops both.
+- The owner's new tenet went into the design principles as 2b, "Easy to pick up, deep to master": the simple action works on the most obvious input, and the full per-rope layout stays for precise players.
+- Tests: left click throws with no rope out and only reels with one out. The bot-chase test turned out to be flaky because a bat pickup nearby made the bot detour; bats are out of play during that test now.
+
+---
+
 ## 2026-11-17: PC keys rebind: Q/E throw, mouse buttons reel, Z/C pull
 
 - Owner's request: **Q** throws the left grapple and **E** the right one (at the L and R markers, or exactly at the crosshair). Holding **left click** reels you in on the left rope and holding **right click** on the right one. **Z** pulls the left rope's catch to you and **C** the right's. **Shift** and **Left Alt** still let go of the left and right rope, and **Space** lets go of both.

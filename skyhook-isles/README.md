@@ -12,6 +12,7 @@ Built with [Three.js](https://threejs.org) 0.160 for rendering and [cannon-es](h
 | --- | --- | --- |
 | WASD, Shift | Left thumb | Move, sprint |
 | Mouse | Right thumb | Look |
+| Left click (no rope out) | | Throw the left grapple, the quick way. Hold to reel |
 | Q · E | Hook (tap the screen) | Throw the left · right grapple at its L · R marker (or exactly at the crosshair) |
 | Hold left click · right click | Hold Reel | Reel yourself in on the left · right grapple |
 | Shift · Left Alt | Swipe up | Let go of the left · right grapple |

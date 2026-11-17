@@ -140,6 +140,10 @@ This file is the work queue for Claude sessions, including unattended and schedu
 - [x] Left click (held) reels in on the left grapple, right click on the right one.
 - [x] Z pulls the left grapple's catch to you, C the right's. (Shift, Left Alt and Space still let go.)
 
+### Owner's batch 16, 2026-11-17: easy first rope
+- [x] With no ropes out, left click throws the left grapple (Q still works). Everything else stays as in batch 15.
+- [x] New tenet (principles): controls easy for simple grapplers, with lots of control and accuracy left for advanced players.
+
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.

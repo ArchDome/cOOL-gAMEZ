@@ -12,6 +12,10 @@ Play the game in your head. Whenever a player thinks "can I do this?", the answe
 - Every movement tool should have a basic use plus advanced, discoverable tricks: bounce-cancels, momentum carry, trickshots.
 - Reward style with mechanics like the 360-charged sniper: the requirement *is* the trick.
 
+## 2b. Easy to pick up, deep to master
+
+In the owner's words: "I want to make the controls easily accessible for people who will do simple grapples around, but also leave lots of control and accuracy for advanced players. It means a lot when movement has a high skill ceiling and level of expression." The basic action should work on the most obvious input (left click throws your first rope), while the full layout (separate throw, reel, pull and release for each rope) stays there for players who want precision. Never take advanced control away to make the simple path easier.
+
 ## 3. Cater to every player type, and reward what's fun for each
 
 - **Racers** (competitive): sparks are the main score. Being first should pay off (the final spark spawns closer to the leader).

@@ -272,6 +272,17 @@ const { openGame, checker } = require('./harness');
     }
     c.check('PC: L/R markers track different things to grab; Q throws the left grapple at the L marker; Shift lets go', (mk2.gL || mk2.gR) && !(mk2.auto.L && mk2.auto.R && mk2.auto.L.join() === mk2.auto.R.join()) && (lf.skip || (lf.lfired && (lf.afterShift === 'retract' || lf.afterShift === null))), JSON.stringify({ mk2, lf }));
 
+    // PC: with no rope out, left click throws the left grapple; with a rope out it only reels
+    let lc = { skip: !mk2.auto.L };
+    if (mk2.auto.L) {
+      await page.evaluate(() => { const d = window.__skyDebug; d.setHook(null); d.setHook2(null); d.leftReel(false); d.leftClick(); });
+      const thrown = await page.waitForFunction(() => { const h = window.__skyDebug.hooks(); return h[0] === 'fly' || h[0] === 'attached'; }, null, { timeout: 20000 }).then(() => true, () => false);
+      const again = await page.evaluate(() => { const d = window.__skyDebug, p = d.body.position, A = d.camera.position.clone().set(p.x, p.y + 12, p.z + 6); d.setHook(null);
+        d.setHook2({ phase: 'attached', tip: A.clone(), body: null, point: A.clone(), len: 13, miss: false, obj: null }); d.leftReel(false); d.leftClick(); const r = { left: d.hooks()[0], reel: d.reels()[0] }; d.leftReel(false); d.setHook2(null); return r; });
+      lc = { thrown, again };
+    }
+    c.check('PC: left click throws the left grapple when no rope is out, and only reels when one is', lc.skip || (lc.thrown && lc.again.left == null && lc.again.reel === true), JSON.stringify(lc));
+
     // PC: Z pulls what the left rope caught, C what the right rope caught (each tested on its own); Space lets go of both
     const setupPull = (side) => page.evaluate((side) => { const d = window.__skyDebug, b = d.body; d.clearBombs(); d.calm(); d.keys.clear(); d.setHook(null); d.setHook2(null);
       const x = -55, z = 45, g = d.probe({ x, y: 400, z })[0]; b.position.set(x, g + .7, z); b.velocity.set(0, 0, 0); d.tick(10);
@@ -337,8 +348,9 @@ const { openGame, checker } = require('./harness');
     const intro = await page.evaluate(() => window.__skyDebug.intro());
     c.check('entrance cards play for each character', intro.seen.includes('matteo') && intro.seen.includes('yuki') && (await page.textContent('#introName')).length > 0, JSON.stringify(intro));
     const chase = await page.evaluate(() => { window.__skyDebug.clearBombs(); const d = window.__skyDebug, m = d.bots().find(b => b.C.key === 'matteo') || d.bots()[0], me = d.body.position;
-      m.body.position.set(me.x + 20, me.y + 1, me.z); m.body.velocity.set(0, 0, 0); m.introT = 0; m.eng = null; m.bait = null; m.avoid && m.avoid.clear(); m.knockUntil = -9; m.ragdollUntil = -9; m.daze = 0; m.item = null; m.grudge = null; m.hook = null; d.tick(10);
-      const d0 = Math.hypot(m.body.position.x - me.x, m.body.position.z - me.z); d.tick(180);   // 3 s: room for a random hop or dodge
+      m.body.position.set(me.x + 20, me.y + 1, me.z); m.body.velocity.set(0, 0, 0); m.introT = 0; m.eng = null; m.bait = null; m.avoid && m.avoid.clear(); m.knockUntil = -9; m.ragdollUntil = -9; m.daze = 0; m.item = null; m.grudge = null; m.hook = null; const batCd = d.batPickups.map(g => g.cd); d.batPickups.forEach(g => { g.cd = 99; }); d.tick(10);
+      const d0 = Math.hypot(m.body.position.x - me.x, m.body.position.z - me.z); d.tick(180);   // 3 s: room for a random hop or dodge (bats out of play, so it can't detour for one)
+      d.batPickups.forEach((g, i) => { g.cd = batCd[i]; });
       return { d0, d1: Math.hypot(m.body.position.x - me.x, m.body.position.z - me.z) }; });
     c.check('aggressive bot chases you', chase.d1 < chase.d0 - 5, `${chase.d0.toFixed(1)} m -> ${chase.d1.toFixed(1)} m`);
     const hitB = await page.evaluate(() => { const d = window.__skyDebug, m = d.bots()[0]; m.body.velocity.set(0, 0, 0); d.hitBot('bot:' + m.id, [1, 0], true, 'me', 'Tester'); return m.body.velocity.x; });
