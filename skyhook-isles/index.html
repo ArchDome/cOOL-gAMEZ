@@ -185,6 +185,10 @@ body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-
 .daze{position:absolute;left:0;right:0;margin:0 auto;width:max-content;top:-26px;white-space:nowrap;font:900 11px var(--body);letter-spacing:.06em;padding:3px 7px;border-radius:999px;background:rgba(255,210,90,.9);color:#2a1a00}
 .daze.rag{background:#ff5a3a;color:#fff;animation:dazeThrob .5s ease-in-out infinite alternate}
 @keyframes dazeThrob{to{transform:scale(1.08)}}
+.thrust{position:fixed;left:50%;top:calc(50% + 26px);width:64px;height:5px;margin-left:-32px;border-radius:3px;background:rgba(0,0,0,.35);overflow:hidden;pointer-events:none;z-index:2}
+.thrust i{display:block;height:100%;width:100%;background:#7ce0ff;border-radius:3px}
+.thrust.lock i{background:#ff6a4a}
+.thrust.jet i{background:linear-gradient(90deg,#ffd25a,#ff9a30)}
 .gmark{position:fixed;left:0;top:0;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;border:2.5px solid;pointer-events:none;z-index:2;display:grid;place-items:center;transition:width .1s,height .1s}
 .gmark b{position:absolute;top:-17px;font:900 12px var(--body);text-shadow:0 1px 4px rgba(0,0,0,.7)}
 .gmark.gl{border-color:#49e8ff;box-shadow:0 0 10px rgba(73,232,255,.6)}.gmark.gl b{color:#49e8ff;left:-10px}
@@ -281,6 +285,7 @@ body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-
 <div class="rank" id="rank" hidden><b id="rankPos">1st</b><span id="rankOf">of 3</span></div>
 <div class="liveboard" id="liveBoard" hidden><div class="sp-head"><span id="lbTitle">Standings</span><span class="kb">hold Tab</span></div><div class="standings lb" id="lbTable"></div></div>
 <div class="toast" id="toast" hidden></div>
+<div class="thrust" id="thrust" hidden><i></i></div>
 <div class="streak" id="streak" hidden></div>
 <div class="nukeflash" id="nukeFlash" hidden></div>
 <div class="death" id="death" hidden><b id="deathTitle">SPLASH!</b><span id="deathSub"></span><button type="button" id="deathGo"><span id="deathCount"></span></button></div>
@@ -306,6 +311,7 @@ body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-
     <button type="button" id="tPull">Pull</button>
     <button type="button" id="tHook">Hook</button>
     <button type="button" id="tJump">Jump</button>
+    <button type="button" id="tThrust">Thrust</button>
     <button type="button" id="tHit">Hit</button>
     <button type="button" id="tItem">Item</button>
   </div>
@@ -375,6 +381,7 @@ body.in-touch.hud-compact .rank{left:calc(50% + 46px);bottom:calc(env(safe-area-
         <dt>Q · E</dt><dd>Throw the left · right grapple. Two ropes at once: hang between anchors.</dd>
         <dt>Left click · Right click</dt><dd>Hold to reel yourself in on the left · right grapple.</dd>
         <dt>Shift · Left Alt</dt><dd>Let go of the left · right grapple.</dd>
+        <dt>Hold Shift (in the air)</dt><dd>Thruster: push where you look for about 2 s, then it recharges (the bar under the crosshair). Run it dry and it locks until full. On the left rope, Shift lets go and thrusts you off it. The jetpack item makes it unlimited for 30 s.</dd>
         <dt>Z · C</dt><dd>Pull what the left · right grapple caught (a crate, bomb, the idol, a friend or bot on the left one) toward you. Then F to throw or bat it.</dd>
         <dt>Two ropes, reeled straight</dt><dd>Hold both mouse buttons to reel in until you hang almost straight: they merge into a tightrope you can walk on.</dd>
         <dt>Tab</dt><dd>Hold to see the standings.</dd>

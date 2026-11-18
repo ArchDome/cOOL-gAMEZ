@@ -4,6 +4,22 @@ Everything built in cOOL-gAMEZ, newest first. Screenshots live in `docs/img/`. R
 
 ---
 
+## 2026-11-18: Shift thruster and the jetpack
+
+![Thruster flame and fuel bar](img/thruster.png)
+
+- **Hold Shift in the air** (the new Thrust button on touch) to push where you look with a little engine at your feet. You get 2 s of fuel. Let go and it starts refilling after 0.6 s, taking 4 s from empty. Run it completely dry and it locks (the bar turns red) until it's full again, so you can't chain it. The push tops out at 30 m/s and gives a little lift, so a flat burst carries you instead of dropping you.
+- Shift already did other jobs, so here's how they fit together:
+  - On the ground it still sprints.
+  - While gliding (holding Space) it still dives.
+  - A tap still lets go of the left rope. Holding Shift on the left rope now lets go *and* thrusts you off it, which is a new move.
+  - On the right rope alone, Shift thrusts while you swing.
+- **Jetpack item** (from ? boxes, more often when you're behind): unlimited thrust for 30 s, with a gold bar.
+- The bar under the crosshair shows only while fuel is below full. Friends see your flame (presence `rk`: 2 = thruster, 1 = human missile). Numbers in `TUNE.thrust`.
+- Tests: Shift in the air speeds you up, half the fuel is gone after 1 s, it locks when run dry and stays locked, it refills fully in about 4 s, and the jetpack keeps thrusting after 4 s with full fuel.
+
+---
+
 ## 2026-11-17: Fair start: everyone frozen during the countdown
 
 - Owner's report: bots could move during the 3-2-1 countdown. Now bots stand still until GO, just like you: no running, hooks, items or attacks. Gravity still works, so nobody hangs in mid-air.

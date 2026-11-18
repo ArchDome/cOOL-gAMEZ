@@ -25,6 +25,9 @@ export const TUNE = {
   // human missile item: you fly where you look, propelled. W/S throttle between min and max, A/D strafe; hooks still work
   // (the engine keeps pushing while you swing). lift = share of gravity the engine holds up; turn = how fast sideways
   // speed bleeds into the heading (off a rope); pitchBias = how far below the camera's look the flight line sits.
+  // Shift thruster: hold in the air to push where you look. `time` s of fuel; when you let go it refills after `delay` s,
+  // taking `recharge` s from empty. Run it dry and it locks until it's full again. The jetpack item makes it unlimited for jetTime s.
+  thrust:  { time: 2, delay: .6, recharge: 4, accel: 24, max: 30, lift: .45, pitchBias: .28, jetTime: 30 },
   rocket:  { time: 9, cruise: 30, max: 46, min: 12, accel: 60, lift: .85, turn: 2.4, strafe: 12, pitchBias: .28, ram: 20, afterDecay: 14 },
   mega:    { every: 150, first: 60 },                    // cruise missile drops
   race:    { roundTime: 240, points: [10, 8, 6, 5, 4, 3, 2, 1], finalBonus: 5 },

@@ -304,6 +304,19 @@ const { openGame, checker } = require('./harness');
     c.check('PC: Z pulls the left catch, C the right catch, Space lets go of both', (qP.skip || qP.d1 < qP.d0 - 4) && (eP.skip || eP.d1 < eP.d0 - 4) && afterSpace.every(h => h !== 'attached'), JSON.stringify({ qP, eP, afterSpace }));
     await page.evaluate(() => { const d = window.__skyDebug; d.setHook(null); d.setHook2(null); d.respawnNow(); });
 
+    // Shift thruster: about 2 s of push in the air, locks when run dry, refills on a cooldown; the jetpack makes it unlimited
+    const th = await page.evaluate(() => { const d = window.__skyDebug, b = d.body; d.calm(); d.keys.clear(); d.setHook(null); d.setHook2(null); d.endRocket();
+      b.position.set(0, 140, 0); b.velocity.set(0, 0, 0); d.view(0, .28); d.respawnNow(); b.position.set(0, 140, 0); b.velocity.set(0, 0, 0); d.tick(2);
+      const r = {}; const hs = () => Math.hypot(b.velocity.x, b.velocity.z);
+      r.full = d.thrust().fuel; d.keys.add('shift'); d.tick(60); r.on = d.thrust().on; r.speed1 = +hs().toFixed(1); r.fuel1 = +d.thrust().fuel.toFixed(2);
+      d.tick(70); r.lock = d.thrust().lock; r.onAfter = d.thrust().on; d.keys.delete('shift');
+      b.position.set(0, 140, 0); b.velocity.set(0, 0, 0); d.tick(60 * 2); r.locked2 = d.thrust().lock;
+      b.position.set(0, 140, 0); b.velocity.set(0, 0, 0); d.tick(60 * 3.2); r.refilled = +d.thrust().fuel.toFixed(2); r.lock3 = d.thrust().lock;
+      d.giveItem('jetpack'); d.useItem(); d.keys.add('shift'); b.position.set(0, 140, 0); b.velocity.set(0, 0, 0); for (let k = 0; k < 8; k++) { d.tick(30); b.position.set(0, 140, 0); }   /* 4 s of thrust, kept up in open air so we never land on the hill */ r.jet = d.thrust(); r.jetSpeed = +hs().toFixed(1); d.keys.delete('shift');
+      d.respawnNow(); b.velocity.set(0, 0, 0); d.tick(10); return r; });
+    c.check('thruster: Shift in the air pushes you forward, runs dry in ~2 s and locks, refills on a cooldown', th.full === 2 && th.on && th.speed1 > 12 && th.fuel1 < 1.1 && th.fuel1 > .8 && th.lock && !th.onAfter && th.locked2 && th.refilled === 2 && !th.lock3, JSON.stringify(th));
+    c.check('jetpack item: unlimited thrust (still going after 4 s)', th.jet.on && th.jet.fuel === 2 && th.jet.jet > 25 && th.jetSpeed > 20, JSON.stringify(th));
+
     // Human missile: fly where you look at cruise speed; W/S throttle; carve turns; swing on a rope with the engine pushing; it runs out
     const rk = await page.evaluate(() => { const d = window.__skyDebug, b = d.body, T = d.tune ? d.tune() : null; d.calm(); d.keys.clear(); d.setHook(null); d.setHook2(null);
       b.position.set(0, 140, 0); b.velocity.set(0, 0, 0); d.view(0, .28); d.giveItem('rocket'); d.useItem();

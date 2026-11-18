@@ -16,10 +16,11 @@ Built with [Three.js](https://threejs.org) 0.160 for rendering and [cannon-es](h
 | Q · E | Hook (tap the screen) | Throw the left · right grapple at its L · R marker (or exactly at the crosshair) |
 | Hold left click · right click | Hold Reel | Reel yourself in on the left · right grapple |
 | Shift · Left Alt | Swipe up | Let go of the left · right grapple |
+| Hold Shift in the air | Hold Thrust | Thruster: push where you look for about 2 s, then it recharges (bar under the crosshair). The jetpack item makes it unlimited for 30 s |
 | Hold Z · C | Hold Pull | Pull what the left · right grapple caught (crate, bomb, friend) toward you |
 | Space | Jump | Jump and double jump. While hooked, let go with a boost |
 | Hold Space while falling | Hold Jump while falling | Glide (after grabbing a glider pickup) |
-| G | Item | Use your item (from rainbow ? boxes): rocket boost, bomb, homing comet, shield, spark magnet, human missile (9 s of propelled flight: steer with the camera, W/S throttle, hooks still work; G again cuts the engine) |
+| G | Item | Use your item (from rainbow ? boxes): rocket boost, bomb, homing comet, shield, spark magnet, human missile (9 s of propelled flight: steer with the camera, W/S throttle, hooks still work; G again cuts the engine), jetpack (unlimited thrust for 30 s) |
 | F (or middle mouse) | Hit | Shove whoever is in front of you; with a bat, a home-run swing |
 | Wheel, R | | Zoom the camera, respawn |
 | T | Restart run | Restart the speedrun (resets sparks, crates and the boulder) |

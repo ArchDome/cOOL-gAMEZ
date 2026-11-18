@@ -150,6 +150,10 @@ This file is the work queue for Claude sessions, including unattended and schedu
 ### Owner's batch 18, 2026-11-17: fair start
 - [x] Everyone (you and the bots) is frozen during the race countdown.
 
+### Owner's batch 19, 2026-11-17: Shift thruster
+- [x] Hold Shift to thrust forward with a little engine, for about 2 s, then it recharges on a cooldown so it isn't overpowered.
+- [x] A power-up that gives unlimited thrust for 30 s.
+
 ### Later
 - [x] Character select (the player picks a cast member; bots fill the rest) plus a Doom-style reacting face in the HUD.
 - [x] Mario Kart items: a leader hunter (blue-shell equivalent), bombs, and destructible buildings.
